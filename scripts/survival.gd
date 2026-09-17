@@ -16,6 +16,7 @@ var hud: Label
 var move_touch := Vector2.ZERO
 var move_touch_id := -1
 var move_origin := Vector2.ZERO
+var build_origin := Vector3.ZERO
 
 func _ready():
 	_build_environment()
@@ -155,8 +156,11 @@ func _build_fire():
 
 func _build_house():
 	if house_parts>=6 or wood<20:return
-	wood-=20; house_parts+=1
-	var base=player.global_position+Vector3(5,0,0); var idx=house_parts-1
+	wood-=20
+	if house_parts == 0:
+		build_origin = player.global_position + Vector3(5,0,0)
+	house_parts+=1
+	var base=build_origin; var idx=house_parts-1
 	var parts=[Vector3(0,.2,0),Vector3(0,1.7,-2.5),Vector3(0,1.7,2.5),Vector3(-2.5,1.7,0),Vector3(2.5,1.7,0),Vector3(0,3.5,0)]
 	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(.3,3,5),Vector3(.3,3,5),Vector3(5,.3,5)]
 	_box(base+parts[idx],sizes[idx],Color(0.42,0.23,0.08))
