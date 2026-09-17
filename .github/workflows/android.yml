@@ -37,16 +37,31 @@ jobs:
           wget -q https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_export_templates.tpz -O /tmp/templates.tpz
           unzip -q -j /tmp/templates.tpz -d "$HOME/.local/share/godot/export_templates/4.5.1.stable"
 
-      - name: Configure Godot Android editor settings
+      - name: Initialize Godot editor settings
         run: |
-          mkdir -p "$HOME/.config/godot"
-          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
-          [gd_resource format=3]
+          GODOT=/tmp/godot/Godot_v4.5.1-stable_linux.x86_64
+          "$GODOT" --headless --editor --path . --quit
 
-          [resource]
-          export/android/android_sdk_path = "/usr/local/lib/android/sdk"
-          export/android/java_sdk_path = "$JAVA_HOME"
-          EOF
+      - name: Configure Godot Android paths
+        run: |
+          SETTINGS="$HOME/.config/godot/editor_settings-4.5.tres"
+          test -f "$SETTINGS"
+          python3 - <<'PY'
+          import os, re
+          p=os.path.expanduser('~/.config/godot/editor_settings-4.5.tres')
+          s=open(p, encoding='utf-8').read()
+          values={
+            'export/android/android_sdk_path':'/usr/local/lib/android/sdk',
+            'export/android/java_sdk_path':os.environ['JAVA_HOME'],
+          }
+          for k,v in values.items():
+              line=f'{k} = "{v}"'
+              pat=re.compile(r'^'+re.escape(k)+r'\s*=.*$', re.M)
+              if pat.search(s): s=pat.sub(line,s)
+              else: s += '\n'+line+'\n'
+          open(p,'w',encoding='utf-8').write(s)
+          PY
+          grep -E 'export/android/(android_sdk_path|java_sdk_path)' "$SETTINGS"
 
       - name: Import and inspect project
         run: |
