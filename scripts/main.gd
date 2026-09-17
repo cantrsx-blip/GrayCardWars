@@ -2,13 +2,22 @@ extends Node3D
 
 const MAP_HALF := 200.0
 const TRADE_RADIUS := 16.0
+const PLAYER_HEIGHT := 1.0
+const BOSS_DRY := 42.0
+const FORT_HALF := 20.0
+const GATE_W := 5.5
+const WALL_H := 5.0
+const WALL_T := 1.4
 
 var gray_cards := 1
 var wood := 0
 var stone := 0
+var grass_n := 0
+var wheat_n := 0
+var mushroom_n := 0
 var health := 100
-var hunger := 100
-var thirst := 100
+var hunger := 100.0
+var thirst := 100.0
 var player: CharacterBody3D
 var camera: Camera3D
 var hud: Label
@@ -16,6 +25,8 @@ var move_touch := Vector2.ZERO
 var touch_start := Vector2.ZERO
 var touch_id := -1
 var in_safe_zone := true
+var in_pit := false
+var in_dry := false
 
 var bosses := [
 	{"id": "eiffel", "name": "Eyfel Kulesi", "pos": Vector3(-130, 0, 130), "color": Color(0.45, 0.32, 0.18)},
@@ -30,12 +41,63 @@ var bosses := [
 	{"id": "space_needle", "name": "Space Needle", "pos": Vector3(160, 0, 80), "color": Color(0.70, 0.72, 0.74)}
 ]
 
+var pits := [
+	Vector3(48, 0, -36),
+	Vector3(-62, 0, 44),
+	Vector3(88, 0, 72),
+	Vector3(-90, 0, -70),
+	Vector3(20, 0, 95),
+	Vector3(-30, 0, -110)
+]
+
 func _ready():
 	_build_world()
+	_build_hills_and_pits()
 	_build_trade_zone()
 	_build_bosses()
+	_build_gatherables()
 	_build_player()
 	_build_hud()
+
+func height_at(x: float, z: float) -> float:
+	if Vector2(x, z).length() < TRADE_RADIUS + 5.0:
+		return 0.0
+	if _near_boss(x, z):
+		return 0.0
+	var h := 0.0
+	h += sin(x * 0.032) * cos(z * 0.027) * 5.0
+	h += sin(x * 0.081 + 1.3) * sin(z * 0.064) * 2.4
+	h += sin((x + z) * 0.021) * 1.6
+	for p in pits:
+		var d = Vector2(x - p.x, z - p.z).length()
+		if d < 22.0:
+			var t = 1.0 - (d / 22.0)
+			h -= t * t * 7.5
+	return clampf(h, -8.0, 10.0)
+
+func _near_boss(x: float, z: float) -> bool:
+	for b in bosses:
+		if Vector2(x - b.pos.x, z - b.pos.z).length() < BOSS_DRY:
+			return true
+	return false
+
+func _add_static_box(pos: Vector3, size: Vector3, col: Color) -> void:
+	var body = StaticBody3D.new()
+	body.position = pos
+	var mesh_i = MeshInstance3D.new()
+	var box = BoxMesh.new()
+	box.size = size
+	mesh_i.mesh = box
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = col
+	mesh_i.material_override = mat
+	body.add_child(mesh_i)
+	var colshape = CollisionShape3D.new()
+	var sh = BoxShape3D.new()
+	sh.size = size
+	colshape.shape = sh
+	body.add_child(colshape)
+	add_child(body)
 
 func _build_world():
 	var ground = MeshInstance3D.new()
@@ -43,34 +105,213 @@ func _build_world():
 	plane.size = Vector2(MAP_HALF * 2.0, MAP_HALF * 2.0)
 	ground.mesh = plane
 	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.42, 0.34, 0.22)
+	mat.albedo_color = Color(0.28, 0.42, 0.18)
 	ground.material_override = mat
 	add_child(ground)
-	for i in 40:
-		var rock = MeshInstance3D.new()
-		var mesh = BoxMesh.new()
-		mesh.size = Vector3(1.5, 1.5, 1.5)
-		rock.mesh = mesh
-		var p = _rand_outside_trade(70, MAP_HALF - 12)
-		rock.position = Vector3(p.x, 0.75, p.z)
-		add_child(rock)
-	for i in 48:
+	for i in 24:
+		var p = _rand_outside_trade(28, MAP_HALF - 12)
+		if _near_boss(p.x, p.z):
+			continue
+		_add_static_box(Vector3(p.x, height_at(p.x, p.z) + 0.75, p.z), Vector3(1.5, 1.5, 1.5), Color(0.45, 0.43, 0.40))
+		get_child(get_child_count() - 1).set_meta("loot", "stone")
+	for i in 28:
+		var p = _rand_outside_trade(28, MAP_HALF - 12)
+		if _near_boss(p.x, p.z):
+			continue
 		var tree = MeshInstance3D.new()
 		var mesh = CylinderMesh.new()
 		mesh.top_radius = 0.35
 		mesh.bottom_radius = 0.55
 		mesh.height = 4.0
 		tree.mesh = mesh
-		var p = _rand_outside_trade(70, MAP_HALF - 12)
-		tree.position = Vector3(p.x, 2, p.z)
+		tree.position = Vector3(p.x, height_at(p.x, p.z) + 2.0, p.z)
 		var m = StandardMaterial3D.new()
 		m.albedo_color = Color(0.28, 0.15, 0.06)
 		tree.material_override = m
+		tree.set_meta("loot", "wood")
 		add_child(tree)
+
+func _build_hills_and_pits():
+	for i in 16:
+		var p = _rand_outside_trade(32, MAP_HALF - 22)
+		if _near_boss(p.x, p.z):
+			continue
+		var h = maxf(height_at(p.x, p.z), 1.6)
+		if h < 1.6:
+			continue
+		var hill = MeshInstance3D.new()
+		var mesh = CylinderMesh.new()
+		mesh.top_radius = 2.0
+		mesh.bottom_radius = 7.0
+		mesh.height = h
+		hill.mesh = mesh
+		hill.position = Vector3(p.x, h * 0.5, p.z)
+		var mat = StandardMaterial3D.new()
+		mat.albedo_color = Color(0.32, 0.38, 0.16)
+		hill.material_override = mat
+		add_child(hill)
+	for p in pits:
+		if _near_boss(p.x, p.z):
+			continue
+		var hole = MeshInstance3D.new()
+		var mesh = CylinderMesh.new()
+		mesh.top_radius = 16.0
+		mesh.bottom_radius = 10.0
+		mesh.height = 0.25
+		hole.mesh = mesh
+		hole.position = Vector3(p.x, -0.05, p.z)
+		var mat = StandardMaterial3D.new()
+		mat.albedo_color = Color(0.16, 0.12, 0.08)
+		hole.material_override = mat
+		add_child(hole)
+
+func _build_fort(center: Vector3, accent: Color) -> void:
+	var y0 := 0.0
+	# kurak zemin + metal/tas taban (hasar yok)
+	var floor = MeshInstance3D.new()
+	var fmesh = BoxMesh.new()
+	fmesh.size = Vector3(FORT_HALF * 2.0 + 2.0, 0.25, FORT_HALF * 2.0 + 2.0)
+	floor.mesh = fmesh
+	floor.position = Vector3(center.x, y0 + 0.12, center.z)
+	var fm = StandardMaterial3D.new()
+	fm.albedo_color = Color(0.50, 0.38, 0.22)
+	floor.material_override = fm
+	add_child(floor)
+
+	var wood_c = Color(0.36, 0.22, 0.10)
+	var stone_c = Color(0.48, 0.46, 0.42)
+	var metal_c = Color(0.55, 0.56, 0.58)
+	var seg = FORT_HALF - GATE_W * 0.5
+	# Kuzey / guney duvar: iki parca + kapı boslugu
+	_add_static_box(Vector3(center.x - (seg + GATE_W) * 0.5, y0 + WALL_H * 0.5, center.z - FORT_HALF), Vector3(seg, WALL_H, WALL_T), stone_c)
+	_add_static_box(Vector3(center.x + (seg + GATE_W) * 0.5, y0 + WALL_H * 0.5, center.z - FORT_HALF), Vector3(seg, WALL_H, WALL_T), wood_c)
+	_add_static_box(Vector3(center.x - (seg + GATE_W) * 0.5, y0 + WALL_H * 0.5, center.z + FORT_HALF), Vector3(seg, WALL_H, WALL_T), wood_c)
+	_add_static_box(Vector3(center.x + (seg + GATE_W) * 0.5, y0 + WALL_H * 0.5, center.z + FORT_HALF), Vector3(seg, WALL_H, WALL_T), stone_c)
+	# Dogu / bati
+	_add_static_box(Vector3(center.x - FORT_HALF, y0 + WALL_H * 0.5, center.z - (seg + GATE_W) * 0.5), Vector3(WALL_T, WALL_H, seg), metal_c)
+	_add_static_box(Vector3(center.x - FORT_HALF, y0 + WALL_H * 0.5, center.z + (seg + GATE_W) * 0.5), Vector3(WALL_T, WALL_H, seg), stone_c)
+	_add_static_box(Vector3(center.x + FORT_HALF, y0 + WALL_H * 0.5, center.z - (seg + GATE_W) * 0.5), Vector3(WALL_T, WALL_H, seg), stone_c)
+	_add_static_box(Vector3(center.x + FORT_HALF, y0 + WALL_H * 0.5, center.z + (seg + GATE_W) * 0.5), Vector3(WALL_T, WALL_H, seg), metal_c)
+
+	# 4 kapi cercevesi (giris acik, cerceve hasarsiz)
+	var frames = [
+		Vector3(center.x, y0 + 3.2, center.z - FORT_HALF),
+		Vector3(center.x, y0 + 3.2, center.z + FORT_HALF),
+		Vector3(center.x - FORT_HALF, y0 + 3.2, center.z),
+		Vector3(center.x + FORT_HALF, y0 + 3.2, center.z)
+	]
+	for i in frames.size():
+		var fr = frames[i]
+		var along_z = (i < 2)
+		if along_z:
+			_add_static_box(fr + Vector3(-GATE_W * 0.5, 0, 0), Vector3(0.45, 3.6, 0.55), metal_c)
+			_add_static_box(fr + Vector3(GATE_W * 0.5, 0, 0), Vector3(0.45, 3.6, 0.55), metal_c)
+			_add_static_box(fr + Vector3(0, 1.7, 0), Vector3(GATE_W + 0.4, 0.4, 0.55), wood_c)
+		else:
+			_add_static_box(fr + Vector3(0, 0, -GATE_W * 0.5), Vector3(0.55, 3.6, 0.45), metal_c)
+			_add_static_box(fr + Vector3(0, 0, GATE_W * 0.5), Vector3(0.55, 3.6, 0.45), metal_c)
+			_add_static_box(fr + Vector3(0, 1.7, 0), Vector3(0.55, 0.4, GATE_W + 0.4), wood_c)
+
+	# pencereler: duvar ustunde gorsel (carpisma yok, sadece delik gorunumu)
+	_add_window(Vector3(center.x - FORT_HALF * 0.55, y0 + 3.2, center.z - FORT_HALF), true)
+	_add_window(Vector3(center.x + FORT_HALF * 0.55, y0 + 3.2, center.z + FORT_HALF), true)
+	_add_window(Vector3(center.x - FORT_HALF, y0 + 3.2, center.z - FORT_HALF * 0.55), false)
+	_add_window(Vector3(center.x + FORT_HALF, y0 + 3.2, center.z + FORT_HALF * 0.55), false)
+
+	# Kale disi kayalik: 4 koridor haric girilmez
+	_build_rock_ring(center, accent)
+
+func _add_window(pos: Vector3, along_z: bool) -> void:
+	var w = MeshInstance3D.new()
+	var box = BoxMesh.new()
+	if along_z:
+		box.size = Vector3(1.6, 1.2, 0.2)
+	else:
+		box.size = Vector3(0.2, 1.2, 1.6)
+	w.mesh = box
+	w.position = pos
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.15, 0.18, 0.22)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color.a = 0.55
+	w.material_override = mat
+	add_child(w)
+
+func _build_rock_ring(center: Vector3, _accent: Color) -> void:
+	var inner = FORT_HALF + 1.2
+	var outer = BOSS_DRY - 1.0
+	# her 8 derecede kaya, 4 kapı koridorunu atla
+	var a := 0.0
+	while a < TAU:
+		var deg_ok = true
+		# koridorlar: 0, 90, 180, 270 derece ±12
+		for k in 4:
+			var gate_a = k * PI * 0.5
+			var diff = abs(atan2(sin(a - gate_a), cos(a - gate_a)))
+			if diff < 0.22:
+				deg_ok = false
+		if deg_ok:
+			var r = inner + 2.0
+			while r < outer:
+				var x = center.x + cos(a) * r
+				var z = center.z + sin(a) * r
+				var s = 2.4 + fmod(r + a, 1.7)
+				_add_static_box(Vector3(x, s * 0.5, z), Vector3(s, s, s), Color(0.38, 0.34, 0.30))
+				r += 3.2
+		a += 0.18
+
+func _build_gatherables():
+	for i in 55:
+		var p = _rand_outside_trade(20, MAP_HALF - 14)
+		if _near_boss(p.x, p.z):
+			continue
+		var g = MeshInstance3D.new()
+		var mesh = CylinderMesh.new()
+		mesh.top_radius = 0.15
+		mesh.bottom_radius = 0.35
+		mesh.height = 0.55
+		g.mesh = mesh
+		g.position = Vector3(p.x, height_at(p.x, p.z) + 0.28, p.z)
+		var m = StandardMaterial3D.new()
+		m.albedo_color = Color(0.22, 0.55, 0.16)
+		g.material_override = m
+		g.set_meta("loot", "grass")
+		add_child(g)
+	for i in 32:
+		var p = _rand_outside_trade(22, MAP_HALF - 14)
+		if _near_boss(p.x, p.z):
+			continue
+		var w = MeshInstance3D.new()
+		var mesh = CylinderMesh.new()
+		mesh.top_radius = 0.08
+		mesh.bottom_radius = 0.12
+		mesh.height = 1.1
+		w.mesh = mesh
+		w.position = Vector3(p.x, height_at(p.x, p.z) + 0.55, p.z)
+		var m = StandardMaterial3D.new()
+		m.albedo_color = Color(0.78, 0.68, 0.22)
+		w.material_override = m
+		w.set_meta("loot", "wheat")
+		add_child(w)
+	for i in 22:
+		var p = _rand_outside_trade(24, MAP_HALF - 16)
+		if _near_boss(p.x, p.z):
+			continue
+		var mu = MeshInstance3D.new()
+		var mesh = SphereMesh.new()
+		mesh.radius = 0.28
+		mesh.height = 0.36
+		mu.mesh = mesh
+		mu.position = Vector3(p.x, height_at(p.x, p.z) + 0.22, p.z)
+		var m = StandardMaterial3D.new()
+		m.albedo_color = Color(0.62, 0.22, 0.18)
+		mu.material_override = m
+		mu.set_meta("loot", "mushroom")
+		add_child(mu)
 
 func _rand_outside_trade(min_r: float, max_r: float) -> Vector3:
 	var p = Vector3.ZERO
-	for _i in 20:
+	for _i in 24:
 		p = Vector3(randf_range(-max_r, max_r), 0, randf_range(-max_r, max_r))
 		if p.length() > min_r:
 			return p
@@ -103,6 +344,7 @@ func _build_trade_zone():
 
 func _build_bosses():
 	for b in bosses:
+		_build_fort(b.pos, b.color)
 		var marker = MeshInstance3D.new()
 		var mesh = CylinderMesh.new()
 		mesh.top_radius = 1.2
@@ -119,14 +361,33 @@ func _build_bosses():
 
 func _build_player():
 	player = CharacterBody3D.new()
-	player.position = Vector3(0, 1, 0)
+	player.position = Vector3(0, PLAYER_HEIGHT, 0)
+	var col = CollisionShape3D.new()
+	var capshape = CapsuleShape3D.new()
+	capshape.radius = 0.42
+	capshape.height = 1.7
+	col.shape = capshape
+	player.add_child(col)
 	add_child(player)
 	var body = MeshInstance3D.new()
-	var capsule = CapsuleMesh.new()
-	capsule.height = 1.8
-	capsule.radius = 0.45
-	body.mesh = capsule
+	var cap = CapsuleMesh.new()
+	cap.height = 1.35
+	cap.radius = 0.38
+	body.mesh = cap
+	body.position = Vector3(0, 0.15, 0)
+	var bm = StandardMaterial3D.new()
+	bm.albedo_color = Color(0.18, 0.22, 0.28)
+	body.material_override = bm
 	player.add_child(body)
+	var head = MeshInstance3D.new()
+	var sph = SphereMesh.new()
+	sph.radius = 0.28
+	head.mesh = sph
+	head.position = Vector3(0, 0.95, 0)
+	var hm = StandardMaterial3D.new()
+	hm.albedo_color = Color(0.72, 0.58, 0.46)
+	head.material_override = hm
+	player.add_child(head)
 	camera = Camera3D.new()
 	camera.position = Vector3(0, 7, 9)
 	camera.rotation_degrees.x = -32
@@ -137,43 +398,54 @@ func _build_hud():
 	var layer = CanvasLayer.new()
 	add_child(layer)
 	hud = Label.new()
-	hud.position = Vector2(24, 24)
-	hud.add_theme_font_size_override("font_size", 22)
+	hud.position = Vector2(18, 18)
+	hud.add_theme_font_size_override("font_size", 20)
 	layer.add_child(hud)
-	var help = Label.new()
-	help.text = "GRAY CARD WARS  |  Sol surukle: hareket\nMerkez: yesil takas (guvenli)  |  Kenar: 10 boss"
-	help.position = Vector2(24, 130)
-	help.add_theme_font_size_override("font_size", 18)
-	layer.add_child(help)
 
 func _nearest_boss() -> String:
 	var best := ""
 	var best_d := 9999.0
 	for b in bosses:
-		var d = player.position.distance_to(b.pos)
+		var d = Vector2(player.position.x - b.pos.x, player.position.z - b.pos.z).length()
 		if d < best_d:
 			best_d = d
 			best = "%s (%.0f m)" % [b.name, d]
 	return best
 
 func _physics_process(delta):
-	hunger = max(0, hunger - delta * 0.12)
-	thirst = max(0, thirst - delta * 0.18)
+	hunger = maxf(0.0, hunger - delta * 0.04)
+	thirst = maxf(0.0, thirst - delta * 0.06)
 	var v = move_touch
 	if Input.is_key_pressed(KEY_W): v.y = -1
 	if Input.is_key_pressed(KEY_S): v.y = 1
 	if Input.is_key_pressed(KEY_A): v.x = -1
 	if Input.is_key_pressed(KEY_D): v.x = 1
 	var dir = Vector3(v.x, 0, v.y)
-	if dir.length() > 1: dir = dir.normalized()
-	player.velocity = dir * 6.0
+	if dir.length() > 1.0:
+		dir = dir.normalized()
+	var speed = 4.2 if in_pit else 6.0
+	player.velocity = dir * speed
 	player.move_and_slide()
-	player.position.x = clamp(player.position.x, -MAP_HALF + 2.0, MAP_HALF - 2.0)
-	player.position.z = clamp(player.position.z, -MAP_HALF + 2.0, MAP_HALF - 2.0)
-	var flat = Vector3(player.position.x, 0, player.position.z)
+	player.position.x = clampf(player.position.x, -MAP_HALF + 2.0, MAP_HALF - 2.0)
+	player.position.z = clampf(player.position.z, -MAP_HALF + 2.0, MAP_HALF - 2.0)
+	var hy = height_at(player.position.x, player.position.z)
+	player.position.y = hy + PLAYER_HEIGHT
+	in_pit = hy < -2.0
+	in_dry = _near_boss(player.position.x, player.position.z)
+	var flat = Vector2(player.position.x, player.position.z)
 	in_safe_zone = flat.length() <= TRADE_RADIUS
-	var zone = "TAKAS (guvenli)" if in_safe_zone else "VAHSI"
-	hud.text = "HP %d   Aclik %d   Susuzluk %d\nGray Card %d   Odun %d   Tas %d\nBolge: %s\nYakin boss: %s" % [health, hunger, thirst, gray_cards, wood, stone, zone, _nearest_boss()]
+	var zone = "VAHSI"
+	if in_safe_zone:
+		zone = "TAKAS"
+	elif in_pit:
+		zone = "CUKUR"
+	elif in_dry:
+		zone = "KURAK / KALE"
+	hud.text = "HP %d  Ac %d  Su %d  Kart %d\nOdun %d  Tas %d  Cim %d  Bugday %d  Mantar %d\n%s  |  %s" % [
+		health, int(hunger), int(thirst), gray_cards,
+		wood, stone, grass_n, wheat_n, mushroom_n,
+		zone, _nearest_boss()
+	]
 
 func _input(event):
 	if event is InputEventScreenTouch:
@@ -189,16 +461,29 @@ func _input(event):
 		move_touch = move_touch.limit_length(1.0)
 
 func _gather_nearby():
-	if player == null: return
+	if player == null:
+		return
 	for n in get_children():
-		if n is MeshInstance3D and n != player and n.position.distance_to(player.position) < 3.0:
-			if n.has_meta("trade") or n.has_meta("boss_id"):
-				continue
-			if n.mesh is CylinderMesh:
-				wood += 25
-				n.queue_free()
-				return
-			if n.mesh is BoxMesh:
-				stone += 20
-				n.queue_free()
-				return
+		var pos = n.position
+		if n.get_child_count() > 0 and n is StaticBody3D:
+			pos = n.position
+		if pos.distance_to(player.position) > 3.2:
+			continue
+		if n.has_meta("trade") or n.has_meta("boss_id"):
+			continue
+		if not n.has_meta("loot"):
+			continue
+		var kind = str(n.get_meta("loot"))
+		if kind == "wood":
+			wood += 25
+		elif kind == "stone":
+			stone += 20
+		elif kind == "grass":
+			grass_n += 8
+		elif kind == "wheat":
+			wheat_n += 5
+		elif kind == "mushroom":
+			mushroom_n += 2
+			hunger = minf(100.0, hunger + 8.0)
+		n.queue_free()
+		return
