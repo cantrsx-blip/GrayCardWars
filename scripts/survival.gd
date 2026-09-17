@@ -13,6 +13,9 @@ var fire_built := false
 var house_parts := 0
 var boat_built := false
 var hud: Label
+var move_touch := Vector2.ZERO
+var move_touch_id := -1
+var move_origin := Vector2.ZERO
 
 func _ready():
 	_build_environment()
@@ -70,10 +73,20 @@ func _spawn_boss():
 
 func _build_ui():
 	var layer=CanvasLayer.new(); add_child(layer); hud=Label.new(); hud.position=Vector2(18,18); hud.add_theme_font_size_override("font_size",20); layer.add_child(hud)
-	var help=Label.new(); help.position=Vector2(18,120); help.text="WASD: Hareket | E: Topla | Sol tik: Ates | F: Kamp atesi | H: Ev parcasi | B: Bot"; layer.add_child(help)
+	var help=Label.new(); help.position=Vector2(18,120); help.text="Sol tarafta surukle: Hareket"; layer.add_child(help)
+	var buttons=[["TOPLA","interact"],["ATES","shoot"],["KAMP","build_fire"],["EV","build_house"],["BOT","build_boat"]]
+	for i in buttons.size():
+		var b=Button.new(); b.text=buttons[i][0]; b.position=Vector2(get_viewport().get_visible_rect().size.x-150,120+i*72); b.size=Vector2(125,58); layer.add_child(b)
+		if buttons[i][1]=="shoot": b.pressed.connect(_shoot)
+		elif buttons[i][1]=="interact": b.pressed.connect(_gather)
+		elif buttons[i][1]=="build_fire": b.pressed.connect(_build_fire)
+		elif buttons[i][1]=="build_house": b.pressed.connect(_build_house)
+		elif buttons[i][1]=="build_boat": b.pressed.connect(_build_boat)
 
 func _physics_process(delta):
 	var v=Input.get_vector("move_left","move_right","move_forward","move_back")
+	if move_touch.length() > 0.05:
+		v = move_touch
 	player.velocity=Vector3(v.x,0,v.y)*7.0; player.move_and_slide()
 	for e in enemies:
 		if not is_instance_valid(e): continue
@@ -86,6 +99,18 @@ func _physics_process(delta):
 		if d.length()<28: boss.velocity=d.normalized()*1.7; boss.move_and_slide()
 		if d.length()<2.2: hp=max(0,hp-int(delta*20.0))
 	hud.text="HP %d | Odun %d | Tas %d | Mermi %d\nBoss HP %d | Ev %d/6 | Ates %s | Bot %s" % [hp,wood,stone,ammo,max(0,boss_hp),house_parts,str(fire_built),str(boat_built)]
+
+func _input(event):
+	if event is InputEventScreenTouch:
+		var screen_w = get_viewport().get_visible_rect().size.x
+		if event.pressed and event.position.x < screen_w * 0.55 and move_touch_id == -1:
+			move_touch_id = event.index
+			move_origin = event.position
+		elif not event.pressed and event.index == move_touch_id:
+			move_touch_id = -1
+			move_touch = Vector2.ZERO
+	elif event is InputEventScreenDrag and event.index == move_touch_id:
+		move_touch = ((event.position - move_origin) / 85.0).limit_length(1.0)
 
 func _unhandled_input(event):
 	if event.is_action_pressed("interact"): _gather()
