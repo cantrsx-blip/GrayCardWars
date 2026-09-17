@@ -111,7 +111,11 @@ func _shoot():
 			if d<bd: bd=d; best=e
 	if is_instance_valid(boss):
 		var d=boss.global_position.distance_to(player.global_position)
-		if d<bd: boss_hp-=25; if boss_hp<=0: boss.queue_free(); return
+		if d < bd:
+			boss_hp -= 25
+			if boss_hp <= 0:
+				boss.queue_free()
+			return
 	if best:
 		var ehp=int(best.get_meta("hp"))-30; best.set_meta("hp",ehp)
 		if ehp<=0: best.queue_free()
