@@ -295,6 +295,14 @@ func _build_terrain_mesh():
 	if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"): mat.albedo_texture=load("res://assets/environment/ground/grass_albedo.jpg")
 	if ResourceLoader.exists("res://assets/environment/ground/grass_normal.png"): mat.normal_enabled=true; mat.normal_texture=load("res://assets/environment/ground/grass_normal.png")
 	if ResourceLoader.exists("res://assets/environment/ground/grass_roughness.jpg"): mat.roughness_texture=load("res://assets/environment/ground/grass_roughness.jpg")
+	if ResourceLoader.exists("res://assets/environment/coast/og.jpg"):
+		var shore_shader=Shader.new()
+		shore_shader.code="shader_type spatial;\nrender_mode diffuse_burley;\nuniform sampler2D shore_tex;\nuniform sampler2D ground_tex;\nuniform bool has_ground=false;\nvarying float world_z;\nvoid vertex(){ world_z=(MODEL_MATRIX*vec4(VERTEX,1.0)).z; }\nvoid fragment(){ vec3 base=COLOR.rgb; if(world_z < -170.0){ base*=texture(shore_tex,UV).rgb; } else if(has_ground){ base*=texture(ground_tex,UV).rgb; } ALBEDO=base; ROUGHNESS=0.96; }"
+		var shore_mat=ShaderMaterial.new(); shore_mat.shader=shore_shader
+		shore_mat.set_shader_parameter("shore_tex",load("res://assets/environment/coast/og.jpg"))
+		if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"):
+			shore_mat.set_shader_parameter("ground_tex",load("res://assets/environment/ground/grass_albedo.jpg")); shore_mat.set_shader_parameter("has_ground",true)
+		mat=shore_mat
 	for z in cells:
 		for x in cells:
 			var x0=-MAP_HALF+x*step; var x1=x0+step; var z0=-MAP_HALF+z*step; var z1=z0+step
