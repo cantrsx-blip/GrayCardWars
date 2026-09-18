@@ -70,6 +70,8 @@ var in_safe_zone := true
 var in_pit := false
 var in_dry := false
 var damage_buffer := 0.0
+var shoot_flash_time := 0.0
+var hit_label: Label
 var world_env: WorldEnvironment
 var zone_label: Label
 var trade_panel: Control
@@ -462,6 +464,7 @@ func _build_player():
 func _build_hud():
 	var layer = CanvasLayer.new()
 	add_child(layer)
+	hit_label=Label.new(); hit_label.set_anchors_preset(Control.PRESET_CENTER); hit_label.position=Vector2(-20,-35); hit_label.text="+"; hit_label.visible=false; hit_label.add_theme_font_size_override("font_size",32); layer.add_child(hit_label)
 	zone_label=Label.new(); zone_label.set_anchors_preset(Control.PRESET_TOP_WIDE); zone_label.position=Vector2(0,18); zone_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; zone_label.add_theme_font_size_override("font_size",24); zone_label.add_theme_color_override("font_shadow_color",Color(0,0,0,.9)); zone_label.add_theme_constant_override("shadow_offset_x",2); zone_label.add_theme_constant_override("shadow_offset_y",2); layer.add_child(zone_label)
 	hud = Label.new()
 	hud.position = Vector2(24, 22)
@@ -494,6 +497,9 @@ func _nearest_boss() -> String:
 	return best
 
 func _physics_process(delta):
+	if shoot_flash_time>0.0:
+		shoot_flash_time-=delta
+		if shoot_flash_time<=0.0 and hit_label: hit_label.visible=false
 	hunger = maxf(0.0, hunger - delta * 0.04)
 	thirst = maxf(0.0, thirst - delta * 0.06)
 	if hunger <= 0.0 or thirst <= 0.0:
@@ -646,9 +652,11 @@ func _shoot():
 			var d = b.global_position.distance_to(player.global_position)
 			if d < best: best = d; target = b
 	if target == null: return
+	shoot_flash_time=.12; if hit_label: hit_label.text="✦"; hit_label.visible=true
 	var hp_now = int(target.get_meta("hp")) - 30; target.set_meta("hp", hp_now)
 	if hp_now <= 0:
-		gray_cards += 5 if target.has_meta("fort_boss") else 1
+		var reward=5 if target.has_meta("fort_boss") else 1; gray_cards+=reward
+		if hit_label: hit_label.text="+%d KART" % reward; hit_label.visible=true; shoot_flash_time=.8
 		target.queue_free()
 
 func _build_fire():
