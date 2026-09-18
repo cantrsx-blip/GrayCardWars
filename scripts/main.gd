@@ -24,6 +24,24 @@ var asset_corrections = {
 	"boss":{"scale":Vector3(1.15,1.15,1.15),"rot":Vector3.ZERO,"y":0.0},
 	"boat":{"scale":Vector3.ONE,"rot":Vector3.ZERO,"y":0.0}
 }
+var tree_assets = [
+	"res://assets/environment/trees/tree_pine_01.glb",
+	"res://assets/environment/trees/tree_pine_02.glb",
+	"res://assets/environment/trees/tree_oak_01.glb",
+	"res://assets/environment/trees/tree_broadleaf_01.glb",
+	"res://assets/environment/trees/tree_old_giant_01.glb"
+]
+var rock_assets = [
+	"res://assets/environment/rocks/rock_small_01.glb",
+	"res://assets/environment/rocks/rock_medium_01.glb",
+	"res://assets/environment/rocks/rock_large_01.glb",
+	"res://assets/environment/rocks/rock_boulder_01.glb"
+]
+var plant_assets = [
+	"res://assets/environment/plants/plant_grass_01.glb",
+	"res://assets/environment/plants/plant_bush_01.glb",
+	"res://assets/environment/plants/debris_log_01.glb"
+]
 var asset_paths = {
 	"tree":"res://assets/environment/trees/tree_pine_01.glb",
 	"rock":"res://assets/environment/rocks/rock_medium_01.glb",
@@ -151,16 +169,22 @@ func _build_world():
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
 			continue
-		_add_static_box(Vector3(p.x, height_at(p.x, p.z) + 0.75, p.z), Vector3(1.5, 1.5, 1.5), Color(0.45, 0.43, 0.40))
-		get_child(get_child_count() - 1).set_meta("loot", "stone")
+		var rock=_place_asset(rock_assets[randi()%rock_assets.size()],self,Vector3(p.x,height_at(p.x,p.z),p.z),Vector3.ONE,Vector3(0,randf_range(0,360),0))
+		if rock==null:
+			_add_static_box(Vector3(p.x,height_at(p.x,p.z)+.75,p.z),Vector3(1.5,1.5,1.5),Color(.45,.43,.40)); rock=get_child(get_child_count()-1)
+		rock.set_meta("loot","stone")
 	for i in 28:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
 			continue
-		var tree=_place_asset(asset_paths["tree"],self,Vector3(p.x,height_at(p.x,p.z),p.z),Vector3.ONE,Vector3(0,randf_range(0,360),0))
+		var tree=_place_asset(tree_assets[randi()%tree_assets.size()],self,Vector3(p.x,height_at(p.x,p.z),p.z),Vector3.ONE*randf_range(.85,1.18),Vector3(0,randf_range(0,360),0))
 		if tree==null:
 			tree=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; tree.mesh=mesh; tree.position=Vector3(p.x,height_at(p.x,p.z)+2.0,p.z); tree.material_override=_simple_mat(Color(.28,.15,.06)); add_child(tree)
 		tree.set_meta("loot","wood")
+	for i in 45:
+		var p=_rand_outside_trade(22,MAP_HALF-14)
+		if _near_boss(p.x,p.z): continue
+		_place_asset(plant_assets[randi()%plant_assets.size()],self,Vector3(p.x,height_at(p.x,p.z)+.02,p.z),Vector3.ONE*randf_range(.8,1.25),Vector3(0,randf_range(0,360),0))
 
 func _build_hills_and_pits():
 	for i in 16:
