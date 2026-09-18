@@ -2,8 +2,6 @@
 config/name="GRAY CARD WARS"
 run/main_scene="res://scenes/Main.tscn"
 
-[autoload]
-WorldFix="*res://scripts/world_fix.gd"
 
 [display]
 window/size/viewport_width=1280
