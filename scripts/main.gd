@@ -709,9 +709,15 @@ func _build_house():
 		build_mode=true; _ensure_build_preview(); return
 	if wood<20: return
 	var p=build_preview.global_position if build_preview else player.global_position+player_facing*5.0
-	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5)]
-	var offsets=[Vector3(0,.2,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,3.1,0)]
-	wood-=20; _add_static_box(p+offsets[build_piece],sizes[build_piece],Color(.42,.23,.08)); house_parts+=1
+	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5),Vector3(2.2,.35,4.0)]
+	var offsets=[Vector3(0,.2,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,3.1,0),Vector3(0,.8,0)]
+	wood-=20
+	if build_piece==2: _build_door_frame(p)
+	elif build_piece==3: _build_window_frame(p)
+	else:
+		var part=_add_static_box_return(p+offsets[build_piece],sizes[build_piece],Color(.42,.23,.08))
+		if build_piece==5: part.rotation_degrees.x=-22
+	house_parts+=1
 	if gather_label: gather_label.text=build_piece_names[build_piece]+" KURULDU"; gather_label.visible=true; message_time=1.0
 
 func _cycle_build_piece():
@@ -722,7 +728,7 @@ func _cycle_build_piece():
 func _update_preview_shape():
 	if build_preview==null: return
 	var box=BoxMesh.new()
-	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5)]
+	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5),Vector3(2.2,.35,4.0)]
 	box.size=sizes[build_piece]; build_preview.mesh=box
 
 func _build_boat():
@@ -956,3 +962,17 @@ func _update_build_preview():
 	if forward.length()<.1: forward=Vector3(0,0,-1)
 	var p=player.global_position+forward.normalized()*5.0; p.y=height_at(p.x,p.z)+.2
 	build_preview.global_position=p
+
+
+func _build_door_frame(p:Vector3):
+	var c=Color(.42,.23,.08)
+	_add_static_box(p+Vector3(-1.65,1.5,0),Vector3(1.7,3,.3),c)
+	_add_static_box(p+Vector3(1.65,1.5,0),Vector3(1.7,3,.3),c)
+	_add_static_box(p+Vector3(0,2.8,0),Vector3(1.7,.4,.3),c)
+
+func _build_window_frame(p:Vector3):
+	var c=Color(.42,.23,.08)
+	_add_static_box(p+Vector3(-1.8,1.5,0),Vector3(1.4,3,.3),c)
+	_add_static_box(p+Vector3(1.8,1.5,0),Vector3(1.4,3,.3),c)
+	_add_static_box(p+Vector3(0,.45,0),Vector3(2.2,.9,.3),c)
+	_add_static_box(p+Vector3(0,2.55,0),Vector3(2.2,.9,.3),c)
