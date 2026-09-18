@@ -277,7 +277,7 @@ func _build_world():
 	_build_terrain_mesh()
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
-	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.035,.22,.34,.82); wmat.metallic=.05; wmat.roughness=.25; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
+	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
 	for i in 48:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
@@ -786,6 +786,7 @@ func _build_fire():
 	wood -= 15; stone -= 5; fire_built = true
 	var cp=player.global_position+Vector3(2,0,0); campfire_pos=cp
 	if _place_asset(asset_paths["campfire"],self,cp)==null: _add_static_box(cp+Vector3(0,.3,0),Vector3(1.4,.5,1.4),Color(.35,.14,.04))
+	var fire_light=OmniLight3D.new(); fire_light.position=cp+Vector3(0,1.0,0); fire_light.light_color=Color(1,.55,.2); fire_light.light_energy=2.2; fire_light.omni_range=8; add_child(fire_light)
 
 func _house_asset(key:String,p:Vector3,yaw:float,size:Vector3)->Node3D:
 	var body=StaticBody3D.new(); body.position=p; body.rotation_degrees.y=yaw; add_child(body)
