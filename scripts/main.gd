@@ -250,7 +250,11 @@ func _place_asset(path:String, parent:Node, pos:Vector3, scale_v:=Vector3.ONE, r
 	if n==null: return null
 	n.position=pos; n.scale=scale_v; n.rotation_degrees=rot; parent.add_child(n); return n
 
-func _ground_color(h:float)->Color:
+func _ground_color(h:float, z:float=0.0)->Color:
+	# KARA KIYI south-shore blend. Keep water material untouched.
+	if z < -170.0:
+		var shore_t=clampf((-170.0-z)/18.0,0.0,1.0)
+		return Color(.78,.70,.42).lerp(Color(.50,.42,.31),shore_t)
 	if h < -1.5: return Color(.52,.38,.22)
 	if h < .4: return Color(.78,.70,.42)
 	if h > 6.0: return Color(.62,.60,.55)
@@ -295,12 +299,12 @@ func _build_terrain_mesh():
 		for x in cells:
 			var x0=-MAP_HALF+x*step; var x1=x0+step; var z0=-MAP_HALF+z*step; var z1=z0+step
 			var a=Vector3(x0,height_at(x0,z0),z0); var b=Vector3(x1,height_at(x1,z0),z0); var c=Vector3(x1,height_at(x1,z1),z1); var d=Vector3(x0,height_at(x0,z1),z1)
-			st.set_color(_ground_color(a.y)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
-			st.set_color(_ground_color(b.y)); st.set_uv(Vector2(x1/8.0,z0/8.0)); st.add_vertex(b)
-			st.set_color(_ground_color(c.y)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
-			st.set_color(_ground_color(a.y)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
-			st.set_color(_ground_color(c.y)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
-			st.set_color(_ground_color(d.y)); st.set_uv(Vector2(x0/8.0,z1/8.0)); st.add_vertex(d)
+			st.set_color(_ground_color(a.y,a.z)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
+			st.set_color(_ground_color(b.y,b.z)); st.set_uv(Vector2(x1/8.0,z0/8.0)); st.add_vertex(b)
+			st.set_color(_ground_color(c.y,c.z)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
+			st.set_color(_ground_color(a.y,a.z)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
+			st.set_color(_ground_color(c.y,c.z)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
+			st.set_color(_ground_color(d.y,d.z)); st.set_uv(Vector2(x0/8.0,z1/8.0)); st.add_vertex(d)
 	st.generate_normals()
 	var mesh=st.commit(); var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; terrain.material_override=mat; add_child(terrain)
 	var body=StaticBody3D.new(); body.name="TerrainCollision"; var cs=CollisionShape3D.new(); cs.shape=mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
