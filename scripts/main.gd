@@ -490,7 +490,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece]]
+	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -504,6 +504,7 @@ func _build_hud():
 	_create_trade_panel(layer)
 	_create_hotbar(layer)
 	_create_minimap(layer)
+	_create_weapon_aim_ui(layer)
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -564,6 +565,7 @@ func _physics_process(delta):
 	_update_build_preview()
 	_update_map_dot()
 	_update_minimap()
+	_update_aim_marker()
 	if health <= 0:
 		_respawn()
 	var zone = "VAHSI"
@@ -1044,3 +1046,33 @@ func _update_minimap():
 	minimap_dot.position=pos
 	minimap_dir.position=pos+Vector2(-5,-15)
 	minimap_dir.rotation=atan2(-player_facing.x,-player_facing.z)
+
+
+func _create_weapon_aim_ui(layer:CanvasLayer):
+	crosshair=Label.new(); crosshair.text="＋"; crosshair.add_theme_font_size_override("font_size",30)
+	crosshair.set_anchors_preset(Control.PRESET_CENTER); crosshair.position=Vector2(-14,-20); crosshair.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(crosshair)
+	aim_marker=Label.new(); aim_marker.text="•"; aim_marker.add_theme_font_size_override("font_size",28); aim_marker.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(aim_marker)
+	scope_overlay=Control.new(); scope_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); scope_overlay.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	var ring=Label.new(); ring.text="◯"; ring.add_theme_font_size_override("font_size",420); ring.set_anchors_preset(Control.PRESET_CENTER); ring.position=Vector2(-135,-270); scope_overlay.add_child(ring)
+	var v=Label.new(); v.text="│\n│\n│\n│"; v.set_anchors_preset(Control.PRESET_CENTER); v.position=Vector2(-3,-72); scope_overlay.add_child(v)
+	var h=Label.new(); h.text="────────────"; h.set_anchors_preset(Control.PRESET_CENTER); h.position=Vector2(-72,-12); scope_overlay.add_child(h)
+	scope_overlay.visible=false; layer.add_child(scope_overlay)
+
+func _toggle_scope():
+	if not has_scope: return
+	scoped=not scoped
+	if camera: camera.fov=32.0 if scoped else 70.0
+	if scope_overlay: scope_overlay.visible=scoped
+	if crosshair: crosshair.visible=not scoped
+
+func _update_aim_marker():
+	if aim_marker==null or camera==null: return
+	var center=get_viewport().get_visible_rect().size*.5
+	var origin=camera.project_ray_origin(center); var dir=camera.project_ray_normal(center)
+	var q=PhysicsRayQueryParameters3D.create(origin,origin+dir*120.0)
+	q.exclude=[player]
+	var hit=get_world_3d().direct_space_state.intersect_ray(q)
+	if hit:
+		var sp=camera.unproject_position(hit.position); aim_marker.position=sp-Vector2(7,15); aim_marker.visible=not scoped
+	else:
+		aim_marker.position=center-Vector2(7,15); aim_marker.visible=not scoped
