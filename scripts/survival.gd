@@ -31,6 +31,15 @@ func _ready():
 func _mat(c: Color) -> StandardMaterial3D:
 	var m=StandardMaterial3D.new(); m.albedo_color=c; m.roughness=0.8; return m
 
+func _asset(path:String,pos:Vector3,scale_v:=Vector3.ONE)->Node3D:
+	if not ResourceLoader.exists(path): return null
+	var res=load(path)
+	if not (res is PackedScene): return null
+	var n=res.instantiate()
+	if not (n is Node3D): return null
+	n.position=pos; n.scale=scale_v; add_child(n)
+	return n
+
 func _box(pos:Vector3,size:Vector3,c:Color,collide:=true)->Node3D:
 	var root:Node3D = StaticBody3D.new() if collide else Node3D.new()
 	root.position=pos
@@ -46,12 +55,21 @@ func _build_environment():
 	env.tonemap_mode=Environment.TONE_MAPPER_FILMIC; world.environment=env; add_child(world)
 	var sun=DirectionalLight3D.new(); sun.rotation_degrees=Vector3(-55,-35,0); sun.shadow_enabled=true; sun.light_energy=1.2; add_child(sun)
 	_box(Vector3(0,-0.5,0),Vector3(180,1,180),Color(0.18,0.38,0.14))
-	for i in 30:
+	var tree_paths=["res://assets/environment/trees/tree_pine_01.glb","res://assets/environment/trees/tree_pine_02.glb","res://assets/environment/trees/tree_oak_01.glb","res://assets/environment/trees/tree_broadleaf_01.glb","res://assets/environment/trees/tree_old_giant_01.glb"]
+	for i in 38:
 		var p=Vector3(randf_range(-75,75),0,randf_range(-75,75))
-		var trunk=_box(p+Vector3(0,2,0),Vector3(0.8,4,0.8),Color(0.28,0.13,0.05)); trunk.set_meta("resource","wood")
-		var crown=MeshInstance3D.new(); var s=SphereMesh.new(); s.radius=2.3; s.height=4.6; crown.mesh=s; crown.position=p+Vector3(0,5,0); crown.material_override=_mat(Color(0.08,0.34,0.10)); add_child(crown)
-	for i in 22:
-		var p=Vector3(randf_range(-75,75),0,randf_range(-75,75)); var r=_box(p+Vector3(0,0.5,0),Vector3(1.4,1,1.2),Color(0.34,0.36,0.38)); r.set_meta("resource","stone")
+		var trunk=_asset(tree_paths[i % tree_paths.size()],p)
+		if trunk==null: trunk=_box(p+Vector3(0,2,0),Vector3(0.8,4,0.8),Color(0.28,0.13,0.05))
+		trunk.set_meta("resource","wood")
+	var rock_paths=["res://assets/environment/rocks/rock_small_01.glb","res://assets/environment/rocks/rock_medium_01.glb","res://assets/environment/rocks/rock_large_01.glb","res://assets/environment/rocks/rock_boulder_01.glb"]
+	for i in 28:
+		var p=Vector3(randf_range(-75,75),0,randf_range(-75,75))
+		var r=_asset(rock_paths[i % rock_paths.size()],p)
+		if r==null: r=_box(p+Vector3(0,0.5,0),Vector3(1.4,1,1.2),Color(0.34,0.36,0.38))
+		r.set_meta("resource","stone")
+	var plant_paths=["res://assets/environment/plants/plant_grass_01.glb","res://assets/environment/plants/plant_bush_01.glb","res://assets/environment/plants/debris_log_01.glb"]
+	for i in 45:
+		_asset(plant_paths[i % plant_paths.size()],Vector3(randf_range(-78,78),0,randf_range(-78,78)))
 	# water + dock target
 	var water=MeshInstance3D.new(); var pm=PlaneMesh.new(); pm.size=Vector2(180,35); water.mesh=pm; water.position=Vector3(0,0.03,-72); water.material_override=_mat(Color(0.05,0.30,0.52)); add_child(water)
 
@@ -69,10 +87,19 @@ func _enemy_mesh(c:Color)->MeshInstance3D:
 
 func _spawn_enemies():
 	for i in ENEMY_COUNT:
-		var e=CharacterBody3D.new(); e.position=Vector3(randf_range(-60,60),1,randf_range(-60,60)); e.add_child(_enemy_mesh(Color(0.42,0.08,0.08))); e.set_meta("hp",60); add_child(e); enemies.append(e)
+		var e=CharacterBody3D.new(); e.position=Vector3(randf_range(-60,60),1,randf_range(-60,60))
+		var visual=_asset("res://assets/characters/enemies/raider.glb",Vector3.ZERO)
+		if visual!=null: remove_child(visual); e.add_child(visual)
+		else: e.add_child(_enemy_mesh(Color(0.42,0.08,0.08)))
+		e.set_meta("hp",60); add_child(e); enemies.append(e)
 
 func _spawn_boss():
-	boss=CharacterBody3D.new(); boss.position=Vector3(0,1,-50); var m=_enemy_mesh(Color(0.12,0.04,0.04)); m.scale=Vector3(2.2,2.2,2.2); boss.add_child(m); add_child(boss)
+	boss=CharacterBody3D.new(); boss.position=Vector3(0,1,-50)
+	var m=_asset("res://assets/characters/boss/brute_boss.glb",Vector3.ZERO,Vector3(1.15,1.15,1.15))
+	if m!=null: remove_child(m); boss.add_child(m)
+	else:
+		m=_enemy_mesh(Color(0.12,0.04,0.04)); m.scale=Vector3(2.2,2.2,2.2); boss.add_child(m)
+	add_child(boss)
 
 func _build_ui():
 	var layer=CanvasLayer.new(); add_child(layer); hud=Label.new(); hud.position=Vector2(18,18); hud.add_theme_font_size_override("font_size",20); layer.add_child(hud)
@@ -153,6 +180,10 @@ func _build_fire():
 	if fire_built or wood<15 or stone<5:return
 	wood-=15; stone-=5; fire_built=true
 	var p=player.global_position+Vector3(2,0,0)
+	var camp=_asset("res://assets/props/campfire/campfire.glb",p)
+	if camp!=null:
+		var flame=OmniLight3D.new(); flame.position=p+Vector3(0,1.0,0); flame.light_color=Color(1,.45,.12); flame.omni_range=8; flame.light_energy=4; add_child(flame)
+		return
 	for i in 6:
 		var log=_box(p+Vector3(cos(i)*.7,.15,sin(i)*.7),Vector3(.8,.25,.25),Color(0.30,0.12,0.03),false); log.rotation.y=i
 	var flame=OmniLight3D.new(); flame.position=p+Vector3(0,1.2,0); flame.light_color=Color(1,.45,.12); flame.omni_range=8; flame.light_energy=4; add_child(flame)
@@ -171,7 +202,9 @@ func _build_house():
 func _build_boat():
 	if boat_built or wood<40:return
 	wood-=40; boat_built=true; var p=Vector3(player.global_position.x,.45,-70)
-	_box(p,Vector3(3,.5,6),Color(0.35,0.16,0.05),false); _box(p+Vector3(0,.8,1),Vector3(2,.8,1.5),Color(0.48,0.25,0.08),false)
+	var boat=_asset("res://assets/vehicles/boat/wood_skiff.glb",p)
+	if boat==null:
+		_box(p,Vector3(3,.5,6),Color(0.35,0.16,0.05),false); _box(p+Vector3(0,.8,1),Vector3(2,.8,1.5),Color(0.48,0.25,0.08),false)
 
 
 func _toggle_map():
