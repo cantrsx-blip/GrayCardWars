@@ -471,6 +471,14 @@ func _build_player():
 	hm.albedo_color = Color(0.72, 0.58, 0.46)
 	head.material_override = hm
 	player.add_child(head)
+	# Human silhouette: shoulders, arms and legs instead of a capsule-only avatar.
+	var cloth=StandardMaterial3D.new(); cloth.albedo_color=Color(.16,.20,.25)
+	var skin=StandardMaterial3D.new(); skin.albedo_color=Color(.72,.58,.46)
+	_add_human_limb(Vector3(.22,.62,.20),Vector3(-.42,.12,0),cloth)
+	_add_human_limb(Vector3(.22,.62,.20),Vector3(.42,.12,0),cloth)
+	_add_human_limb(Vector3(.25,.78,.25),Vector3(-.18,-.70,0),cloth)
+	_add_human_limb(Vector3(.25,.78,.25),Vector3(.18,-.70,0),cloth)
+	_add_human_limb(Vector3(.72,.20,.24),Vector3(0,.48,0),cloth)
 	camera = Camera3D.new()
 	camera.position = Vector3(0, 5.4, 7.2)
 	camera.rotation_degrees.x = -25
@@ -1365,3 +1373,9 @@ func _play_break_sound(part:Node3D,kind:String):
 	elif material_kind=="glass" or kind=="PENCERE": sound="break_glass"
 	elif kind in ["DUVAR","KAPI"]: sound="break_wood"
 	_play_sfx(sound)
+
+
+func _add_human_limb(size:Vector3,pos:Vector3,mat:Material):
+	var limb=MeshInstance3D.new(); var mesh=CapsuleMesh.new()
+	mesh.radius=min(size.x,size.z)*.5; mesh.height=size.y
+	limb.mesh=mesh; limb.position=pos; limb.material_override=mat; player.add_child(limb)
