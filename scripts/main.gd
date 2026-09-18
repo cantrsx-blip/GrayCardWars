@@ -490,7 +490,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map]]
+	var actions = [["TOPLA", _gather_nearby], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -554,6 +554,7 @@ func _physics_process(delta):
 	in_safe_zone = flat.length() <= TRADE_RADIUS
 	if trade_panel and trade_panel.visible and not in_safe_zone: trade_panel.visible=false
 	_update_combat(delta)
+	_update_resource_respawns(delta)
 	_update_map_dot()
 	if health <= 0:
 		_respawn()
@@ -621,6 +622,7 @@ func _gather_nearby():
 			hunger = minf(100.0, hunger + 8.0)
 		if gather_label:
 			var names={"wood":"ODUN +25","stone":"TAS +20","grass":"CIM +8","wheat":"BUGDAY +5","mushroom":"MANTAR +2"}; gather_label.text=names.get(kind,"TOPLANDI"); gather_label.visible=true; message_time=1.1
+		_schedule_resource_respawn(n,kind)
 		n.queue_free()
 		return
 
@@ -815,3 +817,62 @@ func _buy_trade(kind:int):
 
 func _trade():
 	_toggle_trade()
+
+
+func _toggle_inventory():
+	if inventory_panel==null: _create_inventory()
+	inventory_panel.visible=not inventory_panel.visible
+	if inventory_panel.visible: _refresh_inventory()
+
+func _create_inventory():
+	inventory_panel=Control.new(); inventory_panel.set_anchors_preset(Control.PRESET_CENTER); inventory_panel.position=Vector2(-260,-210); inventory_panel.size=Vector2(520,420)
+	var bg=ColorRect.new(); bg.size=inventory_panel.size; bg.color=Color(.035,.045,.04,.96); inventory_panel.add_child(bg)
+	var title=Label.new(); title.text="ENVANTER"; title.position=Vector2(24,18); title.add_theme_font_size_override("font_size",26); inventory_panel.add_child(title)
+	var grid=GridContainer.new(); grid.name="Grid"; grid.columns=4; grid.position=Vector2(24,68); grid.size=Vector2(472,310); inventory_panel.add_child(grid)
+	var layers=get_children().filter(func(n): return n is CanvasLayer); if layers.size()>0: layers[-1].add_child(inventory_panel)
+	inventory_panel.visible=false
+
+func _refresh_inventory():
+	if inventory_panel==null: return
+	var grid=inventory_panel.get_node("Grid"); for c in grid.get_children(): c.queue_free()
+	var items=[["ODUN",wood],["TAS",stone],["CIM",grass_n],["BUGDAY",wheat_n],["MANTAR",mushroom_n],["GRAY KART",gray_cards],["MERMI",ammo],["CAN",health],["ACLIK",int(hunger)],["SU",int(thirst)]]
+	for item in items:
+		var cell=Label.new(); cell.text="%s\n%d" % [item[0],item[1]]; cell.custom_minimum_size=Vector2(112,72); cell.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cell.vertical_alignment=VERTICAL_ALIGNMENT_CENTER; cell.add_theme_font_size_override("font_size",18); grid.add_child(cell)
+
+func _schedule_resource_respawn(n:Node3D,kind:String):
+	respawn_nodes.append({"kind":kind,"pos":n.global_position,"time":RESOURCE_RESPAWN})
+
+func _update_resource_respawns(delta:float):
+	for i in range(respawn_nodes.size()-1,-1,-1):
+		respawn_nodes[i]["time"]-=delta
+		if respawn_nodes[i]["time"]>0.0: continue
+		var p:Vector3=respawn_nodes[i]["pos"]
+		if _build_blocks_respawn(p):
+			respawn_nodes[i]["time"]=30.0
+			continue
+		_spawn_resource_at(str(respawn_nodes[i]["kind"]),p)
+		respawn_nodes.remove_at(i)
+
+func _build_blocks_respawn(p:Vector3)->bool:
+	if house_parts>0 and Vector2(p.x-build_origin.x,p.z-build_origin.z).length()<7.0: return true
+	if fire_built and Vector2(p.x-campfire_pos.x,p.z-campfire_pos.z).length()<3.0: return true
+	return false
+
+func _spawn_resource_at(kind:String,p:Vector3):
+	p.y=height_at(p.x,p.z)
+	if kind=="wood":
+		var n=_place_asset(tree_assets[randi()%tree_assets.size()],self,p,Vector3.ONE*randf_range(.85,1.15),Vector3(0,randf_range(0,360),0))
+		if n==null:
+			n=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; n.mesh=mesh; n.position=p+Vector3(0,2,0); n.material_override=_simple_mat(Color(.28,.15,.06)); add_child(n)
+		n.set_meta("loot","wood")
+	elif kind=="stone":
+		var n=_place_asset(rock_assets[randi()%rock_assets.size()],self,p,Vector3.ONE,Vector3(0,randf_range(0,360),0))
+		if n==null: _add_static_box(p+Vector3(0,.75,0),Vector3(1.5,1.5,1.5),Color(.45,.43,.40)); n=get_child(get_child_count()-1)
+		n.set_meta("loot","stone")
+	else:
+		var n=MeshInstance3D.new()
+		if kind=="mushroom":
+			var mesh=SphereMesh.new(); mesh.radius=.28; mesh.height=.36; n.mesh=mesh; n.position=p+Vector3(0,.22,0); n.material_override=_simple_mat(Color(.62,.22,.18))
+		else:
+			var mesh=CylinderMesh.new(); mesh.top_radius=.1; mesh.bottom_radius=.25; mesh.height=.7 if kind=="grass" else 1.1; n.mesh=mesh; n.position=p+Vector3(0,.35 if kind=="grass" else .55,0); n.material_override=_simple_mat(Color(.22,.55,.16) if kind=="grass" else Color(.78,.68,.22))
+		n.set_meta("loot",kind); add_child(n)
