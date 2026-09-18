@@ -365,6 +365,8 @@ func _build_bosses():
 		var mat = StandardMaterial3D.new()
 		mat.albedo_color = b.color
 		marker.material_override = mat
+		marker.visible = false
+		_build_landmark(b)
 		marker.set_meta("boss_id", b.id)
 		marker.set_meta("boss_name", b.name)
 		add_child(marker)
@@ -610,3 +612,50 @@ func _update_map_dot():
 func _respawn():
 	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
 	health=100; hunger=70.0; thirst=80.0; player.position=Vector3(0,PLAYER_HEIGHT,0)
+
+
+func _landmark_box(p: Vector3, size: Vector3, c: Color, rot := Vector3.ZERO):
+	var body = _add_static_box_return(p, size, c)
+	body.rotation_degrees = rot
+	return body
+
+func _add_static_box_return(pos: Vector3, size: Vector3, col: Color) -> StaticBody3D:
+	var body=StaticBody3D.new(); body.position=pos
+	var mi=MeshInstance3D.new(); var box=BoxMesh.new(); box.size=size; mi.mesh=box
+	var mat=StandardMaterial3D.new(); mat.albedo_color=col; mi.material_override=mat; body.add_child(mi)
+	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=size; cs.shape=sh; body.add_child(cs); add_child(body)
+	return body
+
+func _build_landmark(b):
+	var c:Vector3=b.pos; var col:Color=b.color; var id:String=b.id
+	if id=="eiffel":
+		for sx in [-1,1]:
+			for sz in [-1,1]: _landmark_box(c+Vector3(sx*3,6,sz*3),Vector3(1,12,1),col,Vector3(sz*10,0,-sx*10))
+		_landmark_box(c+Vector3(0,11,0),Vector3(7,0.7,7),col); _landmark_box(c+Vector3(0,17,0),Vector3(1.2,12,1.2),col)
+	elif id=="colosseum":
+		for i in 20:
+			var a=i*TAU/20.0; _landmark_box(c+Vector3(cos(a)*8,3,sin(a)*5),Vector3(1.1,6,1.1),col)
+	elif id=="great_wall":
+		_landmark_box(c+Vector3(0,3,0),Vector3(22,6,2.2),col)
+		for x in [-10.0,10.0]: _landmark_box(c+Vector3(x,5,0),Vector3(4,10,4),col)
+	elif id=="sydney_opera":
+		for x in [-5.0,0.0,5.0]: _landmark_box(c+Vector3(x,4,0),Vector3(5,8,1.2),col,Vector3(0,0,25 if x<0 else -25))
+	elif id=="pisa":
+		var tower=_landmark_box(c+Vector3(0,7,0),Vector3(5,14,5),col); tower.rotation_degrees.z=8
+	elif id=="golden_gate":
+		for x in [-7.0,7.0]: _landmark_box(c+Vector3(x,7,0),Vector3(2,14,2),col)
+		_landmark_box(c+Vector3(0,8,0),Vector3(18,1,2),col)
+	elif id=="hollywood":
+		for i in 9: _landmark_box(c+Vector3(-8+i*2,3,0),Vector3(1.3,6,0.8),Color(0.92,0.92,0.86))
+	elif id=="brandenburg":
+		for x in [-6.0,-3.0,0.0,3.0,6.0]: _landmark_box(c+Vector3(x,4,0),Vector3(1,8,1),col)
+		_landmark_box(c+Vector3(0,8,0),Vector3(15,2,3),col)
+	elif id=="rushmore":
+		_landmark_box(c+Vector3(0,5,0),Vector3(18,10,5),col)
+		for x in [-6.0,-2.0,2.0,6.0]: _landmark_box(c+Vector3(x,8,-3),Vector3(3,4,2),Color(0.58,0.56,0.52))
+	elif id=="space_needle":
+		_landmark_box(c+Vector3(0,8,0),Vector3(1.5,16,1.5),col)
+		var dish=MeshInstance3D.new(); var cyl=CylinderMesh.new(); cyl.top_radius=5; cyl.bottom_radius=3.5; cyl.height=1.8; dish.mesh=cyl; dish.position=c+Vector3(0,15,0); dish.material_override=_simple_mat(col); add_child(dish)
+
+func _simple_mat(c:Color)->StandardMaterial3D:
+	var m=StandardMaterial3D.new(); m.albedo_color=c; m.roughness=.75; return m
