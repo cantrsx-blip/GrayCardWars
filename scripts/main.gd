@@ -648,6 +648,7 @@ func _gather_nearby():
 			var names={"wood":"ODUN +25","stone":"TAS +20","grass":"CIM +8","wheat":"BUGDAY +5","mushroom":"MANTAR +2"}; gather_label.text=names.get(kind,"TOPLANDI"); gather_label.visible=true; message_time=1.1
 		_schedule_resource_respawn(n,kind)
 		if kind=="wood": _fell_tree(n)
+		elif kind=="stone": _break_rock(n)
 		else: n.queue_free()
 		return
 
@@ -1316,3 +1317,16 @@ func _fell_tree(tree:Node3D):
 	tw.tween_property(tree,"rotation",tree.rotation+axis*deg_to_rad(82.0),1.05)
 	tw.parallel().tween_property(tree,"position:y",tree.position.y-.35,1.05)
 	tw.tween_interval(.35); tw.tween_callback(tree.queue_free)
+
+
+func _break_rock(rock:Node3D):
+	if rock==null or not is_instance_valid(rock): return
+	rock.visible=false
+	for i in 8:
+		var chunk=MeshInstance3D.new(); var mesh=BoxMesh.new(); mesh.size=Vector3(randf_range(.18,.42),randf_range(.14,.34),randf_range(.18,.42)); chunk.mesh=mesh
+		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.34,.33,.31); chunk.material_override=mat
+		chunk.global_position=rock.global_position+Vector3(randf_range(-.35,.35),randf_range(.25,.8),randf_range(-.35,.35)); fx_root.add_child(chunk)
+		var target=chunk.position+Vector3(randf_range(-1.4,1.4),randf_range(.25,.8),randf_range(-1.4,1.4))
+		var tw=create_tween(); tw.set_parallel(true); tw.tween_property(chunk,"position",target,.42); tw.tween_property(chunk,"rotation",Vector3(randf()*4.0,randf()*4.0,randf()*4.0),.42)
+		var timer=get_tree().create_timer(.55); timer.timeout.connect(chunk.queue_free)
+	var t=get_tree().create_timer(.1); t.timeout.connect(rock.queue_free)
