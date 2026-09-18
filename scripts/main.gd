@@ -509,6 +509,7 @@ func _build_hud():
 	_create_damage_effect(layer)
 	_create_ammo_ui(layer)
 	_create_cheat_ui(layer)
+	_create_creative_menu(layer)
 	_setup_sfx()
 	fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
@@ -1270,9 +1271,35 @@ func _create_cheat_ui(layer:CanvasLayer):
 func _toggle_cheat_mode():
 	cheat_mode=!cheat_mode
 	if cheat_label: cheat_label.text=("HILE MODU ACIK" if cheat_mode else "")
+	if creative_panel: creative_panel.visible=cheat_mode
 	if cheat_mode:
 		wood=9999; stone=9999; grass=9999; wheat=9999; mushrooms=9999; reserve_ammo=9999
 		axe_count=max(axe_count,1); pickaxe_count=max(pickaxe_count,1)
 		_flash_message("HILE MODU: SINIRSIZ URETIM")
 	else: _flash_message("HILE MODU KAPALI")
 	_update_ammo_ui()
+
+
+func _create_creative_menu(layer:CanvasLayer):
+	creative_panel=Panel.new(); creative_panel.position=Vector2(360,85); creative_panel.size=Vector2(560,430); creative_panel.visible=false; layer.add_child(creative_panel)
+	var title=Label.new(); title.text="CREATIVE / HILE ENVANTERI"; title.position=Vector2(18,12); title.size=Vector2(520,35); title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; creative_panel.add_child(title)
+	var items=["BALTA","KAZMA","SILAH","MERMİ +100","ODUN +500","TAS +500","OT +500","BUGDAY +200","MANTAR +100","KAMP ATESI","EV PARCALARI","BOT"]
+	for i in items.size():
+		var b=Button.new(); b.text=items[i]; b.position=Vector2(24+(i%3)*174,60+(i/3)*78); b.size=Vector2(158,58); creative_panel.add_child(b); b.pressed.connect(_creative_give.bind(items[i]))
+
+func _creative_give(item:String):
+	if not cheat_mode: return
+	match item:
+		"BALTA": axe_count=max(axe_count,1); _select_hotbar(1)
+		"KAZMA": pickaxe_count=max(pickaxe_count,1); _select_hotbar(2)
+		"SILAH": _select_hotbar(3)
+		"MERMİ +100": reserve_ammo+=100; _update_ammo_ui()
+		"ODUN +500": wood+=500
+		"TAS +500": stone+=500
+		"OT +500": grass+=500
+		"BUGDAY +200": wheat+=200
+		"MANTAR +100": mushrooms+=100
+		"KAMP ATESI": _build_campfire()
+		"EV PARCALARI": build_mode=true; _select_hotbar(4); _ensure_build_preview()
+		"BOT": _build_boat()
+	_flash_message(item+" HAZIR")
