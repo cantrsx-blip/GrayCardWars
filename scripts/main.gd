@@ -413,53 +413,17 @@ func _build_rock_ring(center: Vector3, _accent: Color) -> void:
 		placed+=1
 
 func _build_gatherables():
-	for i in 55:
-		var p = _rand_outside_trade(20, MAP_HALF - 14)
-		if _near_boss(p.x, p.z):
-			continue
-		var g = MeshInstance3D.new()
-		var mesh = CylinderMesh.new()
-		mesh.top_radius = 0.15
-		mesh.bottom_radius = 0.35
-		mesh.height = 0.55
-		g.mesh = mesh
-		g.position = Vector3(p.x, height_at(p.x, p.z) + 0.28, p.z)
-		var m = StandardMaterial3D.new()
-		m.albedo_color = Color(0.22, 0.55, 0.16)
-		g.material_override = m
-		g.set_meta("loot", "grass")
-		add_child(g)
-	for i in 32:
-		var p = _rand_outside_trade(22, MAP_HALF - 14)
-		if _near_boss(p.x, p.z):
-			continue
-		var w = MeshInstance3D.new()
-		var mesh = CylinderMesh.new()
-		mesh.top_radius = 0.08
-		mesh.bottom_radius = 0.12
-		mesh.height = 1.1
-		w.mesh = mesh
-		w.position = Vector3(p.x, height_at(p.x, p.z) + 0.55, p.z)
-		var m = StandardMaterial3D.new()
-		m.albedo_color = Color(0.78, 0.68, 0.22)
-		w.material_override = m
-		w.set_meta("loot", "wheat")
-		add_child(w)
-	for i in 22:
-		var p = _rand_outside_trade(24, MAP_HALF - 16)
-		if _near_boss(p.x, p.z):
-			continue
-		var mu = MeshInstance3D.new()
-		var mesh = SphereMesh.new()
-		mesh.radius = 0.28
-		mesh.height = 0.36
-		mu.mesh = mesh
-		mu.position = Vector3(p.x, height_at(p.x, p.z) + 0.22, p.z)
-		var m = StandardMaterial3D.new()
-		m.albedo_color = Color(0.62, 0.22, 0.18)
-		mu.material_override = m
-		mu.set_meta("loot", "mushroom")
-		add_child(mu)
+	var gather_defs=[
+		[55,20.0,MAP_HALF-14.0,"res://assets/environment/plants/plant_grass_01.glb","grass"],
+		[32,22.0,MAP_HALF-14.0,"res://assets/environment/plants/plant_dry_grass_01.glb","wheat"],
+		[22,24.0,MAP_HALF-16.0,"res://assets/environment/plants/plant_weed_01.glb","mushroom"]
+	]
+	for def in gather_defs:
+		for i in int(def[0]):
+			var p=_rand_outside_trade(float(def[1]),float(def[2]))
+			if _near_boss(p.x,p.z): continue
+			var plant=_place_asset(str(def[3]),self,Vector3(p.x,height_at(p.x,p.z)+.02,p.z),Vector3.ONE*randf_range(.9,1.3),Vector3(0,randf_range(0,360),0))
+			if plant!=null: plant.set_meta("loot",str(def[4]))
 
 func _rand_outside_trade(min_r: float, max_r: float) -> Vector3:
 	var p = Vector3.ZERO
