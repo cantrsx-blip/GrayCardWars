@@ -490,7 +490,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory]]
+	var actions = [["TOPLA", _gather_nearby], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -610,9 +610,9 @@ func _gather_nearby():
 			continue
 		var kind = str(n.get_meta("loot"))
 		if kind == "wood":
-			wood += 25
+			wood += 35 if axe_count>0 else 25
 		elif kind == "stone":
-			stone += 20
+			stone += 30 if pickaxe_count>0 else 20
 		elif kind == "grass":
 			grass_n += 8
 		elif kind == "wheat":
@@ -835,7 +835,7 @@ func _create_inventory():
 func _refresh_inventory():
 	if inventory_panel==null: return
 	var grid=inventory_panel.get_node("Grid"); for c in grid.get_children(): c.queue_free()
-	var items=[["ODUN",wood],["TAS",stone],["CIM",grass_n],["BUGDAY",wheat_n],["MANTAR",mushroom_n],["GRAY KART",gray_cards],["MERMI",ammo],["CAN",health],["ACLIK",int(hunger)],["SU",int(thirst)]]
+	var items=[["ODUN",wood],["TAS",stone],["CIM",grass_n],["BUGDAY",wheat_n],["MANTAR",mushroom_n],["GRAY KART",gray_cards],["MERMI",ammo],["BALTA",axe_count],["KAZMA",pickaxe_count],["CAN",health],["ACLIK",int(hunger)],["SU",int(thirst)]]
 	for item in items:
 		var cell=Label.new(); cell.text="%s\n%d" % [item[0],item[1]]; cell.custom_minimum_size=Vector2(112,72); cell.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cell.vertical_alignment=VERTICAL_ALIGNMENT_CENTER; cell.add_theme_font_size_override("font_size",18); grid.add_child(cell)
 
@@ -876,3 +876,32 @@ func _spawn_resource_at(kind:String,p:Vector3):
 		else:
 			var mesh=CylinderMesh.new(); mesh.top_radius=.1; mesh.bottom_radius=.25; mesh.height=.7 if kind=="grass" else 1.1; n.mesh=mesh; n.position=p+Vector3(0,.35 if kind=="grass" else .55,0); n.material_override=_simple_mat(Color(.22,.55,.16) if kind=="grass" else Color(.78,.68,.22))
 		n.set_meta("loot",kind); add_child(n)
+
+
+func _toggle_crafting():
+	if craft_panel==null: _create_crafting()
+	craft_panel.visible=not craft_panel.visible
+	if inventory_panel: inventory_panel.visible=false
+
+func _create_crafting():
+	craft_panel=Control.new(); craft_panel.set_anchors_preset(Control.PRESET_CENTER); craft_panel.position=Vector2(-245,-180); craft_panel.size=Vector2(490,360)
+	var bg=ColorRect.new(); bg.size=craft_panel.size; bg.color=Color(.04,.05,.045,.96); craft_panel.add_child(bg)
+	var title=Label.new(); title.text="URETIM"; title.position=Vector2(22,18); title.add_theme_font_size_override("font_size",26); craft_panel.add_child(title)
+	var recipes=[["TAS BALTA  •  20 ODUN + 10 TAS",0],["TAS KAZMA  •  15 ODUN + 15 TAS",1],["5 MERMI  •  5 TAS",2]]
+	for i in recipes.size():
+		var b=Button.new(); b.text=recipes[i][0]; b.position=Vector2(45,75+i*70); b.size=Vector2(400,55); b.add_theme_font_size_override("font_size",18); b.pressed.connect(_craft.bind(recipes[i][1])); craft_panel.add_child(b)
+	var layers=get_children().filter(func(n): return n is CanvasLayer); if layers.size()>0: layers[-1].add_child(craft_panel)
+	craft_panel.visible=false
+
+func _craft(kind:int):
+	if kind==0 and axe_count==0 and wood>=20 and stone>=10:
+		wood-=20; stone-=10; axe_count=1; selected_tool="TAS BALTA"
+	elif kind==1 and pickaxe_count==0 and wood>=15 and stone>=15:
+		wood-=15; stone-=15; pickaxe_count=1; selected_tool="TAS KAZMA"
+	elif kind==2 and stone>=5:
+		stone-=5; ammo+=5
+	else:
+		if gather_label: gather_label.text="MALZEME YETERSIZ"; gather_label.visible=true; message_time=1.2
+		return
+	if gather_label: gather_label.text="URETILDI"; gather_label.visible=true; message_time=1.2
+	_refresh_inventory()
