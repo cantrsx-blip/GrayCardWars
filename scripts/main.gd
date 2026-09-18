@@ -527,12 +527,15 @@ func _build_player():
 	_add_human_limb(Vector3(.25,.78,.25),Vector3(-.18,-.70,0),cloth)
 	_add_human_limb(Vector3(.25,.78,.25),Vector3(.18,-.70,0),cloth)
 	_add_human_limb(Vector3(.72,.20,.24),Vector3(0,.48,0),cloth)
+	var arm=SpringArm3D.new(); arm.name="CamArm"; arm.spring_length=6.2; arm.position=Vector3(0,1.6,0)
+	var arm_sph=SphereShape3D.new(); arm_sph.radius=0.22; arm.shape=arm_sph
+	player.add_child(arm)
 	camera = Camera3D.new()
-	camera.position = Vector3(0, 5.4, 7.2)
-	camera.rotation_degrees.x = -25
-	camera.fov = 68
-	camera.current = true
-	player.add_child(camera)
+	camera.position=Vector3.ZERO
+	camera.rotation_degrees.x=-18
+	camera.fov=68
+	camera.current=true
+	arm.add_child(camera)
 
 func _build_hud():
 	var layer = CanvasLayer.new()
@@ -1172,7 +1175,7 @@ func _create_weapon_aim_ui(layer:CanvasLayer):
 func _toggle_scope():
 	if not has_scope: return
 	scoped=not scoped
-	if camera: camera.fov=32.0 if scoped else 70.0
+	if camera: camera.fov=32.0 if scoped else 68.0
 	if scope_overlay: scope_overlay.visible=scoped
 	if crosshair: crosshair.visible=not scoped
 
@@ -1191,7 +1194,7 @@ func _update_aim_marker():
 
 func _update_weapon_feedback(delta:float):
 	recoil=move_toward(recoil,0.0,delta*10.0)
-	if camera: camera.rotation_degrees.x=-25.0-recoil
+	if camera: camera.rotation_degrees.x=-18.0-recoil
 	if hit_marker_time>0.0:
 		hit_marker_time-=delta
 		if hit_marker_time<=0.0 and hit_marker: hit_marker.visible=false
