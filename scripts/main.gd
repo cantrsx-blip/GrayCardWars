@@ -161,11 +161,28 @@ func _place_asset(path:String, parent:Node, pos:Vector3, scale_v:=Vector3.ONE, r
 	if n==null: return null
 	n.position=pos; n.scale=scale_v; n.rotation_degrees=rot; parent.add_child(n); return n
 
+func _build_terrain_mesh():
+	var st=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cells:=64; var step:=(MAP_HALF*2.0)/float(cells)
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.22,.34,.13); mat.roughness=.96
+	for z in cells:
+		for x in cells:
+			var x0=-MAP_HALF+x*step; var x1=x0+step; var z0=-MAP_HALF+z*step; var z1=z0+step
+			var a=Vector3(x0,height_at(x0,z0),z0); var b=Vector3(x1,height_at(x1,z0),z0); var c=Vector3(x1,height_at(x1,z1),z1); var d=Vector3(x0,height_at(x0,z1),z1)
+			st.set_uv(Vector2(float(x)/cells,float(z)/cells)); st.add_vertex(a)
+			st.set_uv(Vector2(float(x+1)/cells,float(z)/cells)); st.add_vertex(b)
+			st.set_uv(Vector2(float(x+1)/cells,float(z+1)/cells)); st.add_vertex(c)
+			st.set_uv(Vector2(float(x)/cells,float(z)/cells)); st.add_vertex(a)
+			st.set_uv(Vector2(float(x+1)/cells,float(z+1)/cells)); st.add_vertex(c)
+			st.set_uv(Vector2(float(x)/cells,float(z+1)/cells)); st.add_vertex(d)
+	st.generate_normals()
+	var mesh=st.commit(); var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; terrain.material_override=mat; add_child(terrain)
+	var body=StaticBody3D.new(); body.name="TerrainCollision"; var cs=CollisionShape3D.new(); cs.shape=mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
+
 func _build_world():
 	world_env=WorldEnvironment.new(); var env=Environment.new(); env.background_mode=Environment.BG_COLOR; env.background_color=Color(.48,.65,.76); env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color=Color(.62,.68,.72); env.ambient_light_energy=0.65; env.tonemap_mode=Environment.TONE_MAPPER_FILMIC; env.fog_enabled=true; env.fog_light_color=Color(.68,.73,.75); env.fog_density=.0028; world_env.environment=env; add_child(world_env)
 	var sun=DirectionalLight3D.new(); sun.rotation_degrees=Vector3(-52,-28,0); sun.light_energy=1.15; sun.shadow_enabled=true; sun.directional_shadow_max_distance=95; add_child(sun)
-	var ground=MeshInstance3D.new(); var plane=PlaneMesh.new(); plane.size=Vector2(MAP_HALF*2.0,MAP_HALF*2.0); ground.mesh=plane
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(0.22,0.34,0.13); mat.roughness=.96; ground.material_override=mat; add_child(ground)
+	_build_terrain_mesh()
 	# Layered terrain patches break up the flat green prototype look at low mobile cost.
 	for i in 70:
 		var patch=MeshInstance3D.new(); var pm=PlaneMesh.new(); pm.size=Vector2(randf_range(10,28),randf_range(10,28)); patch.mesh=pm
