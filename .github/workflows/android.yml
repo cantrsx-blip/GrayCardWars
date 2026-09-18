@@ -50,6 +50,7 @@ jobs:
           test -f GrayCardWars_Realistic_Survival_Assets.zip
           rm -rf assets
           unzip -q -o GrayCardWars_Realistic_Survival_Assets.zip -d .
+          git checkout HEAD -- assets/environment/coast/og.jpg || true
           test -d assets
           echo "Asset files: $(find assets -type f | wc -l)"
           find assets -type f | head -30
