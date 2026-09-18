@@ -528,7 +528,7 @@ func _build_hud():
 	hit_label=Label.new(); hit_label.set_anchors_preset(Control.PRESET_CENTER); hit_label.position=Vector2(-20,-35); hit_label.text="+"; hit_label.visible=false; hit_label.add_theme_font_size_override("font_size",32); layer.add_child(hit_label)
 	zone_label=Label.new(); zone_label.set_anchors_preset(Control.PRESET_TOP_WIDE); zone_label.position=Vector2(0,18); zone_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; zone_label.add_theme_font_size_override("font_size",24); zone_label.add_theme_color_override("font_shadow_color",Color(0,0,0,.9)); zone_label.add_theme_constant_override("shadow_offset_x",2); zone_label.add_theme_constant_override("shadow_offset_y",2); layer.add_child(zone_label)
 	hud = Label.new()
-	hud.position = Vector2(24, 22)
+	hud.position = Vector2(176, 22)
 	hud.add_theme_font_size_override("font_size", 18)
 	hud.add_theme_color_override("font_shadow_color",Color(0,0,0,.85)); hud.add_theme_constant_override("shadow_offset_x",2); hud.add_theme_constant_override("shadow_offset_y",2)
 	layer.add_child(hud)
@@ -539,9 +539,11 @@ func _build_hud():
 		var b = Button.new()
 		b.text = actions[i][0]
 		b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		b.position = Vector2(-158, 30 + i * 62)
-		b.size = Vector2(142, 54)
-		b.add_theme_font_size_override("font_size",18)
+		var col = i % 2
+		var row = int(i / 2)
+		b.position = Vector2(-300 + col * 148, 12 + row * 42)
+		b.size = Vector2(140, 38)
+		b.add_theme_font_size_override("font_size",15)
 		b.pressed.connect(actions[i][1])
 		layer.add_child(b)
 	var trade=Button.new(); trade.text="TAKAS"; trade.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); trade.position=Vector2(-158,-70); trade.size=Vector2(142,54); trade.pressed.connect(_toggle_trade); layer.add_child(trade)
