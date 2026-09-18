@@ -976,17 +976,18 @@ func _create_crafting():
 func _craft(kind:int):
 	if cheat_mode:
 		wood=max(wood,9999); stone=max(stone,9999); grass=max(grass,9999); wheat=max(wheat,9999); mushrooms=max(mushrooms,9999); reserve_ammo=max(reserve_ammo,9999)
+	var crafted := false
 	if kind==0 and axe_count==0 and wood>=20 and stone>=10:
-		wood-=20; stone-=10; axe_count=1; selected_tool="TAS BALTA"
+		wood-=20; stone-=10; axe_count=1; selected_tool="TAS BALTA"; crafted=true
 	elif kind==1 and pickaxe_count==0 and wood>=15 and stone>=15:
-		wood-=15; stone-=15; pickaxe_count=1; selected_tool="TAS KAZMA"
+		wood-=15; stone-=15; pickaxe_count=1; selected_tool="TAS KAZMA"; crafted=true
 	elif kind==2 and stone>=5:
-		stone-=5; ammo+=5
-	_craft_success_feedback()
-	_play_sfx("craft")
-	else:
+		stone-=5; ammo+=5; crafted=true
+	if not crafted:
 		if gather_label: gather_label.text="MALZEME YETERSIZ"; gather_label.visible=true; message_time=1.2
 		return
+	_craft_success_feedback()
+	_play_sfx("craft")
 	if gather_label: gather_label.text="URETILDI"; gather_label.visible=true; message_time=1.2
 	_refresh_inventory()
 
