@@ -22,9 +22,11 @@ var map_dot: Label
 var joystick_knob: ColorRect
 var joystick_base: ColorRect
 var asset_corrections = {
-	"raider":{"scale":Vector3(1,1,1),"rot":Vector3.ZERO,"y":0.0},
-	"boss":{"scale":Vector3(1.15,1.15,1.15),"rot":Vector3.ZERO,"y":0.0},
-	"boat":{"scale":Vector3.ONE,"rot":Vector3.ZERO,"y":0.0}
+	"raider":{"scale":Vector3(1.12,1.12,1.12),"rot":Vector3.ZERO,"y":0.0},
+	"boss":{"scale":Vector3(1.15,1.15,1.15),"rot":Vector3(0,0,180),"y":0.0},
+	"boat":{"scale":Vector3.ONE,"rot":Vector3.ZERO,"y":0.12},
+	"campfire":{"scale":Vector3.ONE,"rot":Vector3.ZERO,"y":0.0},
+	"tree_old_giant":{"scale":Vector3(.70,.70,.70),"rot":Vector3.ZERO,"y":0.0}
 }
 var tree_assets = [
 	"res://assets/environment/trees/tree_pine_01.glb",
@@ -130,6 +132,7 @@ var sfx: Dictionary = {}
 var step_timer := 0.0
 var hotbar_label: Label
 var player_facing := Vector3(0,0,-1)
+var player_move_speed := 3.4
 var touch_moved := false
 var chest_storage: Dictionary = {"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0,"ammo":0}
 var minimap_dot: Control
@@ -1199,7 +1202,7 @@ func _update_aim_marker():
 
 func _update_weapon_feedback(delta:float):
 	recoil=move_toward(recoil,0.0,delta*10.0)
-	if camera: camera.rotation_degrees.x=-recoil
+	if camera: camera.rotation_degrees.x=-25.0-recoil
 	if hit_marker_time>0.0:
 		hit_marker_time-=delta
 		if hit_marker_time<=0.0 and hit_marker: hit_marker.visible=false
