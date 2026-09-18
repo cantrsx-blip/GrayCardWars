@@ -503,6 +503,7 @@ func _build_hud():
 	var trade=Button.new(); trade.text="TAKAS"; trade.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); trade.position=Vector2(-158,-70); trade.size=Vector2(142,54); trade.pressed.connect(_toggle_trade); layer.add_child(trade)
 	_create_trade_panel(layer)
 	_create_hotbar(layer)
+	_create_minimap(layer)
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -562,6 +563,7 @@ func _physics_process(delta):
 	_update_resource_respawns(delta)
 	_update_build_preview()
 	_update_map_dot()
+	_update_minimap()
 	if health <= 0:
 		_respawn()
 	var zone = "VAHSI"
@@ -1020,3 +1022,25 @@ func _toggle_chest_transfer():
 
 func _flash_message(t:String):
 	if gather_label: gather_label.text=t; gather_label.visible=true; message_time=1.5
+
+
+func _create_minimap(layer:CanvasLayer):
+	minimap_panel=Panel.new(); minimap_panel.position=Vector2(16,16); minimap_panel.size=Vector2(150,150)
+	var bg=ColorRect.new(); bg.position=Vector2(5,5); bg.size=Vector2(140,140); bg.color=Color(.08,.14,.09,.82); minimap_panel.add_child(bg)
+	# Safe trade zone
+	var safe=ColorRect.new(); safe.position=Vector2(65,65); safe.size=Vector2(10,10); safe.color=Color(.2,.9,.35,.85); minimap_panel.add_child(safe)
+	# Cardinal hints keep orientation readable on a small mobile screen.
+	for item in [["K",Vector2(70,4)],["G",Vector2(70,130)],["B",Vector2(4,68)],["D",Vector2(132,68)]]:
+		var l=Label.new(); l.text=item[0]; l.position=item[1]; minimap_panel.add_child(l)
+	minimap_dot=ColorRect.new(); minimap_dot.size=Vector2(8,8); minimap_dot.color=Color(1,.82,.12,1); minimap_panel.add_child(minimap_dot)
+	minimap_dir=Label.new(); minimap_dir.text="▲"; minimap_dir.size=Vector2(18,18); minimap_panel.add_child(minimap_dir)
+	layer.add_child(minimap_panel)
+
+func _update_minimap():
+	if minimap_dot==null or player==null: return
+	var px=clamp((player.global_position.x+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
+	var pz=clamp((player.global_position.z+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
+	var pos=Vector2(5+px*132.0,5+pz*132.0)
+	minimap_dot.position=pos
+	minimap_dir.position=pos+Vector2(-5,-15)
+	minimap_dir.rotation=atan2(-player_facing.x,-player_facing.z)
