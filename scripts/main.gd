@@ -561,6 +561,8 @@ func _build_hud():
 	_create_hotbar(layer)
 	_create_minimap(layer)
 	_create_weapon_aim_ui(layer)
+	# Dedicated FPS look surface. Drag anywhere in the open gameplay view to look horizontally/vertically.
+	var look_pad=Control.new(); look_pad.set_anchors_preset(Control.PRESET_FULL_RECT); look_pad.mouse_filter=Control.MOUSE_FILTER_PASS; look_pad.gui_input.connect(_look_pad_input); layer.add_child(look_pad)
 	# Main tool/weapon action button, translucent yellow.
 	var action_btn=Button.new(); action_btn.text=""; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104)
@@ -669,6 +671,16 @@ func _physics_process(delta):
 		health, int(hunger), int(thirst), gray_cards, ammo,
 		wood, stone, grass_n, wheat_n, mushroom_n
 	]
+
+func _look_pad_input(event):
+	if event is InputEventScreenDrag and player and camera:
+		# Preserve the left movement zone and right-side button column.
+		var vw=get_viewport().get_visible_rect().size.x
+		if event.position.x < vw*.32 or event.position.x > vw*.78: return
+		player.rotation_degrees.y -= event.relative.x * look_sensitivity
+		look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-72.0,72.0)
+		camera.rotation_degrees.x=look_pitch
+		player_facing=-player.global_transform.basis.z
 
 func _input(event):
 	if event is InputEventScreenTouch:
