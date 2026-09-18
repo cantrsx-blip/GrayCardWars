@@ -490,7 +490,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon]]
+	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon], ["HILE", _toggle_cheat_mode]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -508,6 +508,7 @@ func _build_hud():
 	_create_survival_clock(layer)
 	_create_damage_effect(layer)
 	_create_ammo_ui(layer)
+	_create_cheat_ui(layer)
 	_setup_sfx()
 	fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
@@ -937,6 +938,8 @@ func _create_crafting():
 	craft_panel.visible=false
 
 func _craft(kind:int):
+	if cheat_mode:
+		wood=max(wood,9999); stone=max(stone,9999); grass=max(grass,9999); wheat=max(wheat,9999); mushrooms=max(mushrooms,9999); reserve_ammo=max(reserve_ammo,9999)
 	if kind==0 and axe_count==0 and wood>=20 and stone>=10:
 		wood-=20; stone-=10; axe_count=1; selected_tool="TAS BALTA"
 	elif kind==1 and pickaxe_count==0 and wood>=15 and stone>=15:
@@ -1259,3 +1262,17 @@ func _update_reload(delta:float):
 	reload_time-=delta
 	if reload_time<=0:
 		var need=magazine_size-magazine; var take=min(need,reserve_ammo); magazine+=take; reserve_ammo-=take; reloading=false; _update_ammo_ui()
+
+
+func _create_cheat_ui(layer:CanvasLayer):
+	cheat_label=Label.new(); cheat_label.position=Vector2(510,10); cheat_label.size=Vector2(260,34); cheat_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cheat_label.text=""; layer.add_child(cheat_label)
+
+func _toggle_cheat_mode():
+	cheat_mode=!cheat_mode
+	if cheat_label: cheat_label.text=("HILE MODU ACIK" if cheat_mode else "")
+	if cheat_mode:
+		wood=9999; stone=9999; grass=9999; wheat=9999; mushrooms=9999; reserve_ammo=9999
+		axe_count=max(axe_count,1); pickaxe_count=max(pickaxe_count,1)
+		_flash_message("HILE MODU: SINIRSIZ URETIM")
+	else: _flash_message("HILE MODU KAPALI")
+	_update_ammo_ui()
