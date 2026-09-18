@@ -99,14 +99,16 @@ var pits := [
 ]
 
 func _ready():
+	# Create the player/camera first. If a later world asset fails on Android,
+	# the game must never fall back to Godot's camera-less grey clear screen.
+	_build_player()
+	_build_hud()
 	_build_world()
 	_build_hills_and_pits()
 	_build_trade_zone()
 	_build_bosses()
 	_build_gatherables()
-	_build_player()
 	_spawn_combatants()
-	_build_hud()
 
 func height_at(x: float, z: float) -> float:
 	if Vector2(x, z).length() < TRADE_RADIUS + 5.0:
