@@ -990,7 +990,7 @@ func _build_interior_prop(p:Vector3,kind:int):
 	if kind==6:
 		var obj=_add_static_box_return(p+Vector3(0,.5,0),Vector3(1.5,1,1),col); obj.add_to_group("interior_interactable"); obj.set_meta("interior","chest")
 	elif kind==7:
-		var obj=_add_static_box_return(p+Vector3(0,.22,0),Vector3(1.2,.44,2.2),Color(.32,.28,.20)); obj.add_to_group("interior_interactable"); obj.set_meta("interior","bed"); bed_spawn=p+Vector3(0,1,1.5); has_bed_spawn=true
+		var obj=_add_static_box_return(p+Vector3(0,.22,0),Vector3(1.2,.44,2.2),Color(.32,.28,.20)); obj.add_to_group("interior_interactable"); obj.set_meta("interior","bed"); bed_spawn=p+Vector3(0,1,1.5); has_bed_spawn=true; _update_bed_minimap()
 	elif kind==8:
 		var obj=_add_static_box_return(p+Vector3(0,.55,0),Vector3(2.2,1.1,.8),col); obj.add_to_group("interior_interactable"); obj.set_meta("interior","workbench")
 	elif kind==9:
@@ -1010,7 +1010,7 @@ func _use_nearest_interior():
 	var kind=str(best.get_meta("interior",""))
 	if kind=="chest": _toggle_chest_transfer()
 	elif kind=="bed":
-		bed_spawn=best.global_position+Vector3(0,1,1.5); has_bed_spawn=true; _flash_message("YENIDEN DOGMA NOKTASI AYARLANDI")
+		bed_spawn=best.global_position+Vector3(0,1,1.5); has_bed_spawn=true; _update_bed_minimap(); _flash_message("YENIDEN DOGMA NOKTASI AYARLANDI")
 	elif kind=="workbench": _toggle_crafting()
 	elif kind=="stove": hunger=min(100.0,hunger+20.0); _flash_message("YEMEK PISIRILDI +20 ACLIK")
 
@@ -1037,6 +1037,7 @@ func _create_minimap(layer:CanvasLayer):
 		var l=Label.new(); l.text=item[0]; l.position=item[1]; minimap_panel.add_child(l)
 	minimap_dot=ColorRect.new(); minimap_dot.size=Vector2(8,8); minimap_dot.color=Color(1,.82,.12,1); minimap_panel.add_child(minimap_dot)
 	minimap_dir=Label.new(); minimap_dir.text="▲"; minimap_dir.size=Vector2(18,18); minimap_panel.add_child(minimap_dir)
+	_add_minimap_landmarks()
 	layer.add_child(minimap_panel)
 
 func _update_minimap():
@@ -1089,3 +1090,20 @@ func _update_weapon_feedback(delta:float):
 
 func _show_hit_marker():
 	if hit_marker: hit_marker.visible=true; hit_marker_time=.16
+
+
+func _add_minimap_landmarks():
+	if minimap_panel==null: return
+	var points=[Vector2(-130,130),Vector2(0,160),Vector2(140,130),Vector2(170,0),Vector2(140,-130),Vector2(0,-160),Vector2(-130,-130),Vector2(-170,0),Vector2(-160,80),Vector2(160,80)]
+	for wp in points:
+		var m=ColorRect.new(); m.size=Vector2(5,5); m.color=Color(.9,.22,.16,.95)
+		m.position=Vector2(5+(wp.x+MAP_HALF)/(MAP_HALF*2.0)*132.0,5+(wp.y+MAP_HALF)/(MAP_HALF*2.0)*132.0); minimap_panel.add_child(m); minimap_marks.append(m)
+	if has_bed_spawn:
+		_update_bed_minimap()
+
+func _update_bed_minimap():
+	if minimap_panel==null or not has_bed_spawn: return
+	var old=minimap_panel.get_node_or_null("BedMark")
+	if old: old.queue_free()
+	var m=Label.new(); m.name="BedMark"; m.text="⌂"; m.add_theme_font_size_override("font_size",16)
+	m.position=Vector2(5+(bed_spawn.x+MAP_HALF)/(MAP_HALF*2.0)*132.0,5+(bed_spawn.z+MAP_HALF)/(MAP_HALF*2.0)*132.0)-Vector2(5,9); minimap_panel.add_child(m)
