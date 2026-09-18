@@ -498,7 +498,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon], ["HILE", _toggle_cheat_mode]]
+	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon], ["BOMBA", _throw_grenade], ["TNT", _place_tnt], ["HILE", _toggle_cheat_mode]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -1442,3 +1442,30 @@ func _craft_explosive(kind:String):
 func metal_scrap() -> int:
 	# Placeholder resource hook until scrap loot is added.
 	return 9999 if cheat_mode else stone
+
+
+func _throw_grenade():
+	if grenade_count<=0 and not cheat_mode: _flash_message("EL BOMBASI YOK"); return
+	if not cheat_mode: grenade_count-=1
+	var p=player.global_position+Vector3(0,1.2,0)-player.global_transform.basis.z*4.5
+	var timer=get_tree().create_timer(1.2); timer.timeout.connect(_game_explosion.bind(p,5.5,55))
+
+func _place_tnt():
+	if tnt_count<=0 and not cheat_mode: _flash_message("TNT YOK"); return
+	if not cheat_mode: tnt_count-=1
+	var p=player.global_position-player.global_transform.basis.z*2.2
+	_flash_message("TNT YERLESTIRILDI")
+	var timer=get_tree().create_timer(2.5); timer.timeout.connect(_game_explosion.bind(p,7.5,90))
+
+func _game_explosion(pos:Vector3,radius:float,damage:int):
+	_play_sfx("explosion")
+	if fx_root:
+		var light=OmniLight3D.new(); light.light_color=Color(1,.38,.08); light.light_energy=9; light.omni_range=radius*1.4; light.global_position=pos; fx_root.add_child(light)
+		var timer=get_tree().create_timer(.14); timer.timeout.connect(light.queue_free)
+	for e in enemies.duplicate():
+		if is_instance_valid(e) and e.global_position.distance_to(pos)<=radius:
+			e.set_meta("hp",int(e.get_meta("hp",60))-damage)
+	for n in get_children():
+		if n is Node3D and n.global_position.distance_to(pos)<=radius and n.has_meta("build_piece"): _damage_structure(n,damage)
+	if player and player.global_position.distance_to(pos)<=radius:
+		health=max(0,health-int(damage*.55)); _flash_damage(.65)
