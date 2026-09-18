@@ -163,6 +163,10 @@ var look_sensitivity := 0.075
 var chest_storage: Dictionary = {"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0,"ammo":0}
 var minimap_dot: Control
 var minimap_dir: Control
+var built_floors: Array[Node3D] = []
+var built_walls: Array[Node3D] = []
+var preview_valid := false
+var tree_hits: Dictionary = {}
 const RESOURCE_RESPAWN := 90.0
 var respawn_nodes: Array = []
 
@@ -204,7 +208,7 @@ func _build_world_staged() -> void:
 	await get_tree().process_frame
 	_build_bosses()
 	await get_tree().process_frame
-	_build_gatherables()
+	# Small plants/mushrooms removed. Trees are the only vegetation for now.
 	# Raiders and bosses intentionally disabled for the KARA KIYI rebuild.
 	zone_label.text=""
 
@@ -357,10 +361,6 @@ func _build_world():
 		_make_kara_tree(tree_body)
 		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.34; trunk_shape.height=5.2; trunk_col.shape=trunk_shape; trunk_col.position.y=2.6; tree_body.add_child(trunk_col)
 		tree_body.set_meta("loot","wood")
-	for i in 90:
-		var p=_rand_outside_trade(22,MAP_HALF-14)
-		if _near_boss(p.x,p.z): continue
-		_place_asset(plant_assets[randi()%plant_assets.size()],self,Vector3(p.x,height_at(p.x,p.z)+.02,p.z),Vector3.ONE*randf_range(.8,1.25),Vector3(0,randf_range(0,360),0))
 
 func _build_hills_and_pits():
 	# Terrain heightfield already provides hills and pits. Avoid duplicate cylinder geometry.
@@ -375,13 +375,13 @@ func _build_fort(center: Vector3, accent: Color) -> void:
 	floor.mesh = fmesh
 	floor.position = Vector3(center.x, y0 + 0.12, center.z)
 	var fm = StandardMaterial3D.new()
-	fm.albedo_color = Color(0.50, 0.38, 0.22)
+	fm.albedo_color = Color(.28,.22,.16)
 	floor.material_override = fm
 	add_child(floor)
 
-	var wood_c = Color(0.36, 0.22, 0.10)
-	var stone_c = Color(0.48, 0.46, 0.42)
-	var metal_c = Color(0.55, 0.56, 0.58)
+	var wood_c = Color(.25,.14,.07)
+	var stone_c = Color(.62,.60,.55)
+	var metal_c = Color(.34,.25,.20)
 	var seg = FORT_HALF - GATE_W * 0.5
 	# Kuzey / guney duvar: iki parca + kapı boslugu
 	_add_static_box(Vector3(center.x - (seg + GATE_W) * 0.5, y0 + WALL_H * 0.5, center.z - FORT_HALF), Vector3(seg, WALL_H, WALL_T), stone_c)
@@ -544,7 +544,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon], ["BOMBA", _throw_grenade], ["TNT", _place_tnt], ["HILE", _toggle_cheat_mode], ["UC", _toggle_fly_mode], ["ALCAL", _fly_down]]
+	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon], ["BOMBA", _throw_grenade], ["TNT", _place_tnt], ["HILE", _toggle_cheat_mode], ["UC", _toggle_fly_mode], ["ALCAL", _fly_down]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -561,6 +561,12 @@ func _build_hud():
 	_create_hotbar(layer)
 	_create_minimap(layer)
 	_create_weapon_aim_ui(layer)
+	# Main tool/weapon action button, translucent yellow.
+	var action_btn=Button.new(); action_btn.text=""; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104)
+	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
+	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.pressed.connect(_primary_action); layer.add_child(action_btn)
+	var aim=Label.new(); aim.text="+"; aim.set_anchors_preset(Control.PRESET_CENTER); aim.position=Vector2(-14,-22); aim.size=Vector2(28,44); aim.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; aim.add_theme_font_size_override("font_size",32); aim.add_theme_color_override("font_color",Color(.95,.08,.06,1)); aim.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(aim)
 	_create_survival_clock(layer)
 	_create_damage_effect(layer)
 	_create_ammo_ui(layer)
@@ -696,8 +702,6 @@ func _input(event):
 		_build_fire()
 	elif event.is_action_pressed("build_house"):
 		_build_house()
-	elif event.is_action_pressed("build_boat"):
-		_build_boat()
 
 func _gather_nearby():
 	_play_sfx("chop"); _gather_particles()
@@ -793,6 +797,26 @@ func _apply_damage(amount:float):
 		health=max(0,health-whole)
 		damage_buffer-=whole
 
+func _primary_action():
+	if player==null or camera==null: return
+	if selected_tool=="SILAH":
+		_shoot(); return
+	var space=get_world_3d().direct_space_state
+	var from=camera.global_position; var to=from+(-camera.global_transform.basis.z)*4.2
+	var q=PhysicsRayQueryParameters3D.create(from,to); q.exclude=[player]
+	var hit=space.intersect_ray(q)
+	if hit.is_empty(): return
+	var obj=hit.get("collider")
+	if obj==null or not obj.has_meta("loot"): return
+	var kind=str(obj.get_meta("loot"))
+	if selected_tool=="TAS BALTA" and kind=="wood":
+		var id=obj.get_instance_id(); var count=int(tree_hits.get(id,0))+1; tree_hits[id]=count; _play_sfx("chop"); _gather_particles()
+		_flash_message("AGAC %d / 4" % count)
+		if count>=4:
+			wood+=35; tree_hits.erase(id); _schedule_resource_respawn(obj,"wood"); _fell_tree(obj)
+	elif selected_tool=="TAS KAZMA" and kind=="stone":
+		stone+=20; _play_sfx("chop"); _schedule_resource_respawn(obj,"stone"); _break_rock(obj)
+
 func _shoot():
 	if ammo <= 0 or in_safe_zone: return
 	ammo -= 1
@@ -833,17 +857,25 @@ func _house_asset(key:String,p:Vector3,yaw:float,size:Vector3)->Node3D:
 func _build_house():
 	if not build_mode:
 		build_mode=true; _ensure_build_preview(); return
+	_update_build_preview()
+	if not preview_valid: _flash_message("BU PARCA BURAYA KURULAMAZ"); return
 	if wood<20: return
-	var p=build_preview.global_position if build_preview else player.global_position+player_facing*5.0
-	var yaw=rad_to_deg(atan2(player_facing.x,player_facing.z))
+	var p=build_preview.global_position
+	var yaw=build_preview.rotation_degrees.y
 	wood-=20
+	var made:Node3D=null
 	match build_piece:
-		0: _house_asset("house_floor",p,yaw,Vector3(3,.18,3))
-		1: _house_asset("house_wall",p,yaw,Vector3(3,3,.18))
-		2: _build_door_frame(p,yaw)
-		3: _build_window_frame(p,yaw)
-		4: _house_asset("house_roof",p+Vector3(0,3,0),yaw,Vector3(3,.18,3))
-		5: _house_asset("house_stairs",p,yaw,Vector3(3,1.6,3))
+		0:
+			made=_house_asset("house_floor",p,0,Vector3(3,.18,3)); built_floors.append(made)
+		1:
+			made=_house_asset("house_wall",p,yaw,Vector3(3,3,.18)); built_walls.append(made)
+		2:
+			_build_door_frame(p,yaw+180.0); built_walls.append(_nearest_floor())
+		3:
+			_build_window_frame(p,yaw); built_walls.append(_nearest_floor())
+		4: made=_house_asset("house_roof",p,yaw,Vector3(3,.18,3))
+		5: made=_house_asset("house_stairs",p,yaw,Vector3(3,1.6,3))
+		8: _build_interior_prop(p,build_piece,yaw+180.0)
 		_: _build_interior_prop(p,build_piece,yaw)
 	house_parts+=1
 	if gather_label: gather_label.text=build_piece_names[build_piece]+" KURULDU"; gather_label.visible=true; message_time=1.0
@@ -1117,12 +1149,51 @@ func _ensure_build_preview():
 		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.2,.9,.35,.38); mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; build_preview.material_override=mat; add_child(build_preview)
 	build_preview.visible=true; _update_preview_shape()
 
+func _nearest_floor(max_dist:=9.0) -> Node3D:
+	var best:Node3D=null; var best_d=max_dist
+	for f in built_floors:
+		if not is_instance_valid(f): continue
+		var d=player.global_position.distance_to(f.global_position)
+		if d<best_d: best_d=d; best=f
+	return best
+
 func _update_build_preview():
 	if not build_mode or build_preview==null or player==null: return
-	var forward=player_facing; forward.y=0
-	if forward.length()<.1: forward=Vector3(0,0,-1)
-	var p=player.global_position+forward.normalized()*5.0; p.y=height_at(p.x,p.z)+.2
-	build_preview.global_position=p
+	preview_valid=false
+	var forward=-player.global_transform.basis.z; forward.y=0.0; forward=forward.normalized()
+	var floor=_nearest_floor()
+	if build_piece==0:
+		var p=player.global_position+forward*5.0
+		# First floor can be on terrain. Additional floors snap to a 3m grid near an existing floor.
+		if floor:
+			var local=p-floor.global_position
+			var sx=round(local.x/3.0)*3.0; var sz=round(local.z/3.0)*3.0
+			if absf(sx)>=absf(sz): sz=0.0; sx=3.0*signf(sx if absf(sx)>.1 else forward.x)
+			else: sx=0.0; sz=3.0*signf(sz if absf(sz)>.1 else forward.z)
+			p=floor.global_position+Vector3(sx,0,sz)
+		else: p.y=height_at(p.x,p.z)+.1
+		build_preview.global_position=p; build_preview.rotation_degrees.y=0; preview_valid=true
+	elif floor:
+		var rel=forward
+		# Camera direction selects one of the four floor edges.
+		var p=floor.global_position; var yaw=0.0
+		if absf(rel.x)>absf(rel.z):
+			p.x+=1.5*signf(rel.x); yaw=90.0
+		else:
+			p.z+=1.5*signf(rel.z); yaw=0.0
+		if build_piece in [1,2,3]:
+			p.y=floor.global_position.y+.1; preview_valid=true
+		elif build_piece==4:
+			if built_walls.size()>0: p=floor.global_position+Vector3(0,3.0,0); preview_valid=true
+		elif build_piece in [6,7,8,9,10]:
+			p=floor.global_position+Vector3(0,.12,0); preview_valid=true
+		elif build_piece==5:
+			p=floor.global_position+Vector3(0,.12,0); preview_valid=true
+		build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
+	else:
+		build_preview.global_position=player.global_position+forward*5.0
+	var mat=build_preview.material_override as StandardMaterial3D
+	if mat: mat.albedo_color=Color(.2,.9,.35,.42) if preview_valid else Color(.95,.12,.08,.40)
 
 
 func _build_door_frame(p:Vector3,yaw:=0.0):
