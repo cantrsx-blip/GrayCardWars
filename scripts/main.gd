@@ -1210,22 +1210,22 @@ func _update_bed_minimap():
 func _update_held_item(slot:int):
 	if held_item: held_item.queue_free()
 	held_item=Node3D.new(); held_item.name="HeldItem"; player.add_child(held_item)
-	held_item.position=Vector3(.48,1.05,-.48)
+	held_item.position=Vector3(.35,.85,-.55)
+	if slot==0: held_item.visible=false; return
+	var paths={1:"res://assets/items/tools/stone_axe.glb",2:"res://assets/items/tools/stone_pickaxe.glb",3:"res://assets/items/weapons/scrap_rifle.glb",4:"res://assets/items/tools/building_hammer.glb"}
+	var visual=_load_asset(str(paths.get(slot,"")))
+	if visual!=null:
+		visual.scale=Vector3(.9,.9,.9); held_item.add_child(visual); return
 	var wood_mat=StandardMaterial3D.new(); wood_mat.albedo_color=Color(.30,.16,.06)
 	var metal_mat=StandardMaterial3D.new(); metal_mat.albedo_color=Color(.30,.33,.36)
-	if slot==0: held_item.visible=false; return
 	if slot==1:
-		_add_held_box(Vector3(.12,.8,.12),Vector3(0,-.05,0),wood_mat)
-		_add_held_box(Vector3(.75,.18,.18),Vector3(0,.34,0),metal_mat)
+		_add_held_box(Vector3(.12,.8,.12),Vector3(0,-.05,0),wood_mat); _add_held_box(Vector3(.75,.18,.18),Vector3(0,.34,0),metal_mat)
 	elif slot==2:
-		_add_held_box(Vector3(.12,.9,.12),Vector3(0,-.05,0),wood_mat)
-		_add_held_box(Vector3(.95,.14,.16),Vector3(0,.4,0),metal_mat)
+		_add_held_box(Vector3(.12,.9,.12),Vector3(0,-.05,0),wood_mat); _add_held_box(Vector3(.95,.14,.16),Vector3(0,.4,0),metal_mat)
 	elif slot==3:
-		_add_held_box(Vector3(.18,.18,.85),Vector3(0,0,-.18),metal_mat)
-		_add_held_box(Vector3(.12,.35,.16),Vector3(0,-.22,.05),wood_mat)
+		_add_held_box(Vector3(.18,.18,.85),Vector3(0,0,-.18),metal_mat); _add_held_box(Vector3(.12,.35,.16),Vector3(0,-.22,.05),wood_mat)
 	elif slot==4:
-		_add_held_box(Vector3(.12,.82,.12),Vector3(0,-.05,0),wood_mat)
-		_add_held_box(Vector3(.65,.28,.24),Vector3(0,.35,0),metal_mat)
+		_add_held_box(Vector3(.12,.82,.12),Vector3(0,-.05,0),wood_mat); _add_held_box(Vector3(.65,.28,.24),Vector3(0,.35,0),metal_mat)
 
 func _add_held_box(sz:Vector3,pos:Vector3,mat:Material):
 	var m=MeshInstance3D.new(); var b=BoxMesh.new(); b.size=sz; m.mesh=b; m.position=pos; m.material_override=mat; held_item.add_child(m)
