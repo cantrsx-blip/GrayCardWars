@@ -490,7 +490,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump]]
+	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -507,6 +507,7 @@ func _build_hud():
 	_create_weapon_aim_ui(layer)
 	_create_survival_clock(layer)
 	_create_damage_effect(layer)
+	_create_ammo_ui(layer)
 	_setup_sfx()
 	fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
@@ -574,6 +575,7 @@ func _physics_process(delta):
 	_update_day_cycle(delta)
 	_update_footsteps(delta)
 	_update_damage_effect(delta)
+	_update_reload(delta)
 	_update_crafting_feedback(delta)
 	if health <= 0: _death_feedback();
 		_respawn()
@@ -1240,3 +1242,20 @@ func _gather_particles():
 	var pm=ParticleProcessMaterial.new(); pm.direction=Vector3(0,1,0); pm.spread=55.0; pm.initial_velocity_min=1.2; pm.initial_velocity_max=2.8; pm.gravity=Vector3(0,-5,0); p.process_material=pm
 	p.position=player.global_position+(-player.global_transform.basis.z*1.2)+Vector3(0,.7,0); fx_root.add_child(p); p.emitting=true
 	var t=get_tree().create_timer(.7); t.timeout.connect(p.queue_free)
+
+
+func _create_ammo_ui(layer:CanvasLayer):
+	ammo_label=Label.new(); ammo_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); ammo_label.position=Vector2(-260,-74); ammo_label.size=Vector2(220,42); ammo_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT; layer.add_child(ammo_label); _update_ammo_ui()
+
+func _update_ammo_ui():
+	if ammo_label: ammo_label.text=("DOLDURULUYOR..." if reloading else "%02d / %03d" % [magazine,reserve_ammo])
+
+func _reload_weapon():
+	if reloading or magazine>=magazine_size or reserve_ammo<=0: return
+	reloading=true; reload_time=1.35; _update_ammo_ui()
+
+func _update_reload(delta:float):
+	if not reloading: return
+	reload_time-=delta
+	if reload_time<=0:
+		var need=magazine_size-magazine; var take=min(need,reserve_ammo); magazine+=take; reserve_ammo-=take; reloading=false; _update_ammo_ui()
