@@ -75,6 +75,45 @@ var hit_label: Label
 var world_env: WorldEnvironment
 var zone_label: Label
 var trade_panel: Control
+var message_time := 0.0
+var respawn_label: Label
+var gather_label: Label
+var campfire_pos := Vector3.ZERO
+var heal_buffer := 0.0
+var inventory_panel: Control
+var craft_panel: Control
+var hotbar: Control
+var selected_tool := "ELLER"
+var axe_count := 0
+var pickaxe_count := 0
+var build_mode := false
+var build_preview: Node3D
+var build_piece := "ZEMIN"
+var scoped := false
+var has_scope := true
+var scope_overlay: Control
+var aim_marker: Control
+var hit_marker: Control
+var recoil := 0.0
+var damage_overlay: ColorRect
+var damage_time := 0.0
+var ammo_label: Label
+var reloading := false
+var reload_time := 0.0
+var magazine_size := 30
+var magazine := 30
+var reserve_ammo := 120
+var cheat_label: Label
+var creative_panel: Control
+var cheat_mode := false
+var fx_root: Node3D
+var structure_hp_default := 100
+var ammo_762 := 48
+var ammo_9mm := 60
+var ammo_12ga := 24
+var ammo_rocket := 3
+var grenade_count := 0
+var tnt_count := 0
 
 var bosses := [
 	{"id": "eiffel", "name": "Eyfel Kulesi", "pos": Vector3(-130, 0, 130), "color": Color(0.45, 0.32, 0.18)},
@@ -366,7 +405,7 @@ func _build_gatherables():
 		var m = StandardMaterial3D.new()
 		m.albedo_color = Color(0.22, 0.55, 0.16)
 		g.material_override = m
-		g.set_meta("loot", "grass")
+		g.set_meta("loot", "grass_n")
 		add_child(g)
 	for i in 32:
 		var p = _rand_outside_trade(22, MAP_HALF - 14)
@@ -382,7 +421,7 @@ func _build_gatherables():
 		var m = StandardMaterial3D.new()
 		m.albedo_color = Color(0.78, 0.68, 0.22)
 		w.material_override = m
-		w.set_meta("loot", "wheat")
+		w.set_meta("loot", "wheat_n")
 		add_child(w)
 	for i in 22:
 		var p = _rand_outside_trade(24, MAP_HALF - 16)
@@ -656,15 +695,15 @@ func _gather_nearby():
 			wood += 35 if axe_count>0 else 25
 		elif kind == "stone":
 			stone += 30 if pickaxe_count>0 else 20
-		elif kind == "grass":
+		elif kind == "grass_n":
 			grass_n += 8
-		elif kind == "wheat":
+		elif kind == "wheat_n":
 			wheat_n += 5
 		elif kind == "mushroom":
 			mushroom_n += 2
 			hunger = minf(100.0, hunger + 8.0)
 		if gather_label:
-			var names={"wood":"ODUN +25","stone":"TAS +20","grass":"CIM +8","wheat":"BUGDAY +5","mushroom":"MANTAR +2"}; gather_label.text=names.get(kind,"TOPLANDI"); gather_label.visible=true; message_time=1.1
+			var names={"wood":"ODUN +25","stone":"TAS +20","grass_n":"CIM +8","wheat_n":"BUGDAY +5","mushroom":"MANTAR +2"}; gather_label.text=names.get(kind,"TOPLANDI"); gather_label.visible=true; message_time=1.1
 		_schedule_resource_respawn(n,kind)
 		if kind=="wood": _fell_tree(n)
 		elif kind=="stone": _break_rock(n)
@@ -953,7 +992,7 @@ func _spawn_resource_at(kind:String,p:Vector3):
 		if kind=="mushroom":
 			var mesh=SphereMesh.new(); mesh.radius=.28; mesh.height=.36; n.mesh=mesh; n.position=p+Vector3(0,.22,0); n.material_override=_simple_mat(Color(.62,.22,.18))
 		else:
-			var mesh=CylinderMesh.new(); mesh.top_radius=.1; mesh.bottom_radius=.25; mesh.height=.7 if kind=="grass" else 1.1; n.mesh=mesh; n.position=p+Vector3(0,.35 if kind=="grass" else .55,0); n.material_override=_simple_mat(Color(.22,.55,.16) if kind=="grass" else Color(.78,.68,.22))
+			var mesh=CylinderMesh.new(); mesh.top_radius=.1; mesh.bottom_radius=.25; mesh.height=.7 if kind=="grass_n" else 1.1; n.mesh=mesh; n.position=p+Vector3(0,.35 if kind=="grass_n" else .55,0); n.material_override=_simple_mat(Color(.22,.55,.16) if kind=="grass_n" else Color(.78,.68,.22))
 		n.set_meta("loot",kind); add_child(n)
 
 
@@ -975,7 +1014,7 @@ func _create_crafting():
 
 func _craft(kind:int):
 	if cheat_mode:
-		wood=max(wood,9999); stone=max(stone,9999); grass=max(grass,9999); wheat=max(wheat,9999); mushrooms=max(mushrooms,9999); reserve_ammo=max(reserve_ammo,9999)
+		wood=max(wood,9999); stone=max(stone,9999); grass_n=max(grass_n,9999); wheat_n=max(wheat_n,9999); mushroom_n=max(mushroom_n,9999); reserve_ammo=max(reserve_ammo,9999)
 	var crafted := false
 	if kind==0 and axe_count==0 and wood>=20 and stone>=10:
 		wood-=20; stone-=10; axe_count=1; selected_tool="TAS BALTA"; crafted=true
@@ -1071,11 +1110,11 @@ func _use_nearest_interior():
 
 func _toggle_chest_transfer():
 	if wood+stone+grass_n+wheat_n+mushroom_n>0:
-		chest_storage["wood"]+=wood; chest_storage["stone"]+=stone; chest_storage["grass"]+=grass_n; chest_storage["wheat"]+=wheat_n; chest_storage["mushroom"]+=mushroom_n
+		chest_storage["wood"]+=wood; chest_storage["stone"]+=stone; chest_storage["grass_n"]+=grass_n; chest_storage["wheat_n"]+=wheat_n; chest_storage["mushroom"]+=mushroom_n
 		wood=0; stone=0; grass_n=0; wheat_n=0; mushroom_n=0; _flash_message("KAYNAKLAR SANDIGA KONDU")
 	else:
-		wood=chest_storage["wood"]; stone=chest_storage["stone"]; grass_n=chest_storage["grass"]; wheat_n=chest_storage["wheat"]; mushroom_n=chest_storage["mushroom"]
-		chest_storage={"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0}; _flash_message("SANDIK BOSALTILDI")
+		wood=chest_storage["wood"]; stone=chest_storage["stone"]; grass_n=chest_storage["grass_n"]; wheat_n=chest_storage["wheat_n"]; mushroom_n=chest_storage["mushroom"]
+		chest_storage={"wood":0,"stone":0,"grass_n":0,"wheat_n":0,"mushroom":0}; _flash_message("SANDIK BOSALTILDI")
 	_refresh_inventory()
 
 func _flash_message(t:String):
@@ -1309,7 +1348,7 @@ func _toggle_cheat_mode():
 	if cheat_label: cheat_label.text=("HILE MODU ACIK" if cheat_mode else "")
 	if creative_panel: creative_panel.visible=cheat_mode
 	if cheat_mode:
-		wood=9999; stone=9999; grass=9999; wheat=9999; mushrooms=9999; reserve_ammo=9999
+		wood=9999; stone=9999; grass_n=9999; wheat_n=9999; mushroom_n=9999; reserve_ammo=9999
 		axe_count=max(axe_count,1); pickaxe_count=max(pickaxe_count,1)
 		_flash_message("HILE MODU: SINIRSIZ URETIM")
 	else: _flash_message("HILE MODU KAPALI")
@@ -1332,9 +1371,9 @@ func _creative_give(item:String):
 		"MERMİ +100": reserve_ammo+=100; _update_ammo_ui()
 		"ODUN +500": wood+=500
 		"TAS +500": stone+=500
-		"OT +500": grass+=500
-		"BUGDAY +200": wheat+=200
-		"MANTAR +100": mushrooms+=100
+		"OT +500": grass_n+=500
+		"BUGDAY +200": wheat_n+=200
+		"MANTAR +100": mushroom_n+=100
 		"KAMP ATESI": _build_campfire()
 		"EV PARCALARI": build_mode=true; _select_hotbar(4); _ensure_build_preview()
 		"BOT": _build_boat()
