@@ -693,7 +693,7 @@ func _spawn_combatants():
 			add_child(e); enemies.append(e)
 		var boss = CharacterBody3D.new(); boss.position = b.pos + Vector3(0,1,0)
 		var bc=asset_corrections["boss"]; var bv=_place_asset(asset_paths["boss"],boss,Vector3(0,bc["y"],0),bc["scale"],bc["rot"])
-		if bv==null: boss.add_child(_enemy_visual(Color(0.12,0.04,0.04), Vector3(1.8,1.8,1.8)))
+		if bv==null: boss.add_child(_boss_visual())
 		var bcs=CollisionShape3D.new(); var bsh=CapsuleShape3D.new(); bsh.radius=.7; bsh.height=2.7; bcs.shape=bsh; bcs.position.y=1.35; boss.add_child(bcs)
 		boss.set_meta("hp",300); boss.set_meta("fort_boss",true)
 		add_child(boss); fort_bosses.append(boss)
@@ -1392,3 +1392,20 @@ func _add_human_limb(size:Vector3,pos:Vector3,mat:Material):
 	var limb=MeshInstance3D.new(); var mesh=CapsuleMesh.new()
 	mesh.radius=min(size.x,size.z)*.5; mesh.height=size.y
 	limb.mesh=mesh; limb.position=pos; limb.material_override=mat; player.add_child(limb)
+
+
+func _boss_visual() -> Node3D:
+	var root=_enemy_visual(Color(.10,.11,.13),Vector3(2.15,2.15,2.15))
+	var armor=StandardMaterial3D.new(); armor.albedo_color=Color(.20,.22,.24); armor.metallic=.75; armor.roughness=.32
+	var dark=StandardMaterial3D.new(); dark.albedo_color=Color(.055,.06,.07); dark.metallic=.55
+	_boss_armor_part(root,Vector3(.88,.42,.48),Vector3(0,1.28,0),armor)
+	_boss_armor_part(root,Vector3(.34,.26,.42),Vector3(-.58,1.30,0),armor)
+	_boss_armor_part(root,Vector3(.34,.26,.42),Vector3(.58,1.30,0),armor)
+	_boss_armor_part(root,Vector3(.58,.22,.42),Vector3(0,.82,0),dark)
+	_boss_armor_part(root,Vector3(.27,.46,.30),Vector3(-.20,.42,0),armor)
+	_boss_armor_part(root,Vector3(.27,.46,.30),Vector3(.20,.42,0),armor)
+	var helmet=MeshInstance3D.new(); var hm=SphereMesh.new(); hm.radius=.34; hm.height=.55; helmet.mesh=hm; helmet.position=Vector3(0,1.68,0); helmet.material_override=armor; root.add_child(helmet)
+	return root
+
+func _boss_armor_part(root:Node3D,size:Vector3,pos:Vector3,mat:Material):
+	var m=MeshInstance3D.new(); var bx=BoxMesh.new(); bx.size=size; m.mesh=bx; m.position=pos; m.material_override=mat; root.add_child(m)
