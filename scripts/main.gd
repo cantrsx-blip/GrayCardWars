@@ -1330,3 +1330,27 @@ func _break_rock(rock:Node3D):
 		var tw=create_tween(); tw.set_parallel(true); tw.tween_property(chunk,"position",target,.42); tw.tween_property(chunk,"rotation",Vector3(randf()*4.0,randf()*4.0,randf()*4.0),.42)
 		var timer=get_tree().create_timer(.55); timer.timeout.connect(chunk.queue_free)
 	var t=get_tree().create_timer(.1); t.timeout.connect(rock.queue_free)
+
+
+func _damage_structure(part:Node3D, damage:=35):
+	if part==null or not is_instance_valid(part): return
+	var kind=str(part.get_meta("build_piece",""))
+	if kind not in ["DUVAR","PENCERE","KAPI"]: return
+	var hp=int(part.get_meta("structure_hp",structure_hp_default))-damage
+	part.set_meta("structure_hp",hp); _structure_hit_fx(part)
+	if hp<=0: _shatter_structure(part,kind)
+
+func _structure_hit_fx(part:Node3D):
+	if fx_root==null: return
+	for i in 5:
+		var c=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(.06,.06,.06); c.mesh=bm; c.global_position=part.global_position+Vector3(randf_range(-.5,.5),randf_range(.3,1.6),randf_range(-.3,.3)); fx_root.add_child(c)
+		var tw=create_tween(); tw.tween_property(c,"position",c.position+Vector3(randf_range(-.5,.5),-.45,randf_range(-.5,.5)),.3); tw.tween_callback(c.queue_free)
+
+func _shatter_structure(part:Node3D,kind:String):
+	part.visible=false
+	var count=12 if kind=="DUVAR" else 8
+	for i in count:
+		var c=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(randf_range(.12,.35),randf_range(.1,.28),randf_range(.08,.22)); c.mesh=bm; c.global_position=part.global_position+Vector3(randf_range(-1.0,1.0),randf_range(.25,1.8),randf_range(-.25,.25)); fx_root.add_child(c)
+		var tw=create_tween(); tw.set_parallel(true); tw.tween_property(c,"position",c.position+Vector3(randf_range(-1.3,1.3),randf_range(-.7,.2),randf_range(-1.0,1.0)),.5); tw.tween_property(c,"rotation",Vector3(randf()*4.0,randf()*4.0,randf()*4.0),.5)
+		var timer=get_tree().create_timer(.65); timer.timeout.connect(c.queue_free)
+	var t=get_tree().create_timer(.12); t.timeout.connect(part.queue_free)
