@@ -33,7 +33,10 @@ var tree_assets = [
 	"res://assets/environment/trees/tree_pine_02.glb",
 	"res://assets/environment/trees/tree_oak_01.glb",
 	"res://assets/environment/trees/tree_broadleaf_01.glb",
-	"res://assets/environment/trees/tree_old_giant_01.glb"
+	"res://assets/environment/trees/tree_old_giant_01.glb",
+	"res://assets/environment/trees/tree_young_01.glb",
+	"res://assets/environment/trees/tree_young_02.glb",
+	"res://assets/environment/trees/tree_pine_03.glb"
 ]
 var rock_assets = [
 	"res://assets/environment/rocks/rock_small_01.glb",
@@ -287,10 +290,22 @@ func _build_world():
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
 			continue
-		var tree=_place_asset(tree_assets[randi()%tree_assets.size()],self,Vector3(p.x,height_at(p.x,p.z),p.z),Vector3.ONE*randf_range(.85,1.18),Vector3(0,randf_range(0,360),0))
-		if tree==null:
-			tree=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; tree.mesh=mesh; tree.position=Vector3(p.x,height_at(p.x,p.z)+2.0,p.z); tree.material_override=_simple_mat(Color(.28,.15,.06)); add_child(tree)
-		tree.set_meta("loot","wood")
+		var tree_path=tree_assets[randi()%tree_assets.size()]
+		var tree_scale:=1.0
+		if "tree_old_giant_01" in tree_path: tree_scale=randf_range(.62,.74)
+		elif "tree_pine_02" in tree_path: tree_scale=randf_range(.52,.68)
+		elif "tree_pine_01" in tree_path or "tree_pine_03" in tree_path: tree_scale=randf_range(.62,.82)
+		elif "tree_broadleaf_01" in tree_path: tree_scale=randf_range(.55,.70)
+		elif "tree_oak_01" in tree_path: tree_scale=randf_range(.75,.95)
+		elif "tree_young_" in tree_path: tree_scale=randf_range(.90,1.15)
+		var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
+		var tree=_load_asset(tree_path)
+		if tree!=null:
+			tree.scale=Vector3.ONE*tree_scale; tree_body.add_child(tree)
+		else:
+			tree=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; tree.mesh=mesh; tree.position=Vector3(0,2.0,0); tree.material_override=_simple_mat(Color(.28,.15,.06)); tree_body.add_child(tree)
+		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.38; trunk_shape.height=3.2; trunk_col.shape=trunk_shape; trunk_col.position.y=1.6; tree_body.add_child(trunk_col)
+		tree_body.set_meta("loot","wood")
 	for i in 90:
 		var p=_rand_outside_trade(22,MAP_HALF-14)
 		if _near_boss(p.x,p.z): continue
