@@ -506,6 +506,7 @@ func _build_hud():
 	_create_minimap(layer)
 	_create_weapon_aim_ui(layer)
 	_create_survival_clock(layer)
+	_create_damage_effect(layer)
 	_setup_sfx()
 
 func _nearest_boss() -> String:
@@ -571,6 +572,7 @@ func _physics_process(delta):
 	_update_weapon_feedback(delta)
 	_update_day_cycle(delta)
 	_update_footsteps(delta)
+	_update_damage_effect(delta)
 	_update_crafting_feedback(delta)
 	if health <= 0: _death_feedback();
 		_respawn()
@@ -1199,5 +1201,26 @@ func _jump():
 		_play_sfx("jump")
 
 func _death_feedback():
-	_play_sfx("death")
+	_play_sfx("death"); _death_screen_effect()
 	if scoped: _toggle_scope()
+
+
+func _create_damage_effect(layer:CanvasLayer):
+	damage_overlay=ColorRect.new(); damage_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	damage_overlay.color=Color(.55,.0,.0,0.0); damage_overlay.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(damage_overlay)
+
+func _flash_damage(strength:=.38):
+	if damage_overlay:
+		damage_overlay.color=Color(.58,.0,.0,clamp(strength,.12,.72)); damage_time=.28
+
+func _update_damage_effect(delta:float):
+	if damage_overlay==null: return
+	if damage_time>0:
+		damage_time-=delta
+		damage_overlay.color.a=move_toward(damage_overlay.color.a,0.0,delta*1.35)
+	elif health<30:
+		damage_overlay.color.a=.10+sin(Time.get_ticks_msec()/180.0)*.035
+	else: damage_overlay.color.a=0.0
+
+func _death_screen_effect():
+	if damage_overlay: damage_overlay.color=Color(.48,.0,.0,.72); damage_time=1.25
