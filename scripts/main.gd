@@ -70,6 +70,7 @@ var in_safe_zone := true
 var in_pit := false
 var in_dry := false
 var damage_buffer := 0.0
+var world_env: WorldEnvironment
 
 var bosses := [
 	{"id": "eiffel", "name": "Eyfel Kulesi", "pos": Vector3(-130, 0, 130), "color": Color(0.45, 0.32, 0.18)},
@@ -157,6 +158,8 @@ func _place_asset(path:String, parent:Node, pos:Vector3, scale_v:=Vector3.ONE, r
 	n.position=pos; n.scale=scale_v; n.rotation_degrees=rot; parent.add_child(n); return n
 
 func _build_world():
+	world_env=WorldEnvironment.new(); var env=Environment.new(); env.background_mode=Environment.BG_COLOR; env.background_color=Color(.48,.65,.76); env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color=Color(.62,.68,.72); env.ambient_light_energy=0.65; env.tonemap_mode=Environment.TONE_MAPPER_FILMIC; env.fog_enabled=true; env.fog_light_color=Color(.68,.73,.75); env.fog_density=.0028; world_env.environment=env; add_child(world_env)
+	var sun=DirectionalLight3D.new(); sun.rotation_degrees=Vector3(-52,-28,0); sun.light_energy=1.15; sun.shadow_enabled=true; sun.directional_shadow_max_distance=95; add_child(sun)
 	var ground=MeshInstance3D.new(); var plane=PlaneMesh.new(); plane.size=Vector2(MAP_HALF*2.0,MAP_HALF*2.0); ground.mesh=plane
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(0.22,0.34,0.13); mat.roughness=.96; ground.material_override=mat; add_child(ground)
 	# Layered terrain patches break up the flat green prototype look at low mobile cost.
