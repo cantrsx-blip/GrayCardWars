@@ -814,10 +814,11 @@ func _update_preview_shape():
 func _build_boat():
 	if boat_built or wood < 40: return
 	wood -= 40; boat_built = true
-	var bp=Vector3(player.position.x,0.35,-192)
-	var bc=asset_corrections["boat"]; bp.y+=bc["y"]
+	var bp=Vector3(player.position.x,0.12,-192)
+	var bc=asset_corrections["boat"]
 	var boat=_place_asset(asset_paths["boat"],self,bp,bc["scale"],bc["rot"])
-	if boat==null: _add_static_box(bp,Vector3(3,.6,6),Color(.35,.16,.05))
+	if boat!=null: boat.name="PlayerBoat"
+	else: _add_static_box(bp,Vector3(3,.6,6),Color(.35,.16,.05))
 
 func _toggle_map():
 	if map_panel == null: _create_map()
