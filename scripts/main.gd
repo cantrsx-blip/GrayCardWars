@@ -148,6 +148,14 @@ var step_timer := 0.0
 var hotbar_label: Label
 var player_facing := Vector3(0,0,-1)
 var player_move_speed := 3.4
+var fly_mode := false
+var fly_height := 0.0
+var waypoint_active := false
+var waypoint_pos := Vector3.ZERO
+var waypoint_label: Label
+var facing_label: Label
+var map_waypoint: Label
+var map_hint: Label
 var touch_moved := false
 var chest_storage: Dictionary = {"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0,"ammo":0}
 var minimap_dot: Control
@@ -589,7 +597,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon], ["BOMBA", _throw_grenade], ["TNT", _place_tnt], ["HILE", _toggle_cheat_mode]]
+	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon], ["BOMBA", _throw_grenade], ["TNT", _place_tnt], ["HILE", _toggle_cheat_mode], ["UC", _toggle_fly_mode], ["ALCAL", _fly_down]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -610,6 +618,8 @@ func _build_hud():
 	_create_damage_effect(layer)
 	_create_ammo_ui(layer)
 	_create_cheat_ui(layer)
+	facing_label=Label.new(); facing_label.set_anchors_preset(Control.PRESET_TOP_WIDE); facing_label.position=Vector2(0,48); facing_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; facing_label.add_theme_font_size_override("font_size",22); layer.add_child(facing_label)
+	waypoint_label=Label.new(); waypoint_label.set_anchors_preset(Control.PRESET_TOP_WIDE); waypoint_label.position=Vector2(0,76); waypoint_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; waypoint_label.add_theme_font_size_override("font_size",20); layer.add_child(waypoint_label)
 	_create_creative_menu(layer)
 	_setup_sfx()
 	fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
@@ -650,19 +660,30 @@ func _physics_process(delta):
 	if Input.is_key_pressed(KEY_S): v.y = 1
 	if Input.is_key_pressed(KEY_A): v.x = -1
 	if Input.is_key_pressed(KEY_D): v.x = 1
-	var dir = Vector3(v.x, 0, v.y)
-	if dir.length() > 1.0:
-		dir = dir.normalized()
-	var speed = 4.2 if in_pit else 6.0
+	# Mobile movement follows what the camera/player is facing: up=forward, down=back.
+	var forward=Vector3(0,0,-1)
+	var right=Vector3(1,0,0)
+	if camera:
+		forward=-camera.global_transform.basis.z; forward.y=0.0; forward=forward.normalized()
+		right=camera.global_transform.basis.x; right.y=0.0; right=right.normalized()
+	var dir = right*v.x + forward*(-v.y)
+	if dir.length() > 1.0: dir = dir.normalized()
+	var speed = player_move_speed * (.70 if in_pit else 1.0)
 	if hunger<20.0 or thirst<20.0: speed*=.78
+	if fly_mode: speed*=2.2
 	if dir.length()>.05:
 		player_facing=dir.normalized(); player.rotation.y=atan2(-player_facing.x,-player_facing.z)
-	player.velocity = dir * speed
-	player.move_and_slide()
+	player.velocity.x=dir.x*speed; player.velocity.z=dir.z*speed
+	if fly_mode:
+		player.velocity.y=0.0
+		player.position += Vector3(player.velocity.x,0,player.velocity.z)*delta
+	else:
+		player.move_and_slide()
 	player.position.x = clampf(player.position.x, -MAP_HALF + 2.0, MAP_HALF - 2.0)
 	player.position.z = clampf(player.position.z, -MAP_HALF + 2.0, MAP_HALF - 2.0)
 	var hy = height_at(player.position.x, player.position.z)
-	player.position.y = hy + PLAYER_HEIGHT
+	if not fly_mode: player.position.y = hy + PLAYER_HEIGHT
+	elif player.position.y < hy+3.0: player.position.y=hy+3.0
 	in_pit = hy < -2.0
 	in_dry = _near_boss(player.position.x, player.position.z)
 	var flat = Vector2(player.position.x, player.position.z)
@@ -672,6 +693,7 @@ func _physics_process(delta):
 	_update_resource_respawns(delta)
 	_update_build_preview()
 	_update_map_dot()
+	_update_navigation_ui()
 	_update_minimap()
 	_update_aim_marker()
 	_update_weapon_feedback(delta)
@@ -895,21 +917,37 @@ func _toggle_map():
 
 func _create_map():
 	map_panel = Control.new(); map_panel.position = Vector2(110,70); map_panel.size = Vector2(620,520)
-	var bg=ColorRect.new(); bg.size=map_panel.size; bg.color=Color(0.08,0.13,0.09,0.95); map_panel.add_child(bg)
+	var bg=ColorRect.new(); bg.size=map_panel.size; bg.color=Color(0.10,0.12,0.09,0.97); bg.mouse_filter=Control.MOUSE_FILTER_STOP; map_panel.add_child(bg)
+	bg.gui_input.connect(_map_input)
+	var title=Label.new(); title.text="KARA KIYI  •  Haritaya dokun: hedef koy"; title.position=Vector2(20,8); title.size=Vector2(580,30); title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; map_panel.add_child(title)
 	for b in bosses:
 		var l=Label.new(); l.text=b.name
 		l.position=Vector2(25+(b.pos.x+MAP_HALF)/(MAP_HALF*2.0)*570.0,35+(b.pos.z+MAP_HALF)/(MAP_HALF*2.0)*440.0); map_panel.add_child(l)
-	map_dot=Label.new(); map_dot.text="● SEN"; map_panel.add_child(map_dot)
+	map_dot=Label.new(); map_dot.text="▲ SEN"; map_panel.add_child(map_dot)
+	map_waypoint=Label.new(); map_waypoint.text="◎ HEDEF"; map_waypoint.visible=false; map_panel.add_child(map_waypoint)
+	map_hint=Label.new(); map_hint.text=""; map_hint.position=Vector2(20,485); map_hint.size=Vector2(580,28); map_hint.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; map_panel.add_child(map_hint)
 	var layers=get_children().filter(func(n): return n is CanvasLayer)
 	if layers.size()>0: layers[-1].add_child(map_panel)
 	map_panel.visible=false
 	_update_map_dot()
+
+func _map_input(event):
+	if not (event is InputEventScreenTouch) or not event.pressed: return
+	var p=event.position
+	if p.x<25 or p.x>595 or p.y<35 or p.y>475: return
+	var nx=clampf((p.x-25.0)/570.0,0.0,1.0); var nz=clampf((p.y-35.0)/440.0,0.0,1.0)
+	waypoint_pos=Vector3(nx*MAP_HALF*2.0-MAP_HALF,0,nz*MAP_HALF*2.0-MAP_HALF)
+	waypoint_active=true
+	if map_waypoint: map_waypoint.visible=true; map_waypoint.position=Vector2(25+nx*570.0,35+nz*440.0)
+	_update_navigation_ui()
 
 func _update_map_dot():
 	if map_dot == null or player == null: return
 	var nx=clampf((player.position.x+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
 	var nz=clampf((player.position.z+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
 	map_dot.position=Vector2(25+nx*570.0,35+nz*440.0)
+	var angle=atan2(player_facing.x,-player_facing.z)
+	map_dot.rotation=angle
 
 func _respawn():
 	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
@@ -1336,6 +1374,9 @@ func _update_footsteps(delta:float):
 
 
 func _jump():
+	if fly_mode and player:
+		player.position.y+=3.0
+		return
 	if player and player.is_on_floor():
 		player.velocity.y=7.2
 		_play_sfx("jump")
@@ -1581,3 +1622,39 @@ func _game_explosion(pos:Vector3,radius:float,damage:int):
 		if n is Node3D and n.global_position.distance_to(pos)<=radius and n.has_meta("build_piece"): _damage_structure(n,damage)
 	if player and player.global_position.distance_to(pos)<=radius:
 		health=max(0,health-int(damage*.55)); _flash_damage(.65)
+
+
+func _toggle_fly_mode():
+	fly_mode=!fly_mode
+	if fly_mode:
+		fly_height=maxf(player.position.y,height_at(player.position.x,player.position.z)+6.0); player.position.y=fly_height
+		_flash_message("UCUS MODU ACIK • ZIPLA: YUKSEL • ALCAL: IN")
+	else:
+		player.position.y=height_at(player.position.x,player.position.z)+PLAYER_HEIGHT
+		_flash_message("UCUS MODU KAPALI")
+
+func _fly_down():
+	if fly_mode:
+		var floor_y=height_at(player.position.x,player.position.z)+3.0
+		player.position.y=maxf(floor_y,player.position.y-3.0)
+
+func _update_navigation_ui():
+	if player==null: return
+	var compass="↑"
+	var ang=atan2(player_facing.x,-player_facing.z)
+	if absf(ang)>PI*.75: compass="↓"
+	elif ang>PI*.25: compass="→"
+	elif ang<-PI*.25: compass="←"
+	if facing_label: facing_label.text="%s  BAKIS" % compass
+	if not waypoint_active:
+		if waypoint_label: waypoint_label.text=("✈ UCUS" if fly_mode else "")
+		if map_hint: map_hint.text="Haritaya dokunarak hedef sec"
+		return
+	var to=waypoint_pos-player.global_position; var dist=Vector2(to.x,to.z).length()
+	var target_ang=atan2(to.x,-to.z); var rel=wrapf(target_ang-ang,-PI,PI)
+	var arrow="↑"
+	if absf(rel)>PI*.75: arrow="↓"
+	elif rel>PI*.25: arrow="→"
+	elif rel<-PI*.25: arrow="←"
+	if waypoint_label: waypoint_label.text="%s HEDEF  %.0f m%s" % [arrow,dist,("  •  ✈" if fly_mode else "")]
+	if map_hint: map_hint.text="HEDEF: %.0f m  •  %s" % [dist,arrow]
