@@ -19,6 +19,11 @@ var boat_built := false
 var build_origin := Vector3.ZERO
 var map_panel: Control
 var map_dot: Label
+var asset_corrections = {
+	"raider":{"scale":Vector3(1,1,1),"rot":Vector3.ZERO,"y":0.0},
+	"boss":{"scale":Vector3(1.15,1.15,1.15),"rot":Vector3.ZERO,"y":0.0},
+	"boat":{"scale":Vector3.ONE,"rot":Vector3.ZERO,"y":0.0}
+}
 var asset_paths = {
 	"tree":"res://assets/environment/trees/tree_pine_01.glb",
 	"rock":"res://assets/environment/rocks/rock_medium_01.glb",
@@ -545,12 +550,12 @@ func _spawn_combatants():
 		for j in 3:
 			var e = CharacterBody3D.new()
 			e.position = b.pos + Vector3(cos(j * TAU / 3.0) * 12.0, 1.0, sin(j * TAU / 3.0) * 12.0)
-			var rv=_place_asset(asset_paths["raider"],e,Vector3.ZERO,Vector3.ONE,Vector3.ZERO)
+			var rc=asset_corrections["raider"]; var rv=_place_asset(asset_paths["raider"],e,Vector3(0,rc["y"],0),rc["scale"],rc["rot"])
 			if rv==null: e.add_child(_enemy_visual(Color(0.42,0.08,0.08)))
 			e.set_meta("hp", 60); e.set_meta("raider", true)
 			add_child(e); enemies.append(e)
 		var boss = CharacterBody3D.new(); boss.position = b.pos + Vector3(0,1,0)
-		var bv=_place_asset(asset_paths["boss"],boss,Vector3.ZERO,Vector3(1.15,1.15,1.15),Vector3.ZERO)
+		var bc=asset_corrections["boss"]; var bv=_place_asset(asset_paths["boss"],boss,Vector3(0,bc["y"],0),bc["scale"],bc["rot"])
 		if bv==null: boss.add_child(_enemy_visual(Color(0.12,0.04,0.04), Vector3(1.8,1.8,1.8)))
 		boss.set_meta("hp",300); boss.set_meta("fort_boss",true)
 		add_child(boss); fort_bosses.append(boss)
@@ -605,7 +610,8 @@ func _build_boat():
 	if boat_built or wood < 40: return
 	wood -= 40; boat_built = true
 	var bp=Vector3(player.position.x,0.35,-192)
-	var boat=_place_asset(asset_paths["boat"],self,bp,Vector3.ONE,Vector3.ZERO)
+	var bc=asset_corrections["boat"]; bp.y+=bc["y"]
+	var boat=_place_asset(asset_paths["boat"],self,bp,bc["scale"],bc["rot"])
 	if boat==null: _add_static_box(bp,Vector3(3,.6,6),Color(.35,.16,.05))
 
 func _toggle_map():
