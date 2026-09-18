@@ -60,11 +60,11 @@ var asset_paths = {
 	"house_window_wall":"res://assets/building/wood/window_wall.glb",
 	"house_roof":"res://assets/building/wood/roof.glb",
 	"house_stairs":"res://assets/building/wood/stairs.glb",
-	"house_chest":"res://assets/building/wood/wood_chest.glb",
-	"house_bed":"res://assets/building/wood/simple_bed.glb",
-	"house_workbench":"res://assets/building/wood/workbench.glb",
-	"house_stove":"res://assets/building/wood/crate.glb",
-	"house_lamp":"res://assets/building/wood/lantern.glb"
+	"house_chest":"res://assets/props/survival/wood_chest.glb",
+	"house_bed":"res://assets/props/survival/simple_bed.glb",
+	"house_workbench":"res://assets/props/survival/workbench.glb",
+	"house_stove":"res://assets/props/survival/crate.glb",
+	"house_lamp":"res://assets/props/survival/lantern.glb"
 }
 var wood := 0
 var stone := 0
