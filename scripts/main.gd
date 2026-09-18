@@ -597,7 +597,8 @@ func _physics_process(delta):
 	_update_damage_effect(delta)
 	_update_reload(delta)
 	_update_crafting_feedback(delta)
-	if health <= 0: _death_feedback();
+	if health <= 0:
+		_death_feedback()
 		_respawn()
 	var zone = "VAHSI"
 	if in_safe_zone:
