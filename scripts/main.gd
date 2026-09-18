@@ -167,6 +167,11 @@ var built_floors: Array[Node3D] = []
 var built_walls: Array[Node3D] = []
 var preview_valid := false
 var tree_hits: Dictionary = {}
+var rock_hits: Dictionary = {}
+var metal_parts := 0
+var scope_stage := 0
+var crouched := false
+var crouch_button: Button
 const RESOURCE_RESPAWN := 90.0
 var respawn_nodes: Array = []
 
@@ -334,6 +339,11 @@ func _make_kara_tree(parent:Node3D) -> void:
 		cm.top_radius=.05; cm.bottom_radius=1.65-float(i)*.22; cm.height=2.2
 		crown.mesh=cm; crown.position.y=4.4+float(i)*.85; crown.material_override=_simple_mat(Color(.10,.22,.12)); parent.add_child(crown)
 
+func _make_meteor(parent:Node3D) -> void:
+	var meteor=MeshInstance3D.new(); var mm=SphereMesh.new(); mm.radius=.72; mm.height=1.15
+	meteor.mesh=mm; meteor.position.y=.48; meteor.scale=Vector3(1.22,.74,1.02); meteor.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.27,.23,.22); mat.metallic=.58; mat.roughness=.82; meteor.material_override=mat; parent.add_child(meteor)
+
 func _make_kara_rock(parent:Node3D) -> void:
 	# Light coastal stone, deliberately not coal-black.
 	var rock=MeshInstance3D.new(); var rm=SphereMesh.new(); rm.radius=.72; rm.height=1.15
@@ -354,6 +364,14 @@ func _build_world():
 		_make_kara_rock(rock_body)
 		var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
 		rock_body.set_meta("loot","stone")
+	# Meteors match the normal stone count and use the same grounded scale.
+	for i in 52:
+		var mp = _rand_outside_trade(28, MAP_HALF - 12)
+		if _near_boss(mp.x, mp.z): continue
+		var meteor_body=StaticBody3D.new(); meteor_body.position=Vector3(mp.x,height_at(mp.x,mp.z),mp.z); add_child(meteor_body)
+		_make_meteor(meteor_body)
+		var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
+		meteor_body.set_meta("loot","meteor")
 	for i in 110:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z): continue
@@ -536,48 +554,28 @@ func _build_hud():
 	var layer = CanvasLayer.new()
 	add_child(layer)
 	hit_label=Label.new(); hit_label.set_anchors_preset(Control.PRESET_CENTER); hit_label.position=Vector2(-20,-35); hit_label.text="+"; hit_label.visible=false; hit_label.add_theme_font_size_override("font_size",32); layer.add_child(hit_label)
-	zone_label=Label.new(); zone_label.set_anchors_preset(Control.PRESET_TOP_WIDE); zone_label.position=Vector2(0,18); zone_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; zone_label.add_theme_font_size_override("font_size",24); zone_label.add_theme_color_override("font_shadow_color",Color(0,0,0,.9)); zone_label.add_theme_constant_override("shadow_offset_x",2); zone_label.add_theme_constant_override("shadow_offset_y",2); layer.add_child(zone_label)
-	hud = Label.new()
-	hud.position = Vector2(176, 22)
-	hud.add_theme_font_size_override("font_size", 18)
-	hud.add_theme_color_override("font_shadow_color",Color(0,0,0,.85)); hud.add_theme_constant_override("shadow_offset_x",2); hud.add_theme_constant_override("shadow_offset_y",2)
-	layer.add_child(hud)
+	zone_label=Label.new(); zone_label.set_anchors_preset(Control.PRESET_TOP_WIDE); zone_label.position=Vector2(0,18); zone_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; zone_label.add_theme_font_size_override("font_size",24); layer.add_child(zone_label)
+	hud=Label.new(); hud.position=Vector2(176,22); hud.add_theme_font_size_override("font_size",18); layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump], ["DOLDUR", _reload_weapon], ["BOMBA", _throw_grenade], ["TNT", _place_tnt], ["HILE", _toggle_cheat_mode], ["UC", _toggle_fly_mode], ["ALCAL", _fly_down]]
+	# URET, DOLDUR, BOMBA and TNT are intentionally removed from the gameplay HUD.
+	var actions=[["TOPLA",_gather_nearby],["KULLAN",_use_nearest_interior],["ATES",_shoot],["KAMP",_build_fire],["EV",_build_house],["HARITA",_toggle_map],["ENVANTER",_toggle_inventory],["PARCA",_cycle_build_piece],["DURBUN",_toggle_scope],["ZIPLA",_jump],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down]]
 	for i in actions.size():
-		var b = Button.new()
-		b.text = actions[i][0]
-		b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		var col = i % 2
-		var row = int(i / 2)
-		b.position = Vector2(-300 + col * 148, 12 + row * 42)
-		b.size = Vector2(140, 38)
-		b.add_theme_font_size_override("font_size",15)
-		b.pressed.connect(actions[i][1])
-		layer.add_child(b)
+		var b=Button.new(); b.text=actions[i][0]; b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15); b.pressed.connect(actions[i][1]); layer.add_child(b)
 	var trade=Button.new(); trade.text="TAKAS"; trade.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); trade.position=Vector2(-158,-70); trade.size=Vector2(142,54); trade.pressed.connect(_toggle_trade); layer.add_child(trade)
-	_create_trade_panel(layer)
-	_create_hotbar(layer)
-	_create_minimap(layer)
-	_create_weapon_aim_ui(layer)
-	# Dedicated FPS look surface. Drag anywhere in the open gameplay view to look horizontally/vertically.
-	var look_pad=Control.new(); look_pad.set_anchors_preset(Control.PRESET_FULL_RECT); look_pad.mouse_filter=Control.MOUSE_FILTER_PASS; look_pad.gui_input.connect(_look_pad_input); layer.add_child(look_pad)
-	# Main tool/weapon action button, translucent yellow.
-	var action_btn=Button.new(); action_btn.text=""; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104)
+	_create_trade_panel(layer); _create_hotbar(layer); _create_minimap(layer); _create_weapon_aim_ui(layer)
+	var action_btn=Button.new(); action_btn.text=""; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
 	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.pressed.connect(_primary_action); layer.add_child(action_btn)
+	crouch_button=Button.new(); crouch_button.text="↓"; crouch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); crouch_button.position=Vector2(-238,-104); crouch_button.size=Vector2(80,80); crouch_button.add_theme_font_size_override("font_size",30)
+	var crouch_style=StyleBoxFlat.new(); crouch_style.bg_color=Color(.12,.12,.12,.34); crouch_style.corner_radius_top_left=40; crouch_style.corner_radius_top_right=40; crouch_style.corner_radius_bottom_left=40; crouch_style.corner_radius_bottom_right=40
+	crouch_button.add_theme_stylebox_override("normal",crouch_style); crouch_button.add_theme_stylebox_override("pressed",crouch_style); crouch_button.pressed.connect(_toggle_crouch); layer.add_child(crouch_button)
 	var aim=Label.new(); aim.text="+"; aim.set_anchors_preset(Control.PRESET_CENTER); aim.position=Vector2(-14,-22); aim.size=Vector2(28,44); aim.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; aim.add_theme_font_size_override("font_size",32); aim.add_theme_color_override("font_color",Color(.95,.08,.06,1)); aim.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(aim)
-	_create_survival_clock(layer)
-	_create_damage_effect(layer)
-	_create_ammo_ui(layer)
-	_create_cheat_ui(layer)
+	_create_survival_clock(layer); _create_damage_effect(layer); _create_ammo_ui(layer); _create_cheat_ui(layer)
 	facing_label=Label.new(); facing_label.set_anchors_preset(Control.PRESET_TOP_WIDE); facing_label.position=Vector2(0,48); facing_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; facing_label.add_theme_font_size_override("font_size",22); layer.add_child(facing_label)
 	waypoint_label=Label.new(); waypoint_label.set_anchors_preset(Control.PRESET_TOP_WIDE); waypoint_label.position=Vector2(0,76); waypoint_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; waypoint_label.add_theme_font_size_override("font_size",20); layer.add_child(waypoint_label)
-	_create_creative_menu(layer)
-	_setup_sfx()
-	fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
+	_create_creative_menu(layer); _setup_sfx(); fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -671,6 +669,13 @@ func _physics_process(delta):
 		health, int(hunger), int(thirst), gray_cards, ammo,
 		wood, stone, grass_n, wheat_n, mushroom_n
 	]
+
+func _toggle_crouch():
+	if player==null or camera==null: return
+	crouched=not crouched
+	camera.position.y=.34 if crouched else .72
+	player_move_speed=2.4 if crouched else 3.4
+	if crouch_button: crouch_button.text="↑" if crouched else "↓"
 
 func _look_pad_input(event):
 	if event is InputEventScreenDrag and player and camera:
@@ -811,6 +816,11 @@ func _apply_damage(amount:float):
 
 func _primary_action():
 	if player==null or camera==null: return
+	if build_mode:
+		_update_build_preview()
+		if preview_valid: _build_house()
+		else: _flash_message("BU PARCA BURAYA KURULAMAZ")
+		return
 	if selected_tool=="SILAH":
 		_shoot(); return
 	var space=get_world_3d().direct_space_state
@@ -822,12 +832,17 @@ func _primary_action():
 	if obj==null or not obj.has_meta("loot"): return
 	var kind=str(obj.get_meta("loot"))
 	if selected_tool=="TAS BALTA" and kind=="wood":
-		var id=obj.get_instance_id(); var count=int(tree_hits.get(id,0))+1; tree_hits[id]=count; _play_sfx("chop"); _gather_particles()
-		_flash_message("AGAC %d / 4" % count)
+		var id=obj.get_instance_id(); var count=int(tree_hits.get(id,0))+1; tree_hits[id]=count; _play_sfx("chop"); _gather_particles(); _flash_message("AGAC %d / 4" % count)
 		if count>=4:
 			wood+=35; tree_hits.erase(id); _schedule_resource_respawn(obj,"wood"); _fell_tree(obj)
-	elif selected_tool=="TAS KAZMA" and kind=="stone":
-		stone+=20; _play_sfx("chop"); _schedule_resource_respawn(obj,"stone"); _break_rock(obj)
+	elif selected_tool=="TAS KAZMA" and kind in ["stone","meteor"]:
+		var id=obj.get_instance_id(); var needed=8 if kind=="meteor" else 4; var count=int(rock_hits.get(id,0))+1; rock_hits[id]=count; _play_sfx("chop"); _gather_particles()
+		_flash_message(("%s %d / %d" % [("METEOR" if kind=="meteor" else "TAS"),count,needed]))
+		if count>=needed:
+			rock_hits.erase(id); _schedule_resource_respawn(obj,kind)
+			if kind=="meteor": metal_parts+=20; _flash_message("METAL PARCALARI +20")
+			else: stone+=20
+			_break_rock(obj)
 
 func _shoot():
 	if ammo <= 0 or in_safe_zone: return
@@ -1082,24 +1097,16 @@ func _build_blocks_respawn(p:Vector3)->bool:
 	return false
 
 func _spawn_resource_at(kind:String,p:Vector3):
+	if kind not in ["wood","stone","meteor"]: return
 	p.y=height_at(p.x,p.z)
 	if kind=="wood":
-		var n=_place_asset(tree_assets[randi()%tree_assets.size()],self,p,Vector3.ONE*randf_range(.85,1.15),Vector3(0,randf_range(0,360),0))
-		if n==null:
-			n=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; n.mesh=mesh; n.position=p+Vector3(0,2,0); n.material_override=_simple_mat(Color(.28,.15,.06)); add_child(n)
-		n.set_meta("loot","wood")
-	elif kind=="stone":
-		var n=_place_asset(rock_assets[randi()%rock_assets.size()],self,p,Vector3.ONE,Vector3(0,randf_range(0,360),0))
-		if n==null: _add_static_box(p+Vector3(0,.75,0),Vector3(1.5,1.5,1.5),Color(.45,.43,.40)); n=get_child(get_child_count()-1)
-		n.set_meta("loot","stone")
+		var body=StaticBody3D.new(); body.position=p; body.rotation_degrees.y=randf_range(0,360); add_child(body); _make_kara_tree(body)
+		var cs=CollisionShape3D.new(); var sh=CylinderShape3D.new(); sh.radius=.34; sh.height=5.2; cs.shape=sh; cs.position.y=2.6; body.add_child(cs); body.set_meta("loot","wood")
 	else:
-		var n=MeshInstance3D.new()
-		if kind=="mushroom":
-			var mesh=SphereMesh.new(); mesh.radius=.28; mesh.height=.36; n.mesh=mesh; n.position=p+Vector3(0,.22,0); n.material_override=_simple_mat(Color(.62,.22,.18))
-		else:
-			var mesh=CylinderMesh.new(); mesh.top_radius=.1; mesh.bottom_radius=.25; mesh.height=.7 if kind=="grass" else 1.1; n.mesh=mesh; n.position=p+Vector3(0,.35 if kind=="grass_n" else .55,0); n.material_override=_simple_mat(Color(.22,.55,.16) if kind=="grass_n" else Color(.78,.68,.22))
-		n.set_meta("loot",kind); add_child(n)
-
+		var body=StaticBody3D.new(); body.position=p; add_child(body)
+		if kind=="meteor": _make_meteor(body)
+		else: _make_kara_rock(body)
+		var cs=CollisionShape3D.new(); var sh=SphereShape3D.new(); sh.radius=.68; cs.shape=sh; cs.position.y=.5; body.add_child(cs); body.set_meta("loot",kind)
 
 func _toggle_crafting():
 	if craft_panel==null: _create_crafting()
@@ -1137,12 +1144,16 @@ func _craft(kind:int):
 
 
 func _create_hotbar(layer:CanvasLayer):
-	hotbar=HBoxContainer.new(); hotbar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); hotbar.position=Vector2(360,-72); hotbar.size=Vector2(560,58); hotbar.alignment=BoxContainer.ALIGNMENT_CENTER
-	var slots=[["ELLER",0],["BALTA",1],["KAZMA",2],["SILAH",3],["CEKIC",4]]
+	hotbar=HBoxContainer.new(); hotbar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); hotbar.position=Vector2(270,-70); hotbar.size=Vector2(740,56); hotbar.alignment=BoxContainer.ALIGNMENT_CENTER
+	var slots=[["EL",0],["🪓",1],["⛏",2],["▰",3],["🔨",4],["",5],["",6]]
 	for slot in slots:
-		var b=Button.new(); b.text=slot[0]; b.custom_minimum_size=Vector2(102,52); b.pressed.connect(_select_hotbar.bind(slot[1])); hotbar.add_child(b)
+		var b=Button.new(); b.text=slot[0]; b.custom_minimum_size=Vector2(92,50); b.add_theme_font_size_override("font_size",22)
+		var st=StyleBoxFlat.new(); st.bg_color=Color(.08,.08,.08,.30); st.border_width_left=1; st.border_width_top=1; st.border_width_right=1; st.border_width_bottom=1; st.border_color=Color(.8,.8,.8,.35)
+		b.add_theme_stylebox_override("normal",st); b.add_theme_stylebox_override("pressed",st)
+		if int(slot[1])<=4: b.pressed.connect(_select_hotbar.bind(int(slot[1])))
+		hotbar.add_child(b)
 	layer.add_child(hotbar)
-	hotbar_label=Label.new(); hotbar_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); hotbar_label.position=Vector2(0,-102); hotbar_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; hotbar_label.text="ELLER"; layer.add_child(hotbar_label)
+	hotbar_label=Label.new(); hotbar_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); hotbar_label.position=Vector2(0,-100); hotbar_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; hotbar_label.text="ELLER"; layer.add_child(hotbar_label)
 
 func _select_hotbar(slot:int):
 	if slot==1 and axe_count==0: return
@@ -1281,22 +1292,22 @@ func _update_minimap():
 
 
 func _create_weapon_aim_ui(layer:CanvasLayer):
-	crosshair=Label.new(); crosshair.text="＋"; crosshair.add_theme_font_size_override("font_size",30)
-	crosshair.set_anchors_preset(Control.PRESET_CENTER); crosshair.position=Vector2(-14,-20); crosshair.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(crosshair)
-	aim_marker=Label.new(); aim_marker.text="•"; aim_marker.add_theme_font_size_override("font_size",28); aim_marker.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(aim_marker)
+	# Legacy white crosshair and moving aim dot removed. The red + from _build_hud is the only reticle.
+	crosshair=null; aim_marker=null
 	scope_overlay=Control.new(); scope_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); scope_overlay.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	var ring=Label.new(); ring.text="◯"; ring.add_theme_font_size_override("font_size",420); ring.set_anchors_preset(Control.PRESET_CENTER); ring.position=Vector2(-135,-270); scope_overlay.add_child(ring)
-	var v=Label.new(); v.text="│\n│\n│\n│"; v.set_anchors_preset(Control.PRESET_CENTER); v.position=Vector2(-3,-72); scope_overlay.add_child(v)
-	var h=Label.new(); h.text="────────────"; h.set_anchors_preset(Control.PRESET_CENTER); h.position=Vector2(-72,-12); scope_overlay.add_child(h)
 	scope_overlay.visible=false; layer.add_child(scope_overlay)
 	hit_marker=Label.new(); hit_marker.text="×"; hit_marker.add_theme_font_size_override("font_size",38); hit_marker.set_anchors_preset(Control.PRESET_CENTER); hit_marker.position=Vector2(-12,-24); hit_marker.visible=false; hit_marker.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(hit_marker)
 
 func _toggle_scope():
 	if not has_scope: return
-	scoped=not scoped
-	if camera: camera.fov=32.0 if scoped else 68.0
+	scope_stage=(scope_stage+1)%3
+	scoped=scope_stage>0
+	if camera:
+		if scope_stage==1: camera.fov=48.0
+		elif scope_stage==2: camera.fov=30.0
+		else: camera.fov=72.0
 	if scope_overlay: scope_overlay.visible=scoped
-	if crosshair: crosshair.visible=not scoped
 
 func _update_aim_marker():
 	if aim_marker==null or camera==null: return
@@ -1313,7 +1324,7 @@ func _update_aim_marker():
 
 func _update_weapon_feedback(delta:float):
 	recoil=move_toward(recoil,0.0,delta*10.0)
-	if camera: camera.rotation_degrees.x=-18.0-recoil
+	if camera: camera.rotation_degrees.x=look_pitch-recoil
 	if hit_marker_time>0.0:
 		hit_marker_time-=delta
 		if hit_marker_time<=0.0 and hit_marker: hit_marker.visible=false
@@ -1347,7 +1358,9 @@ func _update_held_item(slot:int):
 	var paths={1:"res://assets/items/tools/stone_axe.glb",2:"res://assets/items/tools/stone_pickaxe.glb",3:"res://assets/items/weapons/scrap_rifle.glb",4:"res://assets/items/tools/building_hammer.glb"}
 	var visual=_load_asset(str(paths.get(slot,"")))
 	if visual!=null:
-		visual.scale=Vector3(.9,.9,.9); held_item.add_child(visual); return
+		visual.scale=Vector3(.9,.9,.9)
+		if slot in [1,4]: visual.rotation_degrees.z=180.0
+		held_item.add_child(visual); return
 	var wood_mat=StandardMaterial3D.new(); wood_mat.albedo_color=Color(.30,.16,.06)
 	var metal_mat=StandardMaterial3D.new(); metal_mat.albedo_color=Color(.30,.33,.36)
 	if slot==1:
@@ -1665,18 +1678,24 @@ func _game_explosion(pos:Vector3,radius:float,damage:int):
 
 
 func _toggle_fly_mode():
-	fly_mode=!fly_mode
-	if fly_mode:
-		fly_height=maxf(player.position.y,height_at(player.position.x,player.position.z)+6.0); player.position.y=fly_height
-		_flash_message("UCUS MODU ACIK • ZIPLA: YUKSEL • ALCAL: IN")
+	if player==null: return
+	var ground=height_at(player.position.x,player.position.z)+PLAYER_HEIGHT
+	if not fly_mode:
+		fly_mode=true
+		player.position.y=maxf(player.position.y,ground)+3.0
 	else:
-		player.position.y=height_at(player.position.x,player.position.z)+PLAYER_HEIGHT
-		_flash_message("UCUS MODU KAPALI")
+		player.position.y+=3.0
+	fly_height=player.position.y
+	_flash_message("UCUS: 1 KADEME YUKSELDI")
 
 func _fly_down():
-	if fly_mode:
-		var floor_y=height_at(player.position.x,player.position.z)+3.0
-		player.position.y=maxf(floor_y,player.position.y-3.0)
+	if not fly_mode or player==null: return
+	var ground=height_at(player.position.x,player.position.z)+PLAYER_HEIGHT
+	player.position.y=maxf(ground,player.position.y-3.0)
+	fly_height=player.position.y
+	if player.position.y<=ground+.05:
+		player.position.y=ground; fly_mode=false; _flash_message("ZEMINE INILDI")
+	else: _flash_message("UCUS: 1 KADEME ALCALDI")
 
 func _update_navigation_ui():
 	if player==null: return
