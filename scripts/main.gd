@@ -308,6 +308,7 @@ func _build_world():
 		else:
 			tree=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; tree.mesh=mesh; tree.position=Vector3(0,2.0,0); tree.material_override=_simple_mat(Color(.28,.15,.06)); tree_body.add_child(tree)
 		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.38; trunk_shape.height=3.2; trunk_col.shape=trunk_shape; trunk_col.position.y=1.6; tree_body.add_child(trunk_col)
+		# Loot belongs to the collided StaticBody wrapper so TOPLA sees the tree body.
 		tree_body.set_meta("loot","wood")
 	for i in 90:
 		var p=_rand_outside_trade(22,MAP_HALF-14)
