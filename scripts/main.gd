@@ -490,7 +490,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece]]
+	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -983,14 +983,40 @@ func _build_window_frame(p:Vector3):
 func _build_interior_prop(p:Vector3,kind:int):
 	var col=Color(.30,.19,.09)
 	if kind==6:
-		_add_static_box(p+Vector3(0,.5,0),Vector3(1.5,1,1),col)
+		var obj=_add_static_box_return(p+Vector3(0,.5,0),Vector3(1.5,1,1),col); obj.add_to_group("interior_interactable"); obj.set_meta("interior","chest")
 	elif kind==7:
-		_add_static_box(p+Vector3(0,.22,0),Vector3(1.2,.44,2.2),Color(.32,.28,.20))
+		var obj=_add_static_box_return(p+Vector3(0,.22,0),Vector3(1.2,.44,2.2),Color(.32,.28,.20)); obj.add_to_group("interior_interactable"); obj.set_meta("interior","bed"); bed_spawn=p+Vector3(0,1,1.5); has_bed_spawn=true
 	elif kind==8:
-		_add_static_box(p+Vector3(0,.55,0),Vector3(2.2,1.1,.8),col)
+		var obj=_add_static_box_return(p+Vector3(0,.55,0),Vector3(2.2,1.1,.8),col); obj.add_to_group("interior_interactable"); obj.set_meta("interior","workbench")
 	elif kind==9:
-		_add_static_box(p+Vector3(0,.5,0),Vector3(1.2,1,1.2),Color(.22,.22,.20))
+		var obj=_add_static_box_return(p+Vector3(0,.5,0),Vector3(1.2,1,1.2),Color(.22,.22,.20)); obj.add_to_group("interior_interactable"); obj.set_meta("interior","stove")
 		var glow=OmniLight3D.new(); glow.position=p+Vector3(0,1.3,0); glow.light_color=Color(1,.48,.16); glow.light_energy=1.4; glow.omni_range=7; add_child(glow)
 	elif kind==10:
 		_add_static_box(p+Vector3(0,.75,0),Vector3(.35,1.5,.35),Color(.18,.15,.10))
 		var lamp=OmniLight3D.new(); lamp.position=p+Vector3(0,1.7,0); lamp.light_color=Color(1,.72,.38); lamp.light_energy=1.1; lamp.omni_range=8; add_child(lamp)
+
+
+func _use_nearest_interior():
+	var best:Node3D=null; var dist=3.0
+	for n in get_tree().get_nodes_in_group("interior_interactable"):
+		var d=player.global_position.distance_to(n.global_position)
+		if d<dist: dist=d; best=n
+	if best==null: return
+	var kind=str(best.get_meta("interior",""))
+	if kind=="chest": _toggle_chest_transfer()
+	elif kind=="bed":
+		bed_spawn=best.global_position+Vector3(0,1,1.5); has_bed_spawn=true; _flash_message("YENIDEN DOGMA NOKTASI AYARLANDI")
+	elif kind=="workbench": _toggle_crafting()
+	elif kind=="stove": hunger=min(100.0,hunger+20.0); _flash_message("YEMEK PISIRILDI +20 ACLIK")
+
+func _toggle_chest_transfer():
+	if wood+stone+grass_n+wheat_n+mushroom_n>0:
+		chest_storage["wood"]+=wood; chest_storage["stone"]+=stone; chest_storage["grass"]+=grass_n; chest_storage["wheat"]+=wheat_n; chest_storage["mushroom"]+=mushroom_n
+		wood=0; stone=0; grass_n=0; wheat_n=0; mushroom_n=0; _flash_message("KAYNAKLAR SANDIGA KONDU")
+	else:
+		wood=chest_storage["wood"]; stone=chest_storage["stone"]; grass_n=chest_storage["grass"]; wheat_n=chest_storage["wheat"]; mushroom_n=chest_storage["mushroom"]
+		chest_storage={"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0}; _flash_message("SANDIK BOSALTILDI")
+	_refresh_inventory()
+
+func _flash_message(t:String):
+	if gather_label: gather_label.text=t; gather_label.visible=true; message_time=1.5
