@@ -19,6 +19,14 @@ var boat_built := false
 var build_origin := Vector3.ZERO
 var map_panel: Control
 var map_dot: Label
+var asset_paths = {
+	"tree":"res://assets/environment/trees/tree_pine_01.glb",
+	"rock":"res://assets/environment/rocks/rock_medium_01.glb",
+	"raider":"res://assets/characters/enemies/raider.glb",
+	"boss":"res://assets/characters/boss/brute_boss.glb",
+	"campfire":"res://assets/props/campfire/campfire.glb",
+	"boat":"res://assets/vehicles/boat/wood_skiff.glb"
+}
 var wood := 0
 var stone := 0
 var grass_n := 0
@@ -109,6 +117,19 @@ func _add_static_box(pos: Vector3, size: Vector3, col: Color) -> void:
 	body.add_child(colshape)
 	add_child(body)
 
+func _load_asset(path:String)->Node3D:
+	if not ResourceLoader.exists(path): return null
+	var r=load(path)
+	if not (r is PackedScene): return null
+	var n=r.instantiate()
+	if not (n is Node3D): return null
+	return n
+
+func _place_asset(path:String, parent:Node, pos:Vector3, scale_v:=Vector3.ONE, rot:=Vector3.ZERO)->Node3D:
+	var n=_load_asset(path)
+	if n==null: return null
+	n.position=pos; n.scale=scale_v; n.rotation_degrees=rot; parent.add_child(n); return n
+
 func _build_world():
 	var ground = MeshInstance3D.new()
 	var plane = PlaneMesh.new()
@@ -128,18 +149,10 @@ func _build_world():
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
 			continue
-		var tree = MeshInstance3D.new()
-		var mesh = CylinderMesh.new()
-		mesh.top_radius = 0.35
-		mesh.bottom_radius = 0.55
-		mesh.height = 4.0
-		tree.mesh = mesh
-		tree.position = Vector3(p.x, height_at(p.x, p.z) + 2.0, p.z)
-		var m = StandardMaterial3D.new()
-		m.albedo_color = Color(0.28, 0.15, 0.06)
-		tree.material_override = m
-		tree.set_meta("loot", "wood")
-		add_child(tree)
+		var tree=_place_asset(asset_paths["tree"],self,Vector3(p.x,height_at(p.x,p.z),p.z),Vector3.ONE,Vector3(0,randf_range(0,360),0))
+		if tree==null:
+			tree=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; tree.mesh=mesh; tree.position=Vector3(p.x,height_at(p.x,p.z)+2.0,p.z); tree.material_override=_simple_mat(Color(.28,.15,.06)); add_child(tree)
+		tree.set_meta("loot","wood")
 
 func _build_hills_and_pits():
 	for i in 16:
@@ -532,10 +545,14 @@ func _spawn_combatants():
 		for j in 3:
 			var e = CharacterBody3D.new()
 			e.position = b.pos + Vector3(cos(j * TAU / 3.0) * 12.0, 1.0, sin(j * TAU / 3.0) * 12.0)
-			e.add_child(_enemy_visual(Color(0.42,0.08,0.08))); e.set_meta("hp", 60); e.set_meta("raider", true)
+			var rv=_place_asset(asset_paths["raider"],e,Vector3.ZERO,Vector3.ONE,Vector3.ZERO)
+			if rv==null: e.add_child(_enemy_visual(Color(0.42,0.08,0.08)))
+			e.set_meta("hp", 60); e.set_meta("raider", true)
 			add_child(e); enemies.append(e)
 		var boss = CharacterBody3D.new(); boss.position = b.pos + Vector3(0,1,0)
-		boss.add_child(_enemy_visual(Color(0.12,0.04,0.04), Vector3(1.8,1.8,1.8))); boss.set_meta("hp",300); boss.set_meta("fort_boss",true)
+		var bv=_place_asset(asset_paths["boss"],boss,Vector3.ZERO,Vector3(1.15,1.15,1.15),Vector3.ZERO)
+		if bv==null: boss.add_child(_enemy_visual(Color(0.12,0.04,0.04), Vector3(1.8,1.8,1.8)))
+		boss.set_meta("hp",300); boss.set_meta("fort_boss",true)
 		add_child(boss); fort_bosses.append(boss)
 
 func _update_combat(delta):
@@ -573,7 +590,8 @@ func _shoot():
 func _build_fire():
 	if fire_built or wood < 15 or stone < 5: return
 	wood -= 15; stone -= 5; fire_built = true
-	_add_static_box(player.global_position + Vector3(2,0.3,0), Vector3(1.4,0.5,1.4), Color(0.35,0.14,0.04))
+	var cp=player.global_position+Vector3(2,0,0)
+	if _place_asset(asset_paths["campfire"],self,cp)==null: _add_static_box(cp+Vector3(0,.3,0),Vector3(1.4,.5,1.4),Color(.35,.14,.04))
 
 func _build_house():
 	if house_parts >= 6 or wood < 20: return
@@ -586,7 +604,9 @@ func _build_house():
 func _build_boat():
 	if boat_built or wood < 40: return
 	wood -= 40; boat_built = true
-	_add_static_box(Vector3(player.position.x,0.35,-192), Vector3(3,0.6,6), Color(0.35,0.16,0.05))
+	var bp=Vector3(player.position.x,0.35,-192)
+	var boat=_place_asset(asset_paths["boat"],self,bp,Vector3.ONE,Vector3.ZERO)
+	if boat==null: _add_static_box(bp,Vector3(3,.6,6),Color(.35,.16,.05))
 
 func _toggle_map():
 	if map_panel == null: _create_map()
