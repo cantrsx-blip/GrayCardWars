@@ -508,6 +508,7 @@ func _build_hud():
 	_create_survival_clock(layer)
 	_create_damage_effect(layer)
 	_setup_sfx()
+	fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -614,7 +615,7 @@ func _input(event):
 		if joystick_knob: joystick_knob.position=Vector2(48,48)+move_touch*38.0
 
 func _gather_nearby():
-	_play_sfx("chop")
+	_play_sfx("chop"); _gather_particles()
 	if player == null:
 		return
 	for n in get_children():
@@ -1224,3 +1225,18 @@ func _update_damage_effect(delta:float):
 
 func _death_screen_effect():
 	if damage_overlay: damage_overlay.color=Color(.48,.0,.0,.72); damage_time=1.25
+
+
+func _muzzle_flash():
+	if fx_root==null or player==null: return
+	var flash=OmniLight3D.new(); flash.light_color=Color(1.0,.62,.22); flash.light_energy=4.0; flash.omni_range=3.5
+	flash.position=player.global_position+Vector3(0,1.25,0)+(-player.global_transform.basis.z*1.0); fx_root.add_child(flash)
+	var t=get_tree().create_timer(.07); t.timeout.connect(flash.queue_free)
+
+func _gather_particles():
+	if fx_root==null or player==null: return
+	var p=GPUParticles3D.new(); p.amount=10; p.lifetime=.38; p.one_shot=true; p.explosiveness=1.0
+	var mesh=BoxMesh.new(); mesh.size=Vector3(.035,.035,.035); p.draw_pass_1=mesh
+	var pm=ParticleProcessMaterial.new(); pm.direction=Vector3(0,1,0); pm.spread=55.0; pm.initial_velocity_min=1.2; pm.initial_velocity_max=2.8; pm.gravity=Vector3(0,-5,0); p.process_material=pm
+	p.position=player.global_position+(-player.global_transform.basis.z*1.2)+Vector3(0,.7,0); fx_root.add_child(p); p.emitting=true
+	var t=get_tree().create_timer(.7); t.timeout.connect(p.queue_free)
