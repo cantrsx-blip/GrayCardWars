@@ -696,6 +696,7 @@ func _spawn_combatants():
 		if bv==null: boss.add_child(_boss_visual())
 		var bcs=CollisionShape3D.new(); var bsh=CapsuleShape3D.new(); bsh.radius=.7; bsh.height=2.7; bcs.shape=bsh; bcs.position.y=1.35; boss.add_child(bcs)
 		boss.set_meta("hp",300); boss.set_meta("fort_boss",true)
+		boss.set_meta("boss_weapon",true); boss.set_meta("boss_infinite_ammo",true); boss.set_meta("no_loot_weapon",true)
 		add_child(boss); fort_bosses.append(boss)
 
 func _update_combat(delta):
@@ -1409,3 +1410,11 @@ func _boss_visual() -> Node3D:
 
 func _boss_armor_part(root:Node3D,size:Vector3,pos:Vector3,mat:Material):
 	var m=MeshInstance3D.new(); var bx=BoxMesh.new(); bx.size=size; m.mesh=bx; m.position=pos; m.material_override=mat; root.add_child(m)
+
+
+func _boss_can_fire(boss:Node) -> bool:
+	return boss!=null and boss.has_meta("boss_weapon") and bool(boss.get_meta("boss_infinite_ammo",false))
+
+func _is_player_loot_allowed(item:Node) -> bool:
+	# Boss-only weapons/ammo are internal combat equipment and never enter loot/inventory UI.
+	return item==null or not bool(item.get_meta("no_loot_weapon",false))
