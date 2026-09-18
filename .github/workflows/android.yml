@@ -88,6 +88,18 @@ jobs:
           GODOT=/tmp/godot/Godot_v4.5.1-stable_linux.x86_64
           "$GODOT" --headless --editor --path . --quit --verbose
 
+      - name: Runtime smoke test main scene
+        run: |
+          GODOT=/tmp/godot/Godot_v4.5.1-stable_linux.x86_64
+          set -o pipefail
+          timeout 20s "$GODOT" --headless --path . --verbose 2>&1 | tee build/runtime.log || STATUS=$?
+          STATUS=${STATUS:-0}
+          if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Invalid access|ERROR:" build/runtime.log; then
+            echo "Godot runtime errors detected"
+            exit 1
+          fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then exit "$STATUS"; fi
+
       - name: Direct verbose Android export
         run: |
           mkdir -p build
@@ -109,5 +121,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GrayCardWars-Build-Diagnostics
-          path: build/export.log
+          path: |
+            build/export.log
+            build/runtime.log
           if-no-files-found: ignore
