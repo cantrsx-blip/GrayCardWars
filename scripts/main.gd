@@ -617,26 +617,28 @@ func _spawn_combatants():
 			e.position = b.pos + Vector3(cos(j * TAU / 3.0) * 12.0, 1.0, sin(j * TAU / 3.0) * 12.0)
 			var rc=asset_corrections["raider"]; var rv=_place_asset(asset_paths["raider"],e,Vector3(0,rc["y"],0),rc["scale"],rc["rot"])
 			if rv==null: e.add_child(_enemy_visual(Color(0.42,0.08,0.08)))
+			var ecs=CollisionShape3D.new(); var esh=CapsuleShape3D.new(); esh.radius=.42; esh.height=1.75; ecs.shape=esh; ecs.position.y=.88; e.add_child(ecs)
 			e.set_meta("hp", 60); e.set_meta("raider", true)
 			add_child(e); enemies.append(e)
 		var boss = CharacterBody3D.new(); boss.position = b.pos + Vector3(0,1,0)
 		var bc=asset_corrections["boss"]; var bv=_place_asset(asset_paths["boss"],boss,Vector3(0,bc["y"],0),bc["scale"],bc["rot"])
 		if bv==null: boss.add_child(_enemy_visual(Color(0.12,0.04,0.04), Vector3(1.8,1.8,1.8)))
+		var bcs=CollisionShape3D.new(); var bsh=CapsuleShape3D.new(); bsh.radius=.7; bsh.height=2.7; bcs.shape=bsh; bcs.position.y=1.35; boss.add_child(bcs)
 		boss.set_meta("hp",300); boss.set_meta("fort_boss",true)
 		add_child(boss); fort_bosses.append(boss)
 
 func _update_combat(delta):
 	for e in enemies:
 		if not is_instance_valid(e): continue
-		var d = player.global_position - e.global_position
-		if d.length() < 18.0 and not in_safe_zone:
-			e.velocity = d.normalized() * 2.2; e.move_and_slide()
+		var d = player.global_position - e.global_position; var flat=Vector3(d.x,0,d.z)
+		if flat.length() < 18.0 and not in_safe_zone:
+			e.velocity = flat.normalized() * 2.2; e.move_and_slide(); e.global_position.y=height_at(e.global_position.x,e.global_position.z)+.05
 			if d.length() < 1.5: _apply_damage(12.0 * delta)
 	for b in fort_bosses:
 		if not is_instance_valid(b): continue
-		var d = player.global_position - b.global_position
-		if d.length() < 26.0 and not in_safe_zone:
-			b.velocity = d.normalized() * 1.6; b.move_and_slide()
+		var d = player.global_position - b.global_position; var flat=Vector3(d.x,0,d.z)
+		if flat.length() < 26.0 and not in_safe_zone:
+			b.velocity = flat.normalized() * 1.6; b.move_and_slide(); b.global_position.y=height_at(b.global_position.x,b.global_position.z)+.05
 			if d.length() < 2.0: _apply_damage(18.0 * delta)
 
 func _apply_damage(amount:float):
