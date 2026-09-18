@@ -265,7 +265,7 @@ func _build_world():
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.035,.22,.34,.82); wmat.metallic=.05; wmat.roughness=.25; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
-	for i in 24:
+	for i in 48:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
 			continue
@@ -273,7 +273,7 @@ func _build_world():
 		if rock==null:
 			_add_static_box(Vector3(p.x,height_at(p.x,p.z)+.75,p.z),Vector3(1.5,1.5,1.5),Color(.45,.43,.40)); rock=get_child(get_child_count()-1)
 		rock.set_meta("loot","stone")
-	for i in 28:
+	for i in 96:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
 			continue
@@ -281,44 +281,14 @@ func _build_world():
 		if tree==null:
 			tree=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; tree.mesh=mesh; tree.position=Vector3(p.x,height_at(p.x,p.z)+2.0,p.z); tree.material_override=_simple_mat(Color(.28,.15,.06)); add_child(tree)
 		tree.set_meta("loot","wood")
-	for i in 45:
+	for i in 90:
 		var p=_rand_outside_trade(22,MAP_HALF-14)
 		if _near_boss(p.x,p.z): continue
 		_place_asset(plant_assets[randi()%plant_assets.size()],self,Vector3(p.x,height_at(p.x,p.z)+.02,p.z),Vector3.ONE*randf_range(.8,1.25),Vector3(0,randf_range(0,360),0))
 
 func _build_hills_and_pits():
-	for i in 16:
-		var p = _rand_outside_trade(32, MAP_HALF - 22)
-		if _near_boss(p.x, p.z):
-			continue
-		var h = maxf(height_at(p.x, p.z), 1.6)
-		if h < 1.6:
-			continue
-		var hill = MeshInstance3D.new()
-		var mesh = CylinderMesh.new()
-		mesh.top_radius = 2.0
-		mesh.bottom_radius = 7.0
-		mesh.height = h
-		hill.mesh = mesh
-		hill.position = Vector3(p.x, h * 0.5, p.z)
-		var mat = StandardMaterial3D.new()
-		mat.albedo_color = Color(0.32, 0.38, 0.16)
-		hill.material_override = mat
-		add_child(hill)
-	for p in pits:
-		if _near_boss(p.x, p.z):
-			continue
-		var hole = MeshInstance3D.new()
-		var mesh = CylinderMesh.new()
-		mesh.top_radius = 16.0
-		mesh.bottom_radius = 10.0
-		mesh.height = 0.25
-		hole.mesh = mesh
-		hole.position = Vector3(p.x, -0.05, p.z)
-		var mat = StandardMaterial3D.new()
-		mat.albedo_color = Color(0.16, 0.12, 0.08)
-		hole.material_override = mat
-		add_child(hole)
+	# Terrain heightfield already provides hills and pits. Avoid duplicate cylinder geometry.
+	pass
 
 func _build_fort(center: Vector3, accent: Color) -> void:
 	var y0 := 0.0
@@ -393,27 +363,21 @@ func _add_window(pos: Vector3, along_z: bool) -> void:
 	add_child(w)
 
 func _build_rock_ring(center: Vector3, _accent: Color) -> void:
-	var inner = FORT_HALF + 1.2
-	var outer = BOSS_DRY - 1.0
-	# her 8 derecede kaya, 4 kapı koridorunu atla
-	var a := 0.0
-	while a < TAU:
-		var deg_ok = true
-		# koridorlar: 0, 90, 180, 270 derece ±12
+	# Sparse natural ring: 12 rocks max per fort, with four clear gate corridors.
+	var placed:=0
+	for i in 16:
+		if placed>=12: break
+		var a=float(i)*TAU/16.0
+		var blocked:=false
 		for k in 4:
-			var gate_a = k * PI * 0.5
-			var diff = abs(atan2(sin(a - gate_a), cos(a - gate_a)))
-			if diff < 0.22:
-				deg_ok = false
-		if deg_ok:
-			var r = inner + 2.0
-			while r < outer:
-				var x = center.x + cos(a) * r
-				var z = center.z + sin(a) * r
-				var s = 2.4 + fmod(r + a, 1.7)
-				_add_static_box(Vector3(x, s * 0.5, z), Vector3(s, s, s), Color(0.38, 0.34, 0.30))
-				r += 3.2
-		a += 0.18
+			var gate_a=k*PI*.5
+			if abs(atan2(sin(a-gate_a),cos(a-gate_a)))<.26: blocked=true
+		if blocked: continue
+		var r=FORT_HALF+9.0+float(i%3)*3.0
+		var p=Vector3(center.x+cos(a)*r,0,center.z+sin(a)*r); p.y=height_at(p.x,p.z)
+		var rock=_place_asset(rock_assets[i%rock_assets.size()],self,p,Vector3.ONE*randf_range(1.25,2.1),Vector3(0,randf_range(0,360),0))
+		if rock==null: _add_static_box(p+Vector3(0,1.0,0),Vector3(2.0,2.0,2.0),Color(.38,.34,.30))
+		placed+=1
 
 func _build_gatherables():
 	for i in 55:
