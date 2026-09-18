@@ -532,7 +532,9 @@ func _physics_process(delta):
 		thirst = minf(100.0, thirst + delta * 1.4)
 	if fire_built and player.global_position.distance_to(campfire_pos)<5.0:
 		hunger=minf(100.0,hunger+delta*.35)
-		health=min(100,health+int(delta*1.2))
+		heal_buffer+=delta*1.2
+		var heal_whole=int(floor(heal_buffer))
+		if heal_whole>0: health=min(100,health+heal_whole); heal_buffer-=heal_whole
 	var v = move_touch
 	if Input.is_key_pressed(KEY_W): v.y = -1
 	if Input.is_key_pressed(KEY_S): v.y = 1
@@ -543,6 +545,8 @@ func _physics_process(delta):
 		dir = dir.normalized()
 	var speed = 4.2 if in_pit else 6.0
 	if hunger<20.0 or thirst<20.0: speed*=.78
+	if dir.length()>.05:
+		player_facing=dir.normalized(); player.rotation.y=atan2(-player_facing.x,-player_facing.z)
 	player.velocity = dir * speed
 	player.move_and_slide()
 	player.position.x = clampf(player.position.x, -MAP_HALF + 2.0, MAP_HALF - 2.0)
@@ -705,7 +709,8 @@ func _build_house():
 		build_mode=true; _ensure_build_preview(); return
 	if house_parts >= 6 or wood < 20: return
 	wood -= 20
-	if house_parts == 0: build_origin = player.global_position + Vector3(5,0,0)
+	if house_parts == 0:
+		build_origin = build_preview.global_position if build_preview else player.global_position + player_facing*5.0
 	var parts=[Vector3(0,.2,0),Vector3(0,1.7,-2.5),Vector3(0,1.7,2.5),Vector3(-2.5,1.7,0),Vector3(2.5,1.7,0),Vector3(0,3.5,0)]
 	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(.3,3,5),Vector3(.3,3,5),Vector3(5,.3,5)]
 	_add_static_box(build_origin + parts[house_parts], sizes[house_parts], Color(0.42,0.23,0.08)); house_parts += 1
@@ -938,7 +943,7 @@ func _ensure_build_preview():
 
 func _update_build_preview():
 	if not build_mode or build_preview==null or player==null: return
-	var forward=-player.global_transform.basis.z; forward.y=0
+	var forward=player_facing; forward.y=0
 	if forward.length()<.1: forward=Vector3(0,0,-1)
 	var p=player.global_position+forward.normalized()*5.0; p.y=height_at(p.x,p.z)+.2
 	build_preview.global_position=p
