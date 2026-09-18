@@ -45,6 +45,15 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
 
+      - name: Extract realistic survival assets
+        run: |
+          test -f GrayCardWars_Realistic_Survival_Assets.zip
+          rm -rf assets
+          unzip -q -o GrayCardWars_Realistic_Survival_Assets.zip -d .
+          test -d assets
+          echo "Asset files: $(find assets -type f | wc -l)"
+          find assets -type f | head -30
+
       - name: Initialize Godot editor settings
         run: |
           GODOT=/tmp/godot/Godot_v4.5.1-stable_linux.x86_64
