@@ -282,10 +282,13 @@ func _build_world():
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
 			continue
-		var rock=_place_asset(rock_assets[randi()%rock_assets.size()],self,Vector3(p.x,height_at(p.x,p.z),p.z),Vector3.ONE,Vector3(0,randf_range(0,360),0))
-		if rock==null:
-			_add_static_box(Vector3(p.x,height_at(p.x,p.z)+.75,p.z),Vector3(1.5,1.5,1.5),Color(.45,.43,.40)); rock=get_child(get_child_count()-1)
-		rock.set_meta("loot","stone")
+		var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); rock_body.rotation_degrees.y=randf_range(0,360); add_child(rock_body)
+		var rock=_load_asset(rock_assets[randi()%rock_assets.size()])
+		if rock!=null: rock_body.add_child(rock)
+		else:
+			var rmi=MeshInstance3D.new(); var rbm=BoxMesh.new(); rbm.size=Vector3(.9,.8,.9); rmi.mesh=rbm; rmi.position.y=.4; rmi.material_override=_simple_mat(Color(.45,.43,.40)); rock_body.add_child(rmi)
+		var rcs=CollisionShape3D.new(); var rsh=BoxShape3D.new(); rsh.size=Vector3(.9,.8,.9); rcs.shape=rsh; rcs.position.y=.4; rock_body.add_child(rcs)
+		rock_body.set_meta("loot","stone")
 	for i in 96:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
@@ -400,8 +403,13 @@ func _build_rock_ring(center: Vector3, _accent: Color) -> void:
 		if blocked: continue
 		var r=FORT_HALF+9.0+float(i%3)*3.0
 		var p=Vector3(center.x+cos(a)*r,0,center.z+sin(a)*r); p.y=height_at(p.x,p.z)
-		var rock=_place_asset(rock_assets[i%rock_assets.size()],self,p,Vector3.ONE*randf_range(1.25,2.1),Vector3(0,randf_range(0,360),0))
-		if rock==null: _add_static_box(p+Vector3(0,1.0,0),Vector3(2.0,2.0,2.0),Color(.38,.34,.30))
+		var rock_body=StaticBody3D.new(); rock_body.position=p; rock_body.rotation_degrees.y=randf_range(0,360); add_child(rock_body)
+		var rock=_load_asset(rock_assets[i%rock_assets.size()])
+		if rock!=null: rock.scale=Vector3.ONE*randf_range(.9,1.35); rock_body.add_child(rock)
+		else:
+			var rmi=MeshInstance3D.new(); var rbm=BoxMesh.new(); rbm.size=Vector3(.9,.8,.9); rmi.mesh=rbm; rmi.position.y=.4; rmi.material_override=_simple_mat(Color(.38,.34,.30)); rock_body.add_child(rmi)
+		var rcs=CollisionShape3D.new(); var rsh=BoxShape3D.new(); rsh.size=Vector3(.9,.8,.9); rcs.shape=rsh; rcs.position.y=.4; rock_body.add_child(rcs)
+		rock_body.set_meta("loot","stone")
 		placed+=1
 
 func _build_gatherables():
