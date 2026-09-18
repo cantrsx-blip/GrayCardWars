@@ -661,12 +661,25 @@ func _gather_nearby():
 		return
 
 
-func _enemy_visual(color: Color, scale_v := Vector3.ONE) -> MeshInstance3D:
-	var m = MeshInstance3D.new()
-	var cap = CapsuleMesh.new(); cap.radius = 0.48; cap.height = 1.8
-	m.mesh = cap; m.scale = scale_v
-	var mat = StandardMaterial3D.new(); mat.albedo_color = color; m.material_override = mat
-	return m
+func _enemy_visual(color: Color, scale_v := Vector3.ONE) -> Node3D:
+	var root=Node3D.new(); root.scale=scale_v
+	var cloth=StandardMaterial3D.new(); cloth.albedo_color=color
+	var skin=StandardMaterial3D.new(); skin.albedo_color=Color(.64,.48,.36)
+	_enemy_part(root,Vector3(.62,.78,.32),Vector3(0,1.05,0),cloth)
+	_enemy_part(root,Vector3(.28,.28,.28),Vector3(0,1.62,0),skin,true)
+	_enemy_part(root,Vector3(.18,.72,.18),Vector3(-.42,1.02,0),cloth)
+	_enemy_part(root,Vector3(.18,.72,.18),Vector3(.42,1.02,0),cloth)
+	_enemy_part(root,Vector3(.22,.82,.22),Vector3(-.18,.38,0),cloth)
+	_enemy_part(root,Vector3(.22,.82,.22),Vector3(.18,.38,0),cloth)
+	return root
+
+func _enemy_part(root:Node3D,size:Vector3,pos:Vector3,mat:Material,sphere:=false):
+	var m=MeshInstance3D.new()
+	if sphere:
+		var sh=SphereMesh.new(); sh.radius=size.x; sh.height=size.y*2.0; m.mesh=sh
+	else:
+		var bx=BoxMesh.new(); bx.size=size; m.mesh=bx
+	m.position=pos; m.material_override=mat; root.add_child(m)
 
 func _spawn_combatants():
 	for b in bosses:
