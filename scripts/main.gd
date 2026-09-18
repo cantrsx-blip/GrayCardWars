@@ -157,6 +157,9 @@ var facing_label: Label
 var map_waypoint: Label
 var map_hint: Label
 var touch_moved := false
+var look_touch_id := -1
+var look_pitch := 0.0
+var look_sensitivity := 0.075
 var chest_storage: Dictionary = {"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0,"ammo":0}
 var minimap_dot: Control
 var minimap_dir: Control
@@ -202,7 +205,7 @@ func _build_world_staged() -> void:
 	_build_bosses()
 	await get_tree().process_frame
 	_build_gatherables()
-	_spawn_combatants()
+	# Raiders and bosses intentionally disabled for the KARA KIYI rebuild.
 	zone_label.text=""
 
 func height_at(x: float, z: float) -> float:
@@ -303,14 +306,7 @@ func _build_terrain_mesh():
 	if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"): mat.albedo_texture=load("res://assets/environment/ground/grass_albedo.jpg")
 	if ResourceLoader.exists("res://assets/environment/ground/grass_normal.png"): mat.normal_enabled=true; mat.normal_texture=load("res://assets/environment/ground/grass_normal.png")
 	if ResourceLoader.exists("res://assets/environment/ground/grass_roughness.jpg"): mat.roughness_texture=load("res://assets/environment/ground/grass_roughness.jpg")
-	if ResourceLoader.exists("res://assets/environment/coast/og.jpg"):
-		var shore_shader=Shader.new()
-		shore_shader.code="shader_type spatial;\nrender_mode diffuse_burley;\nuniform sampler2D shore_tex;\nuniform sampler2D ground_tex;\nuniform bool has_ground=false;\nvarying float world_z;\nvoid vertex(){ world_z=(MODEL_MATRIX*vec4(VERTEX,1.0)).z; }\nvoid fragment(){ vec3 base=COLOR.rgb; if(world_z < -170.0){ base*=texture(shore_tex,UV).rgb; } else if(has_ground){ base*=texture(ground_tex,UV).rgb; } ALBEDO=base; ROUGHNESS=0.96; }"
-		var shore_mat=ShaderMaterial.new(); shore_mat.shader=shore_shader
-		shore_mat.set_shader_parameter("shore_tex",load("res://assets/environment/coast/og.jpg"))
-		if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"):
-			shore_mat.set_shader_parameter("ground_tex",load("res://assets/environment/ground/grass_albedo.jpg")); shore_mat.set_shader_parameter("has_ground",true)
-		mat=shore_mat
+	# Brand/title artwork is not a terrain texture. Terrain uses the ground PBR material only.
 	for z in cells:
 		for x in cells:
 			var x0=-MAP_HALF+x*step; var x1=x0+step; var z0=-MAP_HALF+z*step; var z1=z0+step
@@ -325,6 +321,21 @@ func _build_terrain_mesh():
 	var mesh=st.commit(); var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; terrain.material_override=mat; add_child(terrain)
 	var body=StaticBody3D.new(); body.name="TerrainCollision"; var cs=CollisionShape3D.new(); cs.shape=mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
 
+func _make_kara_tree(parent:Node3D) -> void:
+	# Upright original tree: dark weathered trunk + conifer crown.
+	var trunk=MeshInstance3D.new(); var tm=CylinderMesh.new(); tm.top_radius=.22; tm.bottom_radius=.34; tm.height=5.2
+	trunk.mesh=tm; trunk.position.y=2.6; trunk.material_override=_simple_mat(Color(.18,.105,.055)); parent.add_child(trunk)
+	for i in 4:
+		var crown=MeshInstance3D.new(); var cm=CylinderMesh.new()
+		cm.top_radius=.05; cm.bottom_radius=1.65-float(i)*.22; cm.height=2.2
+		crown.mesh=cm; crown.position.y=4.4+float(i)*.85; crown.material_override=_simple_mat(Color(.10,.22,.12)); parent.add_child(crown)
+
+func _make_kara_rock(parent:Node3D) -> void:
+	# Light coastal stone, deliberately not coal-black.
+	var rock=MeshInstance3D.new(); var rm=SphereMesh.new(); rm.radius=.72; rm.height=1.15
+	rock.mesh=rm; rock.position.y=.48; rock.scale=Vector3(1.25,.72,1.0); rock.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.68,.67,.63); mat.roughness=.96; rock.material_override=mat; parent.add_child(rock)
+
 func _build_world():
 	world_env=WorldEnvironment.new(); var env=Environment.new(); env.background_mode=Environment.BG_COLOR; env.background_color=Color(.48,.65,.76); env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color=Color(.62,.68,.72); env.ambient_light_energy=0.65; env.tonemap_mode=Environment.TONE_MAPPER_FILMIC; env.fog_enabled=true; env.fog_light_color=Color(.68,.73,.75); env.fog_density=.0028; world_env.environment=env; add_child(world_env)
 	var sun=DirectionalLight3D.new(); sun.rotation_degrees=Vector3(-52,-28,0); sun.light_energy=1.15; sun.shadow_enabled=true; sun.directional_shadow_max_distance=95; add_child(sun)
@@ -332,41 +343,19 @@ func _build_world():
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
-	for i in 48:
+	for i in 52:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
-		if _near_boss(p.x, p.z):
-			continue
-		var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); rock_body.rotation_degrees.y=randf_range(0,360); add_child(rock_body)
-		var rock=_load_asset(rock_assets[randi()%rock_assets.size()])
-		if rock!=null:
-			rock_body.add_child(rock)
-			_ground_asset_to_terrain(rock,p.x,p.z)
-		else:
-			var rmi=MeshInstance3D.new(); var rbm=BoxMesh.new(); rbm.size=Vector3(.9,.8,.9); rmi.mesh=rbm; rmi.position.y=.4; rmi.material_override=_simple_mat(Color(.45,.43,.40)); rock_body.add_child(rmi)
-		var rcs=CollisionShape3D.new(); var rsh=BoxShape3D.new(); rsh.size=Vector3(.9,.8,.9); rcs.shape=rsh; rcs.position.y=.4; rock_body.add_child(rcs)
+		if _near_boss(p.x, p.z): continue
+		var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); add_child(rock_body)
+		_make_kara_rock(rock_body)
+		var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
 		rock_body.set_meta("loot","stone")
-	for i in 96:
+	for i in 110:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
-		if _near_boss(p.x, p.z):
-			continue
-		var tree_path=tree_assets[randi()%tree_assets.size()]
-		var tree_scale:=1.0
-		if "tree_old_giant_01" in tree_path: tree_scale=randf_range(.62,.74)
-		elif "tree_pine_02" in tree_path: tree_scale=randf_range(.52,.68)
-		elif "tree_pine_01" in tree_path or "tree_pine_03" in tree_path: tree_scale=randf_range(.62,.82)
-		elif "tree_broadleaf_01" in tree_path: tree_scale=randf_range(.55,.70)
-		elif "tree_oak_01" in tree_path: tree_scale=randf_range(.75,.95)
-		elif "tree_young_" in tree_path: tree_scale=randf_range(.90,1.15)
+		if _near_boss(p.x, p.z): continue
 		var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
-		var tree=_load_asset(tree_path)
-		if tree!=null:
-			tree.scale=Vector3.ONE*tree_scale; tree_body.add_child(tree)
-			_ground_asset_to_terrain(tree,p.x,p.z)
-			_add_tree_canopy(tree_body,tree_path,tree_scale)
-		else:
-			tree=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; tree.mesh=mesh; tree.position=Vector3(0,2.0,0); tree.material_override=_simple_mat(Color(.28,.15,.06)); tree_body.add_child(tree)
-		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.38; trunk_shape.height=3.2; trunk_col.shape=trunk_shape; trunk_col.position.y=1.6; tree_body.add_child(trunk_col)
-		# Loot belongs to the collided StaticBody wrapper so TOPLA sees the tree body.
+		_make_kara_tree(tree_body)
+		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.34; trunk_shape.height=5.2; trunk_col.shape=trunk_shape; trunk_col.position.y=2.6; tree_body.add_child(trunk_col)
 		tree_body.set_meta("loot","wood")
 	for i in 90:
 		var p=_rand_outside_trade(22,MAP_HALF-14)
@@ -520,23 +509,10 @@ func _build_trade_zone():
 		add_child(stall)
 
 func _build_bosses():
+	# Keep only grounded survival forts made from wood, light stone and weathered metal.
+	# Landmark sculptures and boss markers are intentionally removed.
 	for b in bosses:
 		_build_fort(b.pos, b.color)
-		var marker = MeshInstance3D.new()
-		var mesh = CylinderMesh.new()
-		mesh.top_radius = 1.2
-		mesh.bottom_radius = 2.4
-		mesh.height = 10.0
-		marker.mesh = mesh
-		marker.position = Vector3(b.pos.x, 5.0, b.pos.z)
-		var mat = StandardMaterial3D.new()
-		mat.albedo_color = b.color
-		marker.material_override = mat
-		marker.visible = false
-		_build_landmark(b)
-		marker.set_meta("boss_id", b.id)
-		marker.set_meta("boss_name", b.name)
-		add_child(marker)
 
 func _build_player():
 	player = CharacterBody3D.new()
@@ -548,42 +524,13 @@ func _build_player():
 	col.shape = capshape
 	player.add_child(col)
 	add_child(player)
-	var body = MeshInstance3D.new()
-	var cap = CapsuleMesh.new()
-	cap.height = 1.35
-	cap.radius = 0.38
-	body.mesh = cap
-	body.position = Vector3(0, 0.15, 0)
-	var bm = StandardMaterial3D.new()
-	bm.albedo_color = Color(0.18, 0.22, 0.28)
-	body.material_override = bm
-	player.add_child(body)
-	var head = MeshInstance3D.new()
-	var sph = SphereMesh.new()
-	sph.radius = 0.28
-	head.mesh = sph
-	head.position = Vector3(0, 0.95, 0)
-	var hm = StandardMaterial3D.new()
-	hm.albedo_color = Color(0.72, 0.58, 0.46)
-	head.material_override = hm
-	player.add_child(head)
-	# Human silhouette: shoulders, arms and legs instead of a capsule-only avatar.
-	var cloth=StandardMaterial3D.new(); cloth.albedo_color=Color(.16,.20,.25)
-	var skin=StandardMaterial3D.new(); skin.albedo_color=Color(.72,.58,.46)
-	_add_human_limb(Vector3(.22,.62,.20),Vector3(-.42,.12,0),cloth)
-	_add_human_limb(Vector3(.22,.62,.20),Vector3(.42,.12,0),cloth)
-	_add_human_limb(Vector3(.25,.78,.25),Vector3(-.18,-.70,0),cloth)
-	_add_human_limb(Vector3(.25,.78,.25),Vector3(.18,-.70,0),cloth)
-	_add_human_limb(Vector3(.72,.20,.24),Vector3(0,.48,0),cloth)
-	var arm=SpringArm3D.new(); arm.name="CamArm"; arm.spring_length=6.2; arm.position=Vector3(0,1.6,0)
-	var arm_sph=SphereShape3D.new(); arm_sph.radius=0.22; arm.shape=arm_sph
-	player.add_child(arm)
+	# First-person KARA KIYI camera. No third-person body/head is rendered.
 	camera = Camera3D.new()
-	camera.position=Vector3.ZERO
-	camera.rotation_degrees.x=-18
-	camera.fov=68
-	camera.current=true
-	arm.add_child(camera)
+	camera.name = "FirstPersonCamera"
+	camera.position = Vector3(0, 0.72, 0)
+	camera.fov = 72
+	camera.current = true
+	player.add_child(camera)
 
 func _build_hud():
 	var layer = CanvasLayer.new()
@@ -672,7 +619,7 @@ func _physics_process(delta):
 	if hunger<20.0 or thirst<20.0: speed*=.78
 	if fly_mode: speed*=2.2
 	if dir.length()>.05:
-		player_facing=dir.normalized(); player.rotation.y=atan2(-player_facing.x,-player_facing.z)
+		# FPS view direction is controlled by right-side look drag, not movement stick.
 	player.velocity.x=dir.x*speed; player.velocity.z=dir.z*speed
 	if fly_mode:
 		player.velocity.y=0.0
@@ -720,14 +667,30 @@ func _physics_process(delta):
 
 func _input(event):
 	if event is InputEventScreenTouch:
-		if event.pressed and event.position.x < get_viewport().get_visible_rect().size.x * 0.55 and touch_id == -1:
-			touch_id = event.index
-			touch_start = event.position; touch_moved=false
-		elif not event.pressed and event.index == touch_id:
-			touch_id = -1
-			move_touch = Vector2.ZERO
-			if joystick_knob: joystick_knob.position=Vector2(48,48)
-			if not touch_moved: _gather_nearby()
+		var vw=get_viewport().get_visible_rect().size.x
+		if event.pressed:
+			if event.position.x < vw * 0.45 and touch_id == -1:
+				touch_id=event.index; touch_start=event.position; touch_moved=false
+			elif event.position.x >= vw * 0.45 and look_touch_id == -1:
+				look_touch_id=event.index
+		else:
+			if event.index == touch_id:
+				touch_id=-1; move_touch=Vector2.ZERO
+				if joystick_knob: joystick_knob.position=Vector2(48,48)
+				if not touch_moved: _gather_nearby()
+			elif event.index == look_touch_id:
+				look_touch_id=-1
+	elif event is InputEventScreenDrag:
+		if event.index == touch_id:
+			if event.position.distance_to(touch_start)>18.0: touch_moved=true
+			move_touch=(event.position-touch_start)/110.0; move_touch=move_touch.limit_length(1.0)
+			if joystick_knob: joystick_knob.position=Vector2(48,48)+move_touch*38.0
+		elif event.index == look_touch_id and player and camera:
+			# Slow, controlled FPS look. Horizontal drag turns the facing direction.
+			player.rotation_degrees.y -= event.relative.x * look_sensitivity
+			look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-72.0,72.0)
+			camera.rotation_degrees.x=look_pitch
+			player_facing=-player.global_transform.basis.z
 	elif event.is_action_pressed("interact"):
 		_gather_nearby()
 	elif event.is_action_pressed("build_fire"):
@@ -736,11 +699,6 @@ func _input(event):
 		_build_house()
 	elif event.is_action_pressed("build_boat"):
 		_build_boat()
-	elif event is InputEventScreenDrag and event.index == touch_id:
-		if event.position.distance_to(touch_start)>18.0: touch_moved=true
-		move_touch = (event.position - touch_start) / 90.0
-		move_touch = move_touch.limit_length(1.0)
-		if joystick_knob: joystick_knob.position=Vector2(48,48)+move_touch*38.0
 
 func _gather_nearby():
 	_play_sfx("chop"); _gather_particles()
@@ -1301,8 +1259,8 @@ func _update_bed_minimap():
 
 func _update_held_item(slot:int):
 	if held_item: held_item.queue_free()
-	held_item=Node3D.new(); held_item.name="HeldItem"; player.add_child(held_item)
-	held_item.position=Vector3(.35,.85,-.55)
+	held_item=Node3D.new(); held_item.name="HeldItem"; camera.add_child(held_item)
+	held_item.position=Vector3(.38,-.30,-.72)
 	if slot==0: held_item.visible=false; return
 	var paths={1:"res://assets/items/tools/stone_axe.glb",2:"res://assets/items/tools/stone_pickaxe.glb",3:"res://assets/items/weapons/scrap_rifle.glb",4:"res://assets/items/tools/building_hammer.glb"}
 	var visual=_load_asset(str(paths.get(slot,"")))
