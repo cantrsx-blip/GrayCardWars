@@ -566,6 +566,7 @@ func _physics_process(delta):
 	_update_map_dot()
 	_update_minimap()
 	_update_aim_marker()
+	_update_weapon_feedback(delta)
 	if health <= 0:
 		_respawn()
 	var zone = "VAHSI"
@@ -1057,6 +1058,7 @@ func _create_weapon_aim_ui(layer:CanvasLayer):
 	var v=Label.new(); v.text="│\n│\n│\n│"; v.set_anchors_preset(Control.PRESET_CENTER); v.position=Vector2(-3,-72); scope_overlay.add_child(v)
 	var h=Label.new(); h.text="────────────"; h.set_anchors_preset(Control.PRESET_CENTER); h.position=Vector2(-72,-12); scope_overlay.add_child(h)
 	scope_overlay.visible=false; layer.add_child(scope_overlay)
+	hit_marker=Label.new(); hit_marker.text="×"; hit_marker.add_theme_font_size_override("font_size",38); hit_marker.set_anchors_preset(Control.PRESET_CENTER); hit_marker.position=Vector2(-12,-24); hit_marker.visible=false; hit_marker.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(hit_marker)
 
 func _toggle_scope():
 	if not has_scope: return
@@ -1076,3 +1078,14 @@ func _update_aim_marker():
 		var sp=camera.unproject_position(hit.position); aim_marker.position=sp-Vector2(7,15); aim_marker.visible=not scoped
 	else:
 		aim_marker.position=center-Vector2(7,15); aim_marker.visible=not scoped
+
+
+func _update_weapon_feedback(delta:float):
+	recoil=move_toward(recoil,0.0,delta*10.0)
+	if camera: camera.rotation_degrees.x=-recoil
+	if hit_marker_time>0.0:
+		hit_marker_time-=delta
+		if hit_marker_time<=0.0 and hit_marker: hit_marker.visible=false
+
+func _show_hit_marker():
+	if hit_marker: hit_marker.visible=true; hit_marker_time=.16
