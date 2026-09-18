@@ -506,6 +506,7 @@ func _build_hud():
 	_create_minimap(layer)
 	_create_weapon_aim_ui(layer)
 	_create_survival_clock(layer)
+	_setup_sfx()
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -569,6 +570,7 @@ func _physics_process(delta):
 	_update_aim_marker()
 	_update_weapon_feedback(delta)
 	_update_day_cycle(delta)
+	_update_footsteps(delta)
 	_update_crafting_feedback(delta)
 	if health <= 0:
 		_respawn()
@@ -610,6 +612,7 @@ func _input(event):
 		if joystick_knob: joystick_knob.position=Vector2(48,48)+move_touch*38.0
 
 func _gather_nearby():
+	_play_sfx("chop")
 	if player == null:
 		return
 	for n in get_children():
@@ -936,6 +939,7 @@ func _craft(kind:int):
 	elif kind==2 and stone>=5:
 		stone-=5; ammo+=5
 	_craft_success_feedback()
+	_play_sfx("craft")
 	else:
 		if gather_label: gather_label.text="MALZEME YETERSIZ"; gather_label.visible=true; message_time=1.2
 		return
@@ -1166,3 +1170,24 @@ func _update_crafting_feedback(delta:float):
 		crafting_flash_button.scale=Vector2(pulse+0.35,pulse+0.35)
 		if crafting_flash_time<=0.0:
 			crafting_flash_button.modulate=Color.WHITE; crafting_flash_button.scale=Vector2.ONE
+
+
+func _setup_sfx():
+	# CC0 audio slots. Files can be replaced later without touching gameplay code.
+	var paths={"gun":"res://assets/audio/gun.ogg","explosion":"res://assets/audio/explosion.ogg","chop":"res://assets/audio/chop.ogg","step":"res://assets/audio/steps.ogg","jump":"res://assets/audio/jump.ogg","death":"res://assets/audio/death.ogg","craft":"res://assets/audio/craft.ogg"}
+	for key in paths:
+		if ResourceLoader.exists(paths[key]):
+			var p=AudioStreamPlayer.new(); p.stream=load(paths[key]); p.bus="Master"; add_child(p); sfx[key]=p
+
+func _play_sfx(key:String):
+	if sfx.has(key):
+		var p:AudioStreamPlayer=sfx[key]
+		p.pitch_scale=randf_range(.96,1.04); p.play()
+
+func _update_footsteps(delta:float):
+	if player==null: return
+	var moving=Vector2(player.velocity.x,player.velocity.z).length()>1.0
+	if moving and player.is_on_floor():
+		step_timer-=delta
+		if step_timer<=0.0: _play_sfx("step"); step_timer=.42
+	else: step_timer=0.0
