@@ -502,6 +502,7 @@ func _build_hud():
 		layer.add_child(b)
 	var trade=Button.new(); trade.text="TAKAS"; trade.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); trade.position=Vector2(-158,-70); trade.size=Vector2(142,54); trade.pressed.connect(_toggle_trade); layer.add_child(trade)
 	_create_trade_panel(layer)
+	_create_hotbar(layer)
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -555,6 +556,7 @@ func _physics_process(delta):
 	if trade_panel and trade_panel.visible and not in_safe_zone: trade_panel.visible=false
 	_update_combat(delta)
 	_update_resource_respawns(delta)
+	_update_build_preview()
 	_update_map_dot()
 	if health <= 0:
 		_respawn()
@@ -699,12 +701,15 @@ func _build_fire():
 	if _place_asset(asset_paths["campfire"],self,cp)==null: _add_static_box(cp+Vector3(0,.3,0),Vector3(1.4,.5,1.4),Color(.35,.14,.04))
 
 func _build_house():
+	if not build_mode:
+		build_mode=true; _ensure_build_preview(); return
 	if house_parts >= 6 or wood < 20: return
 	wood -= 20
 	if house_parts == 0: build_origin = player.global_position + Vector3(5,0,0)
 	var parts=[Vector3(0,.2,0),Vector3(0,1.7,-2.5),Vector3(0,1.7,2.5),Vector3(-2.5,1.7,0),Vector3(2.5,1.7,0),Vector3(0,3.5,0)]
 	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(.3,3,5),Vector3(.3,3,5),Vector3(5,.3,5)]
 	_add_static_box(build_origin + parts[house_parts], sizes[house_parts], Color(0.42,0.23,0.08)); house_parts += 1
+	if house_parts>=6: build_mode=false; if build_preview: build_preview.visible=false
 
 func _build_boat():
 	if boat_built or wood < 40: return
@@ -905,3 +910,35 @@ func _craft(kind:int):
 		return
 	if gather_label: gather_label.text="URETILDI"; gather_label.visible=true; message_time=1.2
 	_refresh_inventory()
+
+
+func _create_hotbar(layer:CanvasLayer):
+	hotbar=HBoxContainer.new(); hotbar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); hotbar.position=Vector2(360,-72); hotbar.size=Vector2(560,58); hotbar.alignment=BoxContainer.ALIGNMENT_CENTER
+	var slots=[["ELLER",0],["BALTA",1],["KAZMA",2],["SILAH",3],["CEKIC",4]]
+	for slot in slots:
+		var b=Button.new(); b.text=slot[0]; b.custom_minimum_size=Vector2(102,52); b.pressed.connect(_select_hotbar.bind(slot[1])); hotbar.add_child(b)
+	layer.add_child(hotbar)
+	hotbar_label=Label.new(); hotbar_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); hotbar_label.position=Vector2(0,-102); hotbar_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; hotbar_label.text="ELLER"; layer.add_child(hotbar_label)
+
+func _select_hotbar(slot:int):
+	if slot==1 and axe_count==0: return
+	if slot==2 and pickaxe_count==0: return
+	var names=["ELLER","TAS BALTA","TAS KAZMA","SILAH","YAPI CEKICI"]
+	selected_tool=names[slot]; hotbar_label.text=selected_tool
+	if slot==4: build_mode=true; _ensure_build_preview()
+	else:
+		build_mode=false
+		if build_preview: build_preview.visible=false
+
+func _ensure_build_preview():
+	if build_preview==null:
+		build_preview=MeshInstance3D.new(); var box=BoxMesh.new(); box.size=Vector3(5,.35,5); build_preview.mesh=box
+		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.2,.9,.35,.38); mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; build_preview.material_override=mat; add_child(build_preview)
+	build_preview.visible=true
+
+func _update_build_preview():
+	if not build_mode or build_preview==null or player==null: return
+	var forward=-player.global_transform.basis.z; forward.y=0
+	if forward.length()<.1: forward=Vector3(0,0,-1)
+	var p=player.global_position+forward.normalized()*5.0; p.y=height_at(p.x,p.z)+.2
+	build_preview.global_position=p
