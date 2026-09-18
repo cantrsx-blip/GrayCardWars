@@ -99,16 +99,24 @@ var pits := [
 ]
 
 func _ready():
-	# Create the player/camera first. If a later world asset fails on Android,
-	# the game must never fall back to Godot's camera-less grey clear screen.
+	# Render a guaranteed first frame before expensive mobile world generation.
 	_build_player()
 	_build_hud()
+	zone_label.text="DUNYA YUKLENIYOR..."
+	_build_world_staged()
+
+func _build_world_staged() -> void:
+	await get_tree().process_frame
 	_build_world()
+	await get_tree().process_frame
 	_build_hills_and_pits()
 	_build_trade_zone()
+	await get_tree().process_frame
 	_build_bosses()
+	await get_tree().process_frame
 	_build_gatherables()
 	_spawn_combatants()
+	zone_label.text=""
 
 func height_at(x: float, z: float) -> float:
 	if Vector2(x, z).length() < TRADE_RADIUS + 5.0:
