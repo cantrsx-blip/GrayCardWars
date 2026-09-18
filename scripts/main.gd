@@ -72,6 +72,7 @@ var in_dry := false
 var damage_buffer := 0.0
 var world_env: WorldEnvironment
 var zone_label: Label
+var trade_panel: Control
 
 var bosses := [
 	{"id": "eiffel", "name": "Eyfel Kulesi", "pos": Vector3(-130, 0, 130), "color": Color(0.45, 0.32, 0.18)},
@@ -479,7 +480,8 @@ func _build_hud():
 		b.add_theme_font_size_override("font_size",18)
 		b.pressed.connect(actions[i][1])
 		layer.add_child(b)
-	var trade=Button.new(); trade.text="TAKAS"; trade.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); trade.position=Vector2(-150,-70); trade.size=Vector2(132,56); trade.pressed.connect(_trade); layer.add_child(trade)
+	var trade=Button.new(); trade.text="TAKAS"; trade.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); trade.position=Vector2(-158,-70); trade.size=Vector2(142,54); trade.pressed.connect(_toggle_trade); layer.add_child(trade)
+	_create_trade_panel(layer)
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -518,6 +520,7 @@ func _physics_process(delta):
 	in_dry = _near_boss(player.position.x, player.position.z)
 	var flat = Vector2(player.position.x, player.position.z)
 	in_safe_zone = flat.length() <= TRADE_RADIUS
+	if trade_panel and trade_panel.visible and not in_safe_zone: trade_panel.visible=false
 	_update_combat(delta)
 	_update_map_dot()
 	if health <= 0:
@@ -744,14 +747,28 @@ func _simple_mat(c:Color)->StandardMaterial3D:
 	var m=StandardMaterial3D.new(); m.albedo_color=c; m.roughness=.75; return m
 
 
+func _create_trade_panel(layer:CanvasLayer):
+	trade_panel=Control.new(); trade_panel.position=Vector2(390,185); trade_panel.size=Vector2(500,300); trade_panel.visible=false
+	var bg=ColorRect.new(); bg.size=trade_panel.size; bg.color=Color(.05,.07,.06,.92); trade_panel.add_child(bg)
+	var title=Label.new(); title.text="GUVENLI TAKAS MERKEZI"; title.position=Vector2(120,18); title.add_theme_font_size_override("font_size",22); trade_panel.add_child(title)
+	var offers=[["1 KART  >  +15 MERMI",0],["1 KART  >  +35 YIYECEK",1],["1 KART  >  +35 SU",2],["2 KART  >  +40 HP",3]]
+	for i in offers.size():
+		var b=Button.new(); b.text=offers[i][0]; b.position=Vector2(75,62+i*52); b.size=Vector2(350,44); b.pressed.connect(_buy_trade.bind(offers[i][1])); trade_panel.add_child(b)
+	layer.add_child(trade_panel)
+
+func _toggle_trade():
+	if not in_safe_zone: return
+	trade_panel.visible=not trade_panel.visible
+
+func _buy_trade(kind:int):
+	if not in_safe_zone: trade_panel.visible=false; return
+	var cost=2 if kind==3 else 1
+	if gray_cards<cost: return
+	gray_cards-=cost
+	if kind==0: ammo+=15
+	elif kind==1: hunger=minf(100.0,hunger+35.0)
+	elif kind==2: thirst=minf(100.0,thirst+35.0)
+	else: health=min(100,health+40)
+
 func _trade():
-	if not in_safe_zone or gray_cards <= 0: return
-	gray_cards -= 1
-	if ammo < 20:
-		ammo += 15
-	elif thirst < 75.0:
-		thirst = minf(100.0, thirst + 35.0)
-	elif hunger < 75.0:
-		hunger = minf(100.0, hunger + 35.0)
-	else:
-		health = min(100, health + 35)
+	_toggle_trade()
