@@ -709,11 +709,12 @@ func _build_house():
 		build_mode=true; _ensure_build_preview(); return
 	if wood<20: return
 	var p=build_preview.global_position if build_preview else player.global_position+player_facing*5.0
-	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5),Vector3(2.2,.35,4.0)]
-	var offsets=[Vector3(0,.2,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,3.1,0),Vector3(0,.8,0)]
+	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5),Vector3(2.2,.35,4.0),Vector3(1.5,1,1),Vector3(1.2,.45,2.2),Vector3(2.2,1.1,.8),Vector3(1.2,1.1,1.2),Vector3(.35,1.5,.35)]
+	var offsets=[Vector3(0,.2,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,3.1,0),Vector3(0,.8,0),Vector3(0,.5,0),Vector3(0,.25,0),Vector3(0,.55,0),Vector3(0,.55,0),Vector3(0,.75,0)]
 	wood-=20
 	if build_piece==2: _build_door_frame(p)
 	elif build_piece==3: _build_window_frame(p)
+	elif build_piece>=6: _build_interior_prop(p,build_piece)
 	else:
 		var part=_add_static_box_return(p+offsets[build_piece],sizes[build_piece],Color(.42,.23,.08))
 		if build_piece==5: part.rotation_degrees.x=-22
@@ -728,7 +729,7 @@ func _cycle_build_piece():
 func _update_preview_shape():
 	if build_preview==null: return
 	var box=BoxMesh.new()
-	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5),Vector3(2.2,.35,4.0)]
+	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5),Vector3(2.2,.35,4.0),Vector3(1.5,1,1),Vector3(1.2,.45,2.2),Vector3(2.2,1.1,.8),Vector3(1.2,1.1,1.2),Vector3(.35,1.5,.35)]
 	box.size=sizes[build_piece]; build_preview.mesh=box
 
 func _build_boat():
@@ -976,3 +977,20 @@ func _build_window_frame(p:Vector3):
 	_add_static_box(p+Vector3(1.8,1.5,0),Vector3(1.4,3,.3),c)
 	_add_static_box(p+Vector3(0,.45,0),Vector3(2.2,.9,.3),c)
 	_add_static_box(p+Vector3(0,2.55,0),Vector3(2.2,.9,.3),c)
+	# The center remains physically open so the player can see and aim outside.
+
+
+func _build_interior_prop(p:Vector3,kind:int):
+	var col=Color(.30,.19,.09)
+	if kind==6:
+		_add_static_box(p+Vector3(0,.5,0),Vector3(1.5,1,1),col)
+	elif kind==7:
+		_add_static_box(p+Vector3(0,.22,0),Vector3(1.2,.44,2.2),Color(.32,.28,.20))
+	elif kind==8:
+		_add_static_box(p+Vector3(0,.55,0),Vector3(2.2,1.1,.8),col)
+	elif kind==9:
+		_add_static_box(p+Vector3(0,.5,0),Vector3(1.2,1,1.2),Color(.22,.22,.20))
+		var glow=OmniLight3D.new(); glow.position=p+Vector3(0,1.3,0); glow.light_color=Color(1,.48,.16); glow.light_energy=1.4; glow.omni_range=7; add_child(glow)
+	elif kind==10:
+		_add_static_box(p+Vector3(0,.75,0),Vector3(.35,1.5,.35),Color(.18,.15,.10))
+		var lamp=OmniLight3D.new(); lamp.position=p+Vector3(0,1.7,0); lamp.light_color=Color(1,.72,.38); lamp.light_energy=1.1; lamp.omni_range=8; add_child(lamp)
