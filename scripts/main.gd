@@ -52,7 +52,19 @@ var asset_paths = {
 	"raider":"res://assets/characters/enemies/raider.glb",
 	"boss":"res://assets/characters/boss/brute_boss.glb",
 	"campfire":"res://assets/props/campfire/campfire.glb",
-	"boat":"res://assets/vehicles/boat/wood_skiff.glb"
+	"boat":"res://assets/vehicles/boat/wood_skiff.glb",
+	"house_floor":"res://assets/building/wood/floor.glb",
+	"house_wall":"res://assets/building/wood/wall.glb",
+	"house_doorway":"res://assets/building/wood/doorway_wall.glb",
+	"house_door":"res://assets/building/wood/door.glb",
+	"house_window_wall":"res://assets/building/wood/window_wall.glb",
+	"house_roof":"res://assets/building/wood/roof.glb",
+	"house_stairs":"res://assets/building/wood/stairs.glb",
+	"house_chest":"res://assets/building/wood/wood_chest.glb",
+	"house_bed":"res://assets/building/wood/simple_bed.glb",
+	"house_workbench":"res://assets/building/wood/workbench.glb",
+	"house_stove":"res://assets/building/wood/crate.glb",
+	"house_lamp":"res://assets/building/wood/lantern.glb"
 }
 var wood := 0
 var stone := 0
@@ -785,20 +797,31 @@ func _build_fire():
 	var cp=player.global_position+Vector3(2,0,0); campfire_pos=cp
 	if _place_asset(asset_paths["campfire"],self,cp)==null: _add_static_box(cp+Vector3(0,.3,0),Vector3(1.4,.5,1.4),Color(.35,.14,.04))
 
+func _house_asset(key:String,p:Vector3,yaw:float,size:Vector3)->Node3D:
+	var body=StaticBody3D.new(); body.position=p; body.rotation_degrees.y=yaw; add_child(body)
+	var visual=_load_asset(asset_paths[key])
+	if visual!=null: body.add_child(visual)
+	else:
+		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=size; mi.mesh=bm; mi.position.y=size.y*.5; mi.material_override=_simple_mat(Color(.42,.23,.08)); body.add_child(mi)
+	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=size; cs.shape=sh; cs.position.y=size.y*.5; body.add_child(cs)
+	body.set_meta("build_piece",build_piece_names[build_piece]); body.set_meta("structure_hp",structure_hp_default); body.set_meta("material","wood")
+	return body
+
 func _build_house():
 	if not build_mode:
 		build_mode=true; _ensure_build_preview(); return
 	if wood<20: return
 	var p=build_preview.global_position if build_preview else player.global_position+player_facing*5.0
-	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5),Vector3(2.2,.35,4.0),Vector3(1.5,1,1),Vector3(1.2,.45,2.2),Vector3(2.2,1.1,.8),Vector3(1.2,1.1,1.2),Vector3(.35,1.5,.35)]
-	var offsets=[Vector3(0,.2,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,3.1,0),Vector3(0,.8,0),Vector3(0,.5,0),Vector3(0,.25,0),Vector3(0,.55,0),Vector3(0,.55,0),Vector3(0,.75,0)]
+	var yaw=rad_to_deg(atan2(player_facing.x,player_facing.z))
 	wood-=20
-	if build_piece==2: _build_door_frame(p)
-	elif build_piece==3: _build_window_frame(p)
-	elif build_piece>=6: _build_interior_prop(p,build_piece)
-	else:
-		var part=_add_static_box_return(p+offsets[build_piece],sizes[build_piece],Color(.42,.23,.08))
-		if build_piece==5: part.rotation_degrees.x=-22
+	match build_piece:
+		0: _house_asset("house_floor",p,yaw,Vector3(3,.18,3))
+		1: _house_asset("house_wall",p,yaw,Vector3(3,3,.18))
+		2: _build_door_frame(p,yaw)
+		3: _build_window_frame(p,yaw)
+		4: _house_asset("house_roof",p+Vector3(0,3,0),yaw,Vector3(3,.18,3))
+		5: _house_asset("house_stairs",p,yaw,Vector3(3,1.6,3))
+		_: _build_interior_prop(p,build_piece,yaw)
 	house_parts+=1
 	if gather_label: gather_label.text=build_piece_names[build_piece]+" KURULDU"; gather_label.visible=true; message_time=1.0
 
@@ -1054,36 +1077,28 @@ func _update_build_preview():
 	build_preview.global_position=p
 
 
-func _build_door_frame(p:Vector3):
-	var c=Color(.42,.23,.08)
-	_add_static_box(p+Vector3(-1.65,1.5,0),Vector3(1.7,3,.3),c)
-	_add_static_box(p+Vector3(1.65,1.5,0),Vector3(1.7,3,.3),c)
-	_add_static_box(p+Vector3(0,2.8,0),Vector3(1.7,.4,.3),c)
+func _build_door_frame(p:Vector3,yaw:=0.0):
+	_house_asset("house_doorway",p,yaw,Vector3(3,3,.18))
+	_house_asset("house_door",p,yaw,Vector3(.95,2.05,.12))
 
-func _build_window_frame(p:Vector3):
-	var c=Color(.42,.23,.08)
-	_add_static_box(p+Vector3(-1.8,1.5,0),Vector3(1.4,3,.3),c)
-	_add_static_box(p+Vector3(1.8,1.5,0),Vector3(1.4,3,.3),c)
-	_add_static_box(p+Vector3(0,.45,0),Vector3(2.2,.9,.3),c)
-	_add_static_box(p+Vector3(0,2.55,0),Vector3(2.2,.9,.3),c)
-	# The center remains physically open so the player can see and aim outside.
+func _build_window_frame(p:Vector3,yaw:=0.0):
+	_house_asset("house_window_wall",p,yaw,Vector3(3,3,.18))
 
-
-func _build_interior_prop(p:Vector3,kind:int):
-	var col=Color(.30,.19,.09)
+func _build_interior_prop(p:Vector3,kind:int,yaw:=0.0):
+	var obj:Node3D
 	if kind==6:
-		var obj=_add_static_box_return(p+Vector3(0,.5,0),Vector3(1.5,1,1),col); obj.add_to_group("interior_interactable"); obj.set_meta("interior","chest")
+		obj=_house_asset("house_chest",p,yaw,Vector3(1.5,1,1)); obj.set_meta("interior","chest")
 	elif kind==7:
-		var obj=_add_static_box_return(p+Vector3(0,.22,0),Vector3(1.2,.44,2.2),Color(.32,.28,.20)); obj.add_to_group("interior_interactable"); obj.set_meta("interior","bed"); bed_spawn=p+Vector3(0,1,1.5); has_bed_spawn=true; _update_bed_minimap()
+		obj=_house_asset("house_bed",p,yaw,Vector3(1.2,.44,2.2)); obj.set_meta("interior","bed"); bed_spawn=p+Vector3(0,1,1.5); has_bed_spawn=true; _update_bed_minimap()
 	elif kind==8:
-		var obj=_add_static_box_return(p+Vector3(0,.55,0),Vector3(2.2,1.1,.8),col); obj.add_to_group("interior_interactable"); obj.set_meta("interior","workbench")
+		obj=_house_asset("house_workbench",p,yaw,Vector3(2.2,1.1,.8)); obj.set_meta("interior","workbench")
 	elif kind==9:
-		var obj=_add_static_box_return(p+Vector3(0,.5,0),Vector3(1.2,1,1.2),Color(.22,.22,.20)); obj.add_to_group("interior_interactable"); obj.set_meta("interior","stove")
+		obj=_house_asset("house_stove",p,yaw,Vector3(1.2,1,1.2)); obj.set_meta("interior","stove")
 		var glow=OmniLight3D.new(); glow.position=p+Vector3(0,1.3,0); glow.light_color=Color(1,.48,.16); glow.light_energy=1.4; glow.omni_range=7; add_child(glow)
 	elif kind==10:
-		_add_static_box(p+Vector3(0,.75,0),Vector3(.35,1.5,.35),Color(.18,.15,.10))
+		obj=_house_asset("house_lamp",p,yaw,Vector3(.35,1.5,.35)); obj.set_meta("interior","lamp")
 		var lamp=OmniLight3D.new(); lamp.position=p+Vector3(0,1.7,0); lamp.light_color=Color(1,.72,.38); lamp.light_energy=1.1; lamp.omni_range=8; add_child(lamp)
-
+	if obj!=null: obj.add_to_group("interior_interactable")
 
 func _use_nearest_interior():
 	var best:Node3D=null; var dist=3.0
