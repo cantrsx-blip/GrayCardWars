@@ -510,6 +510,9 @@ func _physics_process(delta):
 	if in_safe_zone:
 		hunger = minf(100.0, hunger + delta * 0.8)
 		thirst = minf(100.0, thirst + delta * 1.4)
+	if fire_built and player.global_position.distance_to(campfire_pos)<5.0:
+		hunger=minf(100.0,hunger+delta*.35)
+		health=min(100,health+int(delta*1.2))
 	var v = move_touch
 	if Input.is_key_pressed(KEY_W): v.y = -1
 	if Input.is_key_pressed(KEY_S): v.y = 1
@@ -519,6 +522,7 @@ func _physics_process(delta):
 	if dir.length() > 1.0:
 		dir = dir.normalized()
 	var speed = 4.2 if in_pit else 6.0
+	if hunger<20.0 or thirst<20.0: speed*=.78
 	player.velocity = dir * speed
 	player.move_and_slide()
 	player.position.x = clampf(player.position.x, -MAP_HALF + 2.0, MAP_HALF - 2.0)
@@ -665,7 +669,7 @@ func _shoot():
 func _build_fire():
 	if fire_built or wood < 15 or stone < 5: return
 	wood -= 15; stone -= 5; fire_built = true
-	var cp=player.global_position+Vector3(2,0,0)
+	var cp=player.global_position+Vector3(2,0,0); campfire_pos=cp
 	if _place_asset(asset_paths["campfire"],self,cp)==null: _add_static_box(cp+Vector3(0,.3,0),Vector3(1.4,.5,1.4),Color(.35,.14,.04))
 
 func _build_house():
