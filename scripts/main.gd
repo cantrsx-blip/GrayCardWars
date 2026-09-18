@@ -19,6 +19,8 @@ var boat_built := false
 var build_origin := Vector3.ZERO
 var map_panel: Control
 var map_dot: Label
+var joystick_knob: ColorRect
+var joystick_base: ColorRect
 var asset_corrections = {
 	"raider":{"scale":Vector3(1,1,1),"rot":Vector3.ZERO,"y":0.0},
 	"boss":{"scale":Vector3(1.15,1.15,1.15),"rot":Vector3.ZERO,"y":0.0},
@@ -446,8 +448,9 @@ func _build_player():
 	head.material_override = hm
 	player.add_child(head)
 	camera = Camera3D.new()
-	camera.position = Vector3(0, 7, 9)
-	camera.rotation_degrees.x = -32
+	camera.position = Vector3(0, 5.4, 7.2)
+	camera.rotation_degrees.x = -25
+	camera.fov = 68
 	camera.current = true
 	player.add_child(camera)
 
@@ -455,16 +458,20 @@ func _build_hud():
 	var layer = CanvasLayer.new()
 	add_child(layer)
 	hud = Label.new()
-	hud.position = Vector2(18, 18)
-	hud.add_theme_font_size_override("font_size", 20)
+	hud.position = Vector2(24, 22)
+	hud.add_theme_font_size_override("font_size", 18)
+	hud.add_theme_color_override("font_shadow_color",Color(0,0,0,.85)); hud.add_theme_constant_override("shadow_offset_x",2); hud.add_theme_constant_override("shadow_offset_y",2)
 	layer.add_child(hud)
+	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
+	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
 	var actions = [["TOPLA", _gather_nearby], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
 		b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		b.position = Vector2(-150, 35 + i * 66)
-		b.size = Vector2(132, 56)
+		b.position = Vector2(-158, 30 + i * 62)
+		b.size = Vector2(142, 54)
+		b.add_theme_font_size_override("font_size",18)
 		b.pressed.connect(actions[i][1])
 		layer.add_child(b)
 	var trade=Button.new(); trade.text="TAKAS"; trade.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); trade.position=Vector2(-150,-70); trade.size=Vector2(132,56); trade.pressed.connect(_trade); layer.add_child(trade)
@@ -531,6 +538,7 @@ func _input(event):
 		elif not event.pressed and event.index == touch_id:
 			touch_id = -1
 			move_touch = Vector2.ZERO
+			if joystick_knob: joystick_knob.position=Vector2(48,48)
 			_gather_nearby()
 	elif event.is_action_pressed("interact"):
 		_gather_nearby()
@@ -543,6 +551,7 @@ func _input(event):
 	elif event is InputEventScreenDrag and event.index == touch_id:
 		move_touch = (event.position - touch_start) / 90.0
 		move_touch = move_touch.limit_length(1.0)
+		if joystick_knob: joystick_knob.position=Vector2(48,48)+move_touch*38.0
 
 func _gather_nearby():
 	if player == null:
