@@ -497,6 +497,9 @@ func _nearest_boss() -> String:
 	return best
 
 func _physics_process(delta):
+	if message_time>0.0:
+		message_time-=delta
+		if message_time<=0.0 and respawn_label: respawn_label.visible=false
 	if shoot_flash_time>0.0:
 		shoot_flash_time-=delta
 		if shoot_flash_time<=0.0 and hit_label: hit_label.visible=false
@@ -705,7 +708,11 @@ func _update_map_dot():
 
 func _respawn():
 	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
-	health=100; hunger=70.0; thirst=80.0; player.position=Vector3(0,PLAYER_HEIGHT,0)
+	health=100; hunger=70.0; thirst=80.0; damage_buffer=0.0; player.velocity=Vector3.ZERO; player.position=Vector3(0,PLAYER_HEIGHT,0)
+	if trade_panel: trade_panel.visible=false
+	if map_panel: map_panel.visible=false
+	if respawn_label:
+		respawn_label.text="YENIDEN DOGDUN  •  Kaynaklarin yarisi kaybedildi  •  Kartlar korundu"; respawn_label.visible=true; message_time=3.5
 
 
 func _landmark_box(p: Vector3, size: Vector3, c: Color, rot := Vector3.ZERO):
