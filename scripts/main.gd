@@ -239,16 +239,19 @@ func _build_terrain_mesh():
 	var st=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var cells:=64; var step:=(MAP_HALF*2.0)/float(cells)
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.22,.34,.13); mat.roughness=.96
+	if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"): mat.albedo_texture=load("res://assets/environment/ground/grass_albedo.jpg")
+	if ResourceLoader.exists("res://assets/environment/ground/grass_normal.png"): mat.normal_enabled=true; mat.normal_texture=load("res://assets/environment/ground/grass_normal.png")
+	if ResourceLoader.exists("res://assets/environment/ground/grass_roughness.jpg"): mat.roughness_texture=load("res://assets/environment/ground/grass_roughness.jpg")
 	for z in cells:
 		for x in cells:
 			var x0=-MAP_HALF+x*step; var x1=x0+step; var z0=-MAP_HALF+z*step; var z1=z0+step
 			var a=Vector3(x0,height_at(x0,z0),z0); var b=Vector3(x1,height_at(x1,z0),z0); var c=Vector3(x1,height_at(x1,z1),z1); var d=Vector3(x0,height_at(x0,z1),z1)
-			st.set_uv(Vector2(float(x)/cells,float(z)/cells)); st.add_vertex(a)
-			st.set_uv(Vector2(float(x+1)/cells,float(z)/cells)); st.add_vertex(b)
-			st.set_uv(Vector2(float(x+1)/cells,float(z+1)/cells)); st.add_vertex(c)
-			st.set_uv(Vector2(float(x)/cells,float(z)/cells)); st.add_vertex(a)
-			st.set_uv(Vector2(float(x+1)/cells,float(z+1)/cells)); st.add_vertex(c)
-			st.set_uv(Vector2(float(x)/cells,float(z+1)/cells)); st.add_vertex(d)
+			st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
+			st.set_uv(Vector2(x1/8.0,z0/8.0)); st.add_vertex(b)
+			st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
+			st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
+			st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
+			st.set_uv(Vector2(x0/8.0,z1/8.0)); st.add_vertex(d)
 	st.generate_normals()
 	var mesh=st.commit(); var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; terrain.material_override=mat; add_child(terrain)
 	var body=StaticBody3D.new(); body.name="TerrainCollision"; var cs=CollisionShape3D.new(); cs.shape=mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
@@ -257,13 +260,8 @@ func _build_world():
 	world_env=WorldEnvironment.new(); var env=Environment.new(); env.background_mode=Environment.BG_COLOR; env.background_color=Color(.48,.65,.76); env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color=Color(.62,.68,.72); env.ambient_light_energy=0.65; env.tonemap_mode=Environment.TONE_MAPPER_FILMIC; env.fog_enabled=true; env.fog_light_color=Color(.68,.73,.75); env.fog_density=.0028; world_env.environment=env; add_child(world_env)
 	var sun=DirectionalLight3D.new(); sun.rotation_degrees=Vector3(-52,-28,0); sun.light_energy=1.15; sun.shadow_enabled=true; sun.directional_shadow_max_distance=95; add_child(sun)
 	_build_terrain_mesh()
-	# Layered terrain patches break up the flat green prototype look at low mobile cost.
-	for i in 70:
-		var patch=MeshInstance3D.new(); var pm=PlaneMesh.new(); pm.size=Vector2(randf_range(10,28),randf_range(10,28)); patch.mesh=pm
-		var px=randf_range(-190,190); var pz=randf_range(-190,190); patch.position=Vector3(px,.015,pz)
-		var dirt=StandardMaterial3D.new(); dirt.albedo_color=Color(randf_range(.20,.30),randf_range(.16,.24),randf_range(.08,.13)); dirt.roughness=1.0; patch.material_override=dirt; add_child(patch)
 	# Coastal water band for boat construction.
-	var water=MeshInstance3D.new(); var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
+	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.035,.22,.34,.82); wmat.metallic=.05; wmat.roughness=.25; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
 	for i in 48:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
