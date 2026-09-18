@@ -490,7 +490,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope]]
+	var actions = [["TOPLA", _gather_nearby], ["KULLAN", _use_nearest_interior], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece], ["DURBUN", _toggle_scope], ["ZIPLA", _jump]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -572,7 +572,7 @@ func _physics_process(delta):
 	_update_day_cycle(delta)
 	_update_footsteps(delta)
 	_update_crafting_feedback(delta)
-	if health <= 0:
+	if health <= 0: _death_feedback();
 		_respawn()
 	var zone = "VAHSI"
 	if in_safe_zone:
@@ -1191,3 +1191,13 @@ func _update_footsteps(delta:float):
 		step_timer-=delta
 		if step_timer<=0.0: _play_sfx("step"); step_timer=.42
 	else: step_timer=0.0
+
+
+func _jump():
+	if player and player.is_on_floor():
+		player.velocity.y=7.2
+		_play_sfx("jump")
+
+func _death_feedback():
+	_play_sfx("death")
+	if scoped: _toggle_scope()
