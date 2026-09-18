@@ -422,6 +422,7 @@ func _build_hud():
 		b.size = Vector2(132, 56)
 		b.pressed.connect(actions[i][1])
 		layer.add_child(b)
+	var trade=Button.new(); trade.text="TAKAS"; trade.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); trade.position=Vector2(-150,-70); trade.size=Vector2(132,56); trade.pressed.connect(_trade); layer.add_child(trade)
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -659,3 +660,16 @@ func _build_landmark(b):
 
 func _simple_mat(c:Color)->StandardMaterial3D:
 	var m=StandardMaterial3D.new(); m.albedo_color=c; m.roughness=.75; return m
+
+
+func _trade():
+	if not in_safe_zone or gray_cards <= 0: return
+	gray_cards -= 1
+	if ammo < 20:
+		ammo += 15
+	elif thirst < 75.0:
+		thirst = minf(100.0, thirst + 35.0)
+	elif hunger < 75.0:
+		hunger = minf(100.0, hunger + 35.0)
+	else:
+		health = min(100, health + 35)
