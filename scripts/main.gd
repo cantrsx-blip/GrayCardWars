@@ -24,7 +24,7 @@ var joystick_base: ColorRect
 var asset_corrections = {
 	"raider":{"scale":Vector3(1.12,1.12,1.12),"rot":Vector3.ZERO,"y":0.0},
 	"boss":{"scale":Vector3(1.15,1.15,1.15),"rot":Vector3(0,0,180),"y":0.0},
-	"boat":{"scale":Vector3.ONE,"rot":Vector3.ZERO,"y":0.12},
+	"boat":{"scale":Vector3.ONE,"rot":Vector3(180,0,0),"y":0.12},
 	"campfire":{"scale":Vector3.ONE,"rot":Vector3.ZERO,"y":0.0},
 	"tree_old_giant":{"scale":Vector3(.70,.70,.70),"rot":Vector3.ZERO,"y":0.0}
 }
@@ -250,10 +250,44 @@ func _place_asset(path:String, parent:Node, pos:Vector3, scale_v:=Vector3.ONE, r
 	if n==null: return null
 	n.position=pos; n.scale=scale_v; n.rotation_degrees=rot; parent.add_child(n); return n
 
+func _ground_color(h:float)->Color:
+	if h < -1.5: return Color(.52,.38,.22)
+	if h < .4: return Color(.78,.70,.42)
+	if h > 6.0: return Color(.62,.60,.55)
+	return Color(1,1,1)
+
+func _ground_asset_to_terrain(n:Node3D, x:float, z:float)->void:
+	var ymin:=INF
+	var stack:Array[Node]=[n]
+	while not stack.is_empty():
+		var cur=stack.pop_back()
+		if cur is MeshInstance3D and cur.mesh!=null:
+			var aabb: AABB=cur.mesh.get_aabb()
+			for ix in 2:
+				for iy in 2:
+					for iz in 2:
+						var corner=aabb.position+Vector3(aabb.size.x*ix,aabb.size.y*iy,aabb.size.z*iz)
+						ymin=minf(ymin,(cur.global_transform*corner).y)
+		for child in cur.get_children(): stack.append(child)
+	if ymin<INF: n.global_position.y+=height_at(x,z)-ymin
+
+func _add_tree_canopy(parent:Node3D, tree_path:String, tree_scale:float)->void:
+	var canopy_color=Color(.18,.46,.14) if "pine" in tree_path else Color(.24,.52,.16)
+	if not ("pine" in tree_path or "oak" in tree_path or "broadleaf" in tree_path): return
+	var offsets:Array[Vector3]
+	if "pine" in tree_path:
+		offsets=[Vector3(0,3.6,0),Vector3(0,4.8,0),Vector3(0,6.0,0),Vector3(0,7.2,0)]
+	else:
+		offsets=[Vector3(-.8,5.0,0),Vector3(.8,5.1,.2),Vector3(0,5.8,-.7),Vector3(0,6.2,.7)]
+	for off in offsets:
+		var crown=MeshInstance3D.new(); var sphere=SphereMesh.new()
+		sphere.radius=(1.45 if "pine" in tree_path else 1.8)*tree_scale; sphere.height=sphere.radius*2.0
+		crown.mesh=sphere; crown.position=off*tree_scale; crown.material_override=_simple_mat(canopy_color); parent.add_child(crown)
+
 func _build_terrain_mesh():
 	var st=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var cells:=64; var step:=(MAP_HALF*2.0)/float(cells)
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.22,.34,.13); mat.roughness=.96
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.22,.34,.13); mat.roughness=.96; mat.vertex_color_use_as_albedo=true
 	if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"): mat.albedo_texture=load("res://assets/environment/ground/grass_albedo.jpg")
 	if ResourceLoader.exists("res://assets/environment/ground/grass_normal.png"): mat.normal_enabled=true; mat.normal_texture=load("res://assets/environment/ground/grass_normal.png")
 	if ResourceLoader.exists("res://assets/environment/ground/grass_roughness.jpg"): mat.roughness_texture=load("res://assets/environment/ground/grass_roughness.jpg")
@@ -261,12 +295,12 @@ func _build_terrain_mesh():
 		for x in cells:
 			var x0=-MAP_HALF+x*step; var x1=x0+step; var z0=-MAP_HALF+z*step; var z1=z0+step
 			var a=Vector3(x0,height_at(x0,z0),z0); var b=Vector3(x1,height_at(x1,z0),z0); var c=Vector3(x1,height_at(x1,z1),z1); var d=Vector3(x0,height_at(x0,z1),z1)
-			st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
-			st.set_uv(Vector2(x1/8.0,z0/8.0)); st.add_vertex(b)
-			st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
-			st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
-			st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
-			st.set_uv(Vector2(x0/8.0,z1/8.0)); st.add_vertex(d)
+			st.set_color(_ground_color(a.y)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
+			st.set_color(_ground_color(b.y)); st.set_uv(Vector2(x1/8.0,z0/8.0)); st.add_vertex(b)
+			st.set_color(_ground_color(c.y)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
+			st.set_color(_ground_color(a.y)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
+			st.set_color(_ground_color(c.y)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
+			st.set_color(_ground_color(d.y)); st.set_uv(Vector2(x0/8.0,z1/8.0)); st.add_vertex(d)
 	st.generate_normals()
 	var mesh=st.commit(); var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; terrain.material_override=mat; add_child(terrain)
 	var body=StaticBody3D.new(); body.name="TerrainCollision"; var cs=CollisionShape3D.new(); cs.shape=mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
@@ -284,7 +318,9 @@ func _build_world():
 			continue
 		var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); rock_body.rotation_degrees.y=randf_range(0,360); add_child(rock_body)
 		var rock=_load_asset(rock_assets[randi()%rock_assets.size()])
-		if rock!=null: rock_body.add_child(rock)
+		if rock!=null:
+			rock_body.add_child(rock)
+			_ground_asset_to_terrain(rock,p.x,p.z)
 		else:
 			var rmi=MeshInstance3D.new(); var rbm=BoxMesh.new(); rbm.size=Vector3(.9,.8,.9); rmi.mesh=rbm; rmi.position.y=.4; rmi.material_override=_simple_mat(Color(.45,.43,.40)); rock_body.add_child(rmi)
 		var rcs=CollisionShape3D.new(); var rsh=BoxShape3D.new(); rsh.size=Vector3(.9,.8,.9); rcs.shape=rsh; rcs.position.y=.4; rock_body.add_child(rcs)
@@ -305,6 +341,8 @@ func _build_world():
 		var tree=_load_asset(tree_path)
 		if tree!=null:
 			tree.scale=Vector3.ONE*tree_scale; tree_body.add_child(tree)
+			_ground_asset_to_terrain(tree,p.x,p.z)
+			_add_tree_canopy(tree_body,tree_path,tree_scale)
 		else:
 			tree=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.35; mesh.bottom_radius=.55; mesh.height=4.0; tree.mesh=mesh; tree.position=Vector3(0,2.0,0); tree.material_override=_simple_mat(Color(.28,.15,.06)); tree_body.add_child(tree)
 		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.38; trunk_shape.height=3.2; trunk_col.shape=trunk_shape; trunk_col.position.y=1.6; tree_body.add_child(trunk_col)
@@ -406,7 +444,9 @@ func _build_rock_ring(center: Vector3, _accent: Color) -> void:
 		var p=Vector3(center.x+cos(a)*r,0,center.z+sin(a)*r); p.y=height_at(p.x,p.z)
 		var rock_body=StaticBody3D.new(); rock_body.position=p; rock_body.rotation_degrees.y=randf_range(0,360); add_child(rock_body)
 		var rock=_load_asset(rock_assets[i%rock_assets.size()])
-		if rock!=null: rock.scale=Vector3.ONE*randf_range(.9,1.35); rock_body.add_child(rock)
+		if rock!=null:
+			rock.scale=Vector3.ONE*randf_range(.9,1.35); rock_body.add_child(rock)
+			_ground_asset_to_terrain(rock,p.x,p.z)
 		else:
 			var rmi=MeshInstance3D.new(); var rbm=BoxMesh.new(); rbm.size=Vector3(.9,.8,.9); rmi.mesh=rbm; rmi.position.y=.4; rmi.material_override=_simple_mat(Color(.38,.34,.30)); rock_body.add_child(rmi)
 		var rcs=CollisionShape3D.new(); var rsh=BoxShape3D.new(); rsh.size=Vector3(.9,.8,.9); rcs.shape=rsh; rcs.position.y=.4; rock_body.add_child(rcs)
