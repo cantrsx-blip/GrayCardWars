@@ -88,7 +88,8 @@ var axe_count := 0
 var pickaxe_count := 0
 var build_mode := false
 var build_preview: Node3D
-var build_piece := "ZEMIN"
+var build_piece := 0
+var build_piece_names := ["ZEMIN","DUVAR","KAPI","PENCERE","TAVAN","MERDIVEN","SANDIK","YATAK","TEZGAH","SOBA","LAMBA"]
 var scoped := false
 var has_scope := true
 var scope_overlay: Control
@@ -127,6 +128,14 @@ var crafting_flash_time := 0.0
 var crafting_flash_button: Control
 var sfx: Dictionary = {}
 var step_timer := 0.0
+var hotbar_label: Label
+var player_facing := Vector3(0,0,-1)
+var touch_moved := false
+var chest_storage: Dictionary = {"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0,"ammo":0}
+var minimap_dot: Control
+var minimap_dir: Control
+const RESOURCE_RESPAWN := 90.0
+var respawn_nodes: Array = []
 
 var bosses := [
 	{"id": "eiffel", "name": "Eyfel Kulesi", "pos": Vector3(-130, 0, 130), "color": Color(0.45, 0.32, 0.18)},
@@ -708,15 +717,15 @@ func _gather_nearby():
 			wood += 35 if axe_count>0 else 25
 		elif kind == "stone":
 			stone += 30 if pickaxe_count>0 else 20
-		elif kind == "grass_n":
+		elif kind == "grass":
 			grass_n += 8
-		elif kind == "wheat_n":
+		elif kind == "wheat":
 			wheat_n += 5
 		elif kind == "mushroom":
 			mushroom_n += 2
 			hunger = minf(100.0, hunger + 8.0)
 		if gather_label:
-			var names={"wood":"ODUN +25","stone":"TAS +20","grass_n":"CIM +8","wheat_n":"BUGDAY +5","mushroom":"MANTAR +2"}; gather_label.text=names.get(kind,"TOPLANDI"); gather_label.visible=true; message_time=1.1
+			var names={"wood":"ODUN +25","stone":"TAS +20","grass":"CIM +8","wheat":"BUGDAY +5","mushroom":"MANTAR +2"}; gather_label.text=names.get(kind,"TOPLANDI"); gather_label.visible=true; message_time=1.1
 		_schedule_resource_respawn(n,kind)
 		if kind=="wood": _fell_tree(n)
 		elif kind=="stone": _break_rock(n)
@@ -1005,7 +1014,7 @@ func _spawn_resource_at(kind:String,p:Vector3):
 		if kind=="mushroom":
 			var mesh=SphereMesh.new(); mesh.radius=.28; mesh.height=.36; n.mesh=mesh; n.position=p+Vector3(0,.22,0); n.material_override=_simple_mat(Color(.62,.22,.18))
 		else:
-			var mesh=CylinderMesh.new(); mesh.top_radius=.1; mesh.bottom_radius=.25; mesh.height=.7 if kind=="grass_n" else 1.1; n.mesh=mesh; n.position=p+Vector3(0,.35 if kind=="grass_n" else .55,0); n.material_override=_simple_mat(Color(.22,.55,.16) if kind=="grass_n" else Color(.78,.68,.22))
+			var mesh=CylinderMesh.new(); mesh.top_radius=.1; mesh.bottom_radius=.25; mesh.height=.7 if kind=="grass" else 1.1; n.mesh=mesh; n.position=p+Vector3(0,.35 if kind=="grass_n" else .55,0); n.material_override=_simple_mat(Color(.22,.55,.16) if kind=="grass_n" else Color(.78,.68,.22))
 		n.set_meta("loot",kind); add_child(n)
 
 
