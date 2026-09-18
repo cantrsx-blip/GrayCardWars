@@ -951,6 +951,7 @@ func _select_hotbar(slot:int):
 	if slot==2 and pickaxe_count==0: return
 	var names=["ELLER","TAS BALTA","TAS KAZMA","SILAH","YAPI CEKICI"]
 	selected_tool=names[slot]; hotbar_label.text=selected_tool
+	_update_held_item(slot)
 	if slot==4: build_mode=true; _ensure_build_preview()
 	else:
 		build_mode=false
@@ -1107,3 +1108,27 @@ func _update_bed_minimap():
 	if old: old.queue_free()
 	var m=Label.new(); m.name="BedMark"; m.text="⌂"; m.add_theme_font_size_override("font_size",16)
 	m.position=Vector2(5+(bed_spawn.x+MAP_HALF)/(MAP_HALF*2.0)*132.0,5+(bed_spawn.z+MAP_HALF)/(MAP_HALF*2.0)*132.0)-Vector2(5,9); minimap_panel.add_child(m)
+
+
+func _update_held_item(slot:int):
+	if held_item: held_item.queue_free()
+	held_item=Node3D.new(); held_item.name="HeldItem"; player.add_child(held_item)
+	held_item.position=Vector3(.48,1.05,-.48)
+	var wood_mat=StandardMaterial3D.new(); wood_mat.albedo_color=Color(.30,.16,.06)
+	var metal_mat=StandardMaterial3D.new(); metal_mat.albedo_color=Color(.30,.33,.36)
+	if slot==0: held_item.visible=false; return
+	if slot==1:
+		_add_held_box(Vector3(.12,.8,.12),Vector3(0,-.05,0),wood_mat)
+		_add_held_box(Vector3(.75,.18,.18),Vector3(0,.34,0),metal_mat)
+	elif slot==2:
+		_add_held_box(Vector3(.12,.9,.12),Vector3(0,-.05,0),wood_mat)
+		_add_held_box(Vector3(.95,.14,.16),Vector3(0,.4,0),metal_mat)
+	elif slot==3:
+		_add_held_box(Vector3(.18,.18,.85),Vector3(0,0,-.18),metal_mat)
+		_add_held_box(Vector3(.12,.35,.16),Vector3(0,-.22,.05),wood_mat)
+	elif slot==4:
+		_add_held_box(Vector3(.12,.82,.12),Vector3(0,-.05,0),wood_mat)
+		_add_held_box(Vector3(.65,.28,.24),Vector3(0,.35,0),metal_mat)
+
+func _add_held_box(sz:Vector3,pos:Vector3,mat:Material):
+	var m=MeshInstance3D.new(); var b=BoxMesh.new(); b.size=sz; m.mesh=b; m.position=pos; m.material_override=mat; held_item.add_child(m)
