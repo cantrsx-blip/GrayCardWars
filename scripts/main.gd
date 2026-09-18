@@ -1418,3 +1418,27 @@ func _boss_can_fire(boss:Node) -> bool:
 func _is_player_loot_allowed(item:Node) -> bool:
 	# Boss-only weapons/ammo are internal combat equipment and never enter loot/inventory UI.
 	return item==null or not bool(item.get_meta("no_loot_weapon",false))
+
+
+func _ammo_stock(ammo_type:String) -> int:
+	match ammo_type:
+		"7.62": return ammo_762
+		"9MM": return ammo_9mm
+		"12GA": return ammo_12ga
+		"ROCKET": return ammo_rocket
+	return 0
+
+func _craft_explosive(kind:String):
+	# Abstract game-only crafting costs, intentionally not a real-world recipe.
+	if kind=="EL_BOMBASI":
+		if not cheat_mode and (stone<12 or metal_scrap()<8): _flash_message("MALZEME YETERSIZ"); return
+		if not cheat_mode: stone-=12
+		grenade_count+=1; _craft_success_feedback()
+	elif kind=="TNT":
+		if not cheat_mode and (stone<20 or wood<10): _flash_message("MALZEME YETERSIZ"); return
+		if not cheat_mode: stone-=20; wood-=10
+		tnt_count+=1; _craft_success_feedback()
+
+func metal_scrap() -> int:
+	# Placeholder resource hook until scrap loot is added.
+	return 9999 if cheat_mode else stone
