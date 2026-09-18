@@ -647,7 +647,8 @@ func _gather_nearby():
 		if gather_label:
 			var names={"wood":"ODUN +25","stone":"TAS +20","grass":"CIM +8","wheat":"BUGDAY +5","mushroom":"MANTAR +2"}; gather_label.text=names.get(kind,"TOPLANDI"); gather_label.visible=true; message_time=1.1
 		_schedule_resource_respawn(n,kind)
-		n.queue_free()
+		if kind=="wood": _fell_tree(n)
+		else: n.queue_free()
 		return
 
 
@@ -1303,3 +1304,15 @@ func _creative_give(item:String):
 		"EV PARCALARI": build_mode=true; _select_hotbar(4); _ensure_build_preview()
 		"BOT": _build_boat()
 	_flash_message(item+" HAZIR")
+
+
+func _fell_tree(tree:Node3D):
+	# Tree tips away from the player, then disappears. Respawn scheduling stays unchanged.
+	if tree==null or not is_instance_valid(tree): return
+	var away=tree.global_position-player.global_position; away.y=0.0
+	var axis=Vector3(away.z,0.0,-away.x).normalized()
+	if axis.length()<.1: axis=Vector3.RIGHT
+	var tw=create_tween(); tw.set_trans(Tween.TRANS_QUAD); tw.set_ease(Tween.EASE_IN)
+	tw.tween_property(tree,"rotation",tree.rotation+axis*deg_to_rad(82.0),1.05)
+	tw.parallel().tween_property(tree,"position:y",tree.position.y-.35,1.05)
+	tw.tween_interval(.35); tw.tween_callback(tree.queue_free)
