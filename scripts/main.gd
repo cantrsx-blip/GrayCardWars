@@ -10,6 +10,15 @@ const WALL_H := 5.0
 const WALL_T := 1.4
 
 var gray_cards := 1
+var ammo := 40
+var enemies: Array[CharacterBody3D] = []
+var fort_bosses: Array[CharacterBody3D] = []
+var fire_built := false
+var house_parts := 0
+var boat_built := false
+var build_origin := Vector3.ZERO
+var map_panel: Control
+var map_dot: Label
 var wood := 0
 var stone := 0
 var grass_n := 0
@@ -57,6 +66,7 @@ func _ready():
 	_build_bosses()
 	_build_gatherables()
 	_build_player()
+	_spawn_combatants()
 	_build_hud()
 
 func height_at(x: float, z: float) -> float:
@@ -401,6 +411,15 @@ func _build_hud():
 	hud.position = Vector2(18, 18)
 	hud.add_theme_font_size_override("font_size", 20)
 	layer.add_child(hud)
+	var actions = [["TOPLA", _gather_nearby], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map]]
+	for i in actions.size():
+		var b = Button.new()
+		b.text = actions[i][0]
+		b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		b.position = Vector2(-150, 35 + i * 66)
+		b.size = Vector2(132, 56)
+		b.pressed.connect(actions[i][1])
+		layer.add_child(b)
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -415,6 +434,11 @@ func _nearest_boss() -> String:
 func _physics_process(delta):
 	hunger = maxf(0.0, hunger - delta * 0.04)
 	thirst = maxf(0.0, thirst - delta * 0.06)
+	if hunger <= 0.0 or thirst <= 0.0:
+		health -= int(8.0 * delta)
+	if in_safe_zone:
+		hunger = minf(100.0, hunger + delta * 0.8)
+		thirst = minf(100.0, thirst + delta * 1.4)
 	var v = move_touch
 	if Input.is_key_pressed(KEY_W): v.y = -1
 	if Input.is_key_pressed(KEY_S): v.y = 1
@@ -434,6 +458,10 @@ func _physics_process(delta):
 	in_dry = _near_boss(player.position.x, player.position.z)
 	var flat = Vector2(player.position.x, player.position.z)
 	in_safe_zone = flat.length() <= TRADE_RADIUS
+	_update_combat(delta)
+	_update_map_dot()
+	if health <= 0:
+		_respawn()
 	var zone = "VAHSI"
 	if in_safe_zone:
 		zone = "TAKAS"
@@ -441,8 +469,8 @@ func _physics_process(delta):
 		zone = "CUKUR"
 	elif in_dry:
 		zone = "KURAK / KALE"
-	hud.text = "HP %d  Ac %d  Su %d  Kart %d\nOdun %d  Tas %d  Cim %d  Bugday %d  Mantar %d\n%s  |  %s" % [
-		health, int(hunger), int(thirst), gray_cards,
+	hud.text = "HP %d  Ac %d  Su %d  Kart %d  Mermi %d\nOdun %d  Tas %d  Cim %d  Bugday %d  Mantar %d\n%s  |  %s" % [
+		health, int(hunger), int(thirst), gray_cards, ammo,
 		wood, stone, grass_n, wheat_n, mushroom_n,
 		zone, _nearest_boss()
 	]
@@ -487,3 +515,98 @@ func _gather_nearby():
 			hunger = minf(100.0, hunger + 8.0)
 		n.queue_free()
 		return
+
+
+func _enemy_visual(color: Color, scale_v := Vector3.ONE) -> MeshInstance3D:
+	var m = MeshInstance3D.new()
+	var cap = CapsuleMesh.new(); cap.radius = 0.48; cap.height = 1.8
+	m.mesh = cap; m.scale = scale_v
+	var mat = StandardMaterial3D.new(); mat.albedo_color = color; m.material_override = mat
+	return m
+
+func _spawn_combatants():
+	for b in bosses:
+		for j in 3:
+			var e = CharacterBody3D.new()
+			e.position = b.pos + Vector3(cos(j * TAU / 3.0) * 12.0, 1.0, sin(j * TAU / 3.0) * 12.0)
+			e.add_child(_enemy_visual(Color(0.42,0.08,0.08))); e.set_meta("hp", 60); e.set_meta("raider", true)
+			add_child(e); enemies.append(e)
+		var boss = CharacterBody3D.new(); boss.position = b.pos + Vector3(0,1,0)
+		boss.add_child(_enemy_visual(Color(0.12,0.04,0.04), Vector3(1.8,1.8,1.8))); boss.set_meta("hp",300); boss.set_meta("fort_boss",true)
+		add_child(boss); fort_bosses.append(boss)
+
+func _update_combat(delta):
+	for e in enemies:
+		if not is_instance_valid(e): continue
+		var d = player.global_position - e.global_position
+		if d.length() < 18.0 and not in_safe_zone:
+			e.velocity = d.normalized() * 2.2; e.move_and_slide()
+			if d.length() < 1.5: health = max(0, health - int(delta * 12.0))
+	for b in fort_bosses:
+		if not is_instance_valid(b): continue
+		var d = player.global_position - b.global_position
+		if d.length() < 26.0 and not in_safe_zone:
+			b.velocity = d.normalized() * 1.6; b.move_and_slide()
+			if d.length() < 2.0: health = max(0, health - int(delta * 18.0))
+
+func _shoot():
+	if ammo <= 0 or in_safe_zone: return
+	ammo -= 1
+	var target: CharacterBody3D = null; var best := 18.0
+	for e in enemies:
+		if is_instance_valid(e):
+			var d = e.global_position.distance_to(player.global_position)
+			if d < best: best = d; target = e
+	for b in fort_bosses:
+		if is_instance_valid(b):
+			var d = b.global_position.distance_to(player.global_position)
+			if d < best: best = d; target = b
+	if target == null: return
+	var hp_now = int(target.get_meta("hp")) - 30; target.set_meta("hp", hp_now)
+	if hp_now <= 0:
+		gray_cards += 5 if target.has_meta("fort_boss") else 1
+		target.queue_free()
+
+func _build_fire():
+	if fire_built or wood < 15 or stone < 5: return
+	wood -= 15; stone -= 5; fire_built = true
+	_add_static_box(player.global_position + Vector3(2,0.3,0), Vector3(1.4,0.5,1.4), Color(0.35,0.14,0.04))
+
+func _build_house():
+	if house_parts >= 6 or wood < 20: return
+	wood -= 20
+	if house_parts == 0: build_origin = player.global_position + Vector3(5,0,0)
+	var parts=[Vector3(0,.2,0),Vector3(0,1.7,-2.5),Vector3(0,1.7,2.5),Vector3(-2.5,1.7,0),Vector3(2.5,1.7,0),Vector3(0,3.5,0)]
+	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(.3,3,5),Vector3(.3,3,5),Vector3(5,.3,5)]
+	_add_static_box(build_origin + parts[house_parts], sizes[house_parts], Color(0.42,0.23,0.08)); house_parts += 1
+
+func _build_boat():
+	if boat_built or wood < 40: return
+	wood -= 40; boat_built = true
+	_add_static_box(Vector3(player.position.x,0.35,-192), Vector3(3,0.6,6), Color(0.35,0.16,0.05))
+
+func _toggle_map():
+	if map_panel == null: _create_map()
+	map_panel.visible = not map_panel.visible
+
+func _create_map():
+	map_panel = Control.new(); map_panel.position = Vector2(110,70); map_panel.size = Vector2(620,520)
+	var bg=ColorRect.new(); bg.size=map_panel.size; bg.color=Color(0.08,0.13,0.09,0.95); map_panel.add_child(bg)
+	for b in bosses:
+		var l=Label.new(); l.text=b.name
+		l.position=Vector2(25+(b.pos.x+MAP_HALF)/(MAP_HALF*2.0)*570.0,35+(b.pos.z+MAP_HALF)/(MAP_HALF*2.0)*440.0); map_panel.add_child(l)
+	map_dot=Label.new(); map_dot.text="● SEN"; map_panel.add_child(map_dot)
+	var layers=get_children().filter(func(n): return n is CanvasLayer)
+	if layers.size()>0: layers[-1].add_child(map_panel)
+	map_panel.visible=false
+	_update_map_dot()
+
+func _update_map_dot():
+	if map_dot == null or player == null: return
+	var nx=clampf((player.position.x+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
+	var nz=clampf((player.position.z+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
+	map_dot.position=Vector2(25+nx*570.0,35+nz*440.0)
+
+func _respawn():
+	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
+	health=100; hunger=70.0; thirst=80.0; player.position=Vector3(0,PLAYER_HEIGHT,0)
