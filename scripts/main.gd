@@ -93,7 +93,6 @@ var scoped := false
 var has_scope := true
 var scope_overlay: Control
 var aim_marker: Control
-var hit_marker: Control
 var recoil := 0.0
 var damage_overlay: ColorRect
 var damage_time := 0.0
@@ -419,7 +418,7 @@ func _build_gatherables():
 		var m = StandardMaterial3D.new()
 		m.albedo_color = Color(0.22, 0.55, 0.16)
 		g.material_override = m
-		g.set_meta("loot", "grass_n")
+		g.set_meta("loot", "grass")
 		add_child(g)
 	for i in 32:
 		var p = _rand_outside_trade(22, MAP_HALF - 14)
@@ -435,7 +434,7 @@ func _build_gatherables():
 		var m = StandardMaterial3D.new()
 		m.albedo_color = Color(0.78, 0.68, 0.22)
 		w.material_override = m
-		w.set_meta("loot", "wheat_n")
+		w.set_meta("loot", "wheat")
 		add_child(w)
 	for i in 22:
 		var p = _rand_outside_trade(24, MAP_HALF - 16)
@@ -1408,7 +1407,9 @@ func _fell_tree(tree:Node3D):
 
 func _break_rock(rock:Node3D):
 	if rock==null or not is_instance_valid(rock): return
-	rock.visible=false
+	rock.set_process(false)
+	for child in rock.get_children():
+		if child is VisualInstance3D: child.visible=false
 	for i in 8:
 		var chunk=MeshInstance3D.new(); var mesh=BoxMesh.new(); mesh.size=Vector3(randf_range(.18,.42),randf_range(.14,.34),randf_range(.18,.42)); chunk.mesh=mesh
 		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.34,.33,.31); chunk.material_override=mat
@@ -1435,7 +1436,8 @@ func _structure_hit_fx(part:Node3D):
 
 func _shatter_structure(part:Node3D,kind:String):
 	_play_break_sound(part,kind)
-	part.visible=false
+	for child in part.get_children():
+		if child is VisualInstance3D: child.visible=false
 	var count=12 if kind=="DUVAR" else 8
 	for i in count:
 		var c=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(randf_range(.12,.35),randf_range(.1,.28),randf_range(.08,.22)); c.mesh=bm; c.global_position=part.global_position+Vector3(randf_range(-1.0,1.0),randf_range(.25,1.8),randf_range(-.25,.25)); fx_root.add_child(c)
