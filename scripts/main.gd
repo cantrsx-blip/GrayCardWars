@@ -516,7 +516,9 @@ func _nearest_boss() -> String:
 func _physics_process(delta):
 	if message_time>0.0:
 		message_time-=delta
-		if message_time<=0.0 and respawn_label: respawn_label.visible=false
+		if message_time<=0.0:
+			if respawn_label: respawn_label.visible=false
+			if gather_label: gather_label.visible=false
 	if shoot_flash_time>0.0:
 		shoot_flash_time-=delta
 		if shoot_flash_time<=0.0 and hit_label: hit_label.visible=false
@@ -570,14 +572,14 @@ func _physics_process(delta):
 
 func _input(event):
 	if event is InputEventScreenTouch:
-		if event.pressed and event.position.x < get_viewport().get_visible_rect().size.x * 0.65 and touch_id == -1:
+		if event.pressed and event.position.x < get_viewport().get_visible_rect().size.x * 0.55 and touch_id == -1:
 			touch_id = event.index
-			touch_start = event.position
+			touch_start = event.position; touch_moved=false
 		elif not event.pressed and event.index == touch_id:
 			touch_id = -1
 			move_touch = Vector2.ZERO
 			if joystick_knob: joystick_knob.position=Vector2(48,48)
-			_gather_nearby()
+			if not touch_moved: _gather_nearby()
 	elif event.is_action_pressed("interact"):
 		_gather_nearby()
 	elif event.is_action_pressed("build_fire"):
@@ -587,6 +589,7 @@ func _input(event):
 	elif event.is_action_pressed("build_boat"):
 		_build_boat()
 	elif event is InputEventScreenDrag and event.index == touch_id:
+		if event.position.distance_to(touch_start)>18.0: touch_moved=true
 		move_touch = (event.position - touch_start) / 90.0
 		move_touch = move_touch.limit_length(1.0)
 		if joystick_knob: joystick_knob.position=Vector2(48,48)+move_touch*38.0
@@ -616,6 +619,8 @@ func _gather_nearby():
 		elif kind == "mushroom":
 			mushroom_n += 2
 			hunger = minf(100.0, hunger + 8.0)
+		if gather_label:
+			var names={"wood":"ODUN +25","stone":"TAS +20","grass":"CIM +8","wheat":"BUGDAY +5","mushroom":"MANTAR +2"}; gather_label.text=names.get(kind,"TOPLANDI"); gather_label.visible=true; message_time=1.1
 		n.queue_free()
 		return
 
