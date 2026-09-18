@@ -92,6 +92,7 @@ jobs:
         run: |
           GODOT=/tmp/godot/Godot_v4.5.1-stable_linux.x86_64
           set -o pipefail
+          mkdir -p build
           timeout 20s "$GODOT" --headless --path . --verbose 2>&1 | tee build/runtime.log || STATUS=$?
           STATUS=${STATUS:-0}
           if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Invalid access|ERROR:" build/runtime.log; then
