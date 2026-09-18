@@ -505,6 +505,7 @@ func _build_hud():
 	_create_hotbar(layer)
 	_create_minimap(layer)
 	_create_weapon_aim_ui(layer)
+	_create_survival_clock(layer)
 
 func _nearest_boss() -> String:
 	var best := ""
@@ -567,6 +568,7 @@ func _physics_process(delta):
 	_update_minimap()
 	_update_aim_marker()
 	_update_weapon_feedback(delta)
+	_update_day_cycle(delta)
 	if health <= 0:
 		_respawn()
 	var zone = "VAHSI"
@@ -1132,3 +1134,16 @@ func _update_held_item(slot:int):
 
 func _add_held_box(sz:Vector3,pos:Vector3,mat:Material):
 	var m=MeshInstance3D.new(); var b=BoxMesh.new(); b.size=sz; m.mesh=b; m.position=pos; m.material_override=mat; held_item.add_child(m)
+
+
+func _create_survival_clock(layer:CanvasLayer):
+	day_label=Label.new(); day_label.set_anchors_preset(Control.PRESET_TOP_RIGHT); day_label.position=Vector2(-245,12); day_label.size=Vector2(210,32); day_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT; day_label.text="09:00  ☀"; layer.add_child(day_label)
+
+func _update_day_cycle(delta:float):
+	day_clock=fmod(day_clock+delta*.035,24.0)
+	var hour=int(floor(day_clock)); var minute=int(floor((day_clock-hour)*60.0))
+	if day_label: day_label.text="%02d:%02d  %s" % [hour,minute,("☀" if hour>=6 and hour<19 else "☾")]
+	var night=hour<6 or hour>=19
+	var env=get_viewport().world_3d.environment
+	if env:
+		env.ambient_light_energy=move_toward(env.ambient_light_energy,.28 if night else .72,delta*.08)
