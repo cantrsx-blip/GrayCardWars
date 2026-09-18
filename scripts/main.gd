@@ -114,6 +114,20 @@ var ammo_12ga := 24
 var ammo_rocket := 3
 var grenade_count := 0
 var tnt_count := 0
+var crosshair: Control
+var hit_marker: Control
+var hit_marker_time := 0.0
+var minimap_panel: Control
+var minimap_marks: Array = []
+var has_bed_spawn := false
+var bed_spawn := Vector3.ZERO
+var held_item: Node3D
+var day_label: Label
+var day_clock := 9.0
+var crafting_flash_time := 0.0
+var crafting_flash_button: Control
+var sfx: Dictionary = {}
+var step_timer := 0.0
 
 var bosses := [
 	{"id": "eiffel", "name": "Eyfel Kulesi", "pos": Vector3(-130, 0, 130), "color": Color(0.45, 0.32, 0.18)},
@@ -1374,7 +1388,7 @@ func _creative_give(item:String):
 		"OT +500": grass_n+=500
 		"BUGDAY +200": wheat_n+=200
 		"MANTAR +100": mushroom_n+=100
-		"KAMP ATESI": _build_campfire()
+		"KAMP ATESI": _build_fire()
 		"EV PARCALARI": build_mode=true; _select_hotbar(4); _ensure_build_preview()
 		"BOT": _build_boat()
 	_flash_message(item+" HAZIR")
