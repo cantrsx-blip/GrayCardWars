@@ -136,14 +136,16 @@ func _place_asset(path:String, parent:Node, pos:Vector3, scale_v:=Vector3.ONE, r
 	n.position=pos; n.scale=scale_v; n.rotation_degrees=rot; parent.add_child(n); return n
 
 func _build_world():
-	var ground = MeshInstance3D.new()
-	var plane = PlaneMesh.new()
-	plane.size = Vector2(MAP_HALF * 2.0, MAP_HALF * 2.0)
-	ground.mesh = plane
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.28, 0.42, 0.18)
-	ground.material_override = mat
-	add_child(ground)
+	var ground=MeshInstance3D.new(); var plane=PlaneMesh.new(); plane.size=Vector2(MAP_HALF*2.0,MAP_HALF*2.0); ground.mesh=plane
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(0.22,0.34,0.13); mat.roughness=.96; ground.material_override=mat; add_child(ground)
+	# Layered terrain patches break up the flat green prototype look at low mobile cost.
+	for i in 70:
+		var patch=MeshInstance3D.new(); var pm=PlaneMesh.new(); pm.size=Vector2(randf_range(10,28),randf_range(10,28)); patch.mesh=pm
+		var px=randf_range(-190,190); var pz=randf_range(-190,190); patch.position=Vector3(px,.015,pz)
+		var dirt=StandardMaterial3D.new(); dirt.albedo_color=Color(randf_range(.20,.30),randf_range(.16,.24),randf_range(.08,.13)); dirt.roughness=1.0; patch.material_override=dirt; add_child(patch)
+	# Coastal water band for boat construction.
+	var water=MeshInstance3D.new(); var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
+	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.035,.22,.34,.82); wmat.metallic=.05; wmat.roughness=.25; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
 	for i in 24:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z):
