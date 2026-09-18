@@ -71,6 +71,7 @@ var in_pit := false
 var in_dry := false
 var damage_buffer := 0.0
 var world_env: WorldEnvironment
+var zone_label: Label
 
 var bosses := [
 	{"id": "eiffel", "name": "Eyfel Kulesi", "pos": Vector3(-130, 0, 130), "color": Color(0.45, 0.32, 0.18)},
@@ -460,6 +461,7 @@ func _build_player():
 func _build_hud():
 	var layer = CanvasLayer.new()
 	add_child(layer)
+	zone_label=Label.new(); zone_label.set_anchors_preset(Control.PRESET_TOP_WIDE); zone_label.position=Vector2(0,18); zone_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; zone_label.add_theme_font_size_override("font_size",24); zone_label.add_theme_color_override("font_shadow_color",Color(0,0,0,.9)); zone_label.add_theme_constant_override("shadow_offset_x",2); zone_label.add_theme_constant_override("shadow_offset_y",2); layer.add_child(zone_label)
 	hud = Label.new()
 	hud.position = Vector2(24, 22)
 	hud.add_theme_font_size_override("font_size", 18)
@@ -527,10 +529,10 @@ func _physics_process(delta):
 		zone = "CUKUR"
 	elif in_dry:
 		zone = "KURAK / KALE"
-	hud.text = "HP %d  Ac %d  Su %d  Kart %d  Mermi %d\nOdun %d  Tas %d  Cim %d  Bugday %d  Mantar %d\n%s  |  %s" % [
+	zone_label.text="%s  •  %s" % [zone,_nearest_boss()]
+	hud.text = "HP %d  Ac %d  Su %d  Kart %d  Mermi %d\nOdun %d  Tas %d  Cim %d  Bugday %d  Mantar %d" % [
 		health, int(hunger), int(thirst), gray_cards, ammo,
-		wood, stone, grass_n, wheat_n, mushroom_n,
-		zone, _nearest_boss()
+		wood, stone, grass_n, wheat_n, mushroom_n
 	]
 
 func _input(event):
