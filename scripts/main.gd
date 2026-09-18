@@ -1185,7 +1185,7 @@ func _update_crafting_feedback(delta:float):
 
 func _setup_sfx():
 	# CC0 audio slots. Files can be replaced later without touching gameplay code.
-	var paths={"gun":"res://assets/audio/gun.ogg","explosion":"res://assets/audio/explosion.ogg","chop":"res://assets/audio/chop.ogg","step":"res://assets/audio/steps.ogg","jump":"res://assets/audio/jump.ogg","death":"res://assets/audio/death.ogg","craft":"res://assets/audio/craft.ogg"}
+	var paths={"gun":"res://assets/audio/gun.ogg","explosion":"res://assets/audio/explosion.ogg","chop":"res://assets/audio/chop.ogg","step":"res://assets/audio/steps.ogg","jump":"res://assets/audio/jump.ogg","death":"res://assets/audio/death.ogg","craft":"res://assets/audio/craft.ogg","break_wood":"res://assets/audio/break_wood.ogg","break_metal":"res://assets/audio/break_metal.ogg","break_stone":"res://assets/audio/break_stone.ogg","break_glass":"res://assets/audio/break_glass.ogg"}
 	for key in paths:
 		if ResourceLoader.exists(paths[key]):
 			var p=AudioStreamPlayer.new(); p.stream=load(paths[key]); p.bus="Master"; add_child(p); sfx[key]=p
@@ -1347,6 +1347,7 @@ func _structure_hit_fx(part:Node3D):
 		var tw=create_tween(); tw.tween_property(c,"position",c.position+Vector3(randf_range(-.5,.5),-.45,randf_range(-.5,.5)),.3); tw.tween_callback(c.queue_free)
 
 func _shatter_structure(part:Node3D,kind:String):
+	_play_break_sound(part,kind)
 	part.visible=false
 	var count=12 if kind=="DUVAR" else 8
 	for i in count:
@@ -1354,3 +1355,13 @@ func _shatter_structure(part:Node3D,kind:String):
 		var tw=create_tween(); tw.set_parallel(true); tw.tween_property(c,"position",c.position+Vector3(randf_range(-1.3,1.3),randf_range(-.7,.2),randf_range(-1.0,1.0)),.5); tw.tween_property(c,"rotation",Vector3(randf()*4.0,randf()*4.0,randf()*4.0),.5)
 		var timer=get_tree().create_timer(.65); timer.timeout.connect(c.queue_free)
 	var t=get_tree().create_timer(.12); t.timeout.connect(part.queue_free)
+
+
+func _play_break_sound(part:Node3D,kind:String):
+	var material_kind=str(part.get_meta("material",""))
+	var sound="break_wood"
+	if material_kind=="metal": sound="break_metal"
+	elif material_kind=="stone": sound="break_stone"
+	elif material_kind=="glass" or kind=="PENCERE": sound="break_glass"
+	elif kind in ["DUVAR","KAPI"]: sound="break_wood"
+	_play_sfx(sound)
