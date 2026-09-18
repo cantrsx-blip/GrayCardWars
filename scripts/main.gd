@@ -49,6 +49,7 @@ var touch_id := -1
 var in_safe_zone := true
 var in_pit := false
 var in_dry := false
+var damage_buffer := 0.0
 
 var bosses := [
 	{"id": "eiffel", "name": "Eyfel Kulesi", "pos": Vector3(-130, 0, 130), "color": Color(0.45, 0.32, 0.18)},
@@ -458,7 +459,7 @@ func _physics_process(delta):
 	hunger = maxf(0.0, hunger - delta * 0.04)
 	thirst = maxf(0.0, thirst - delta * 0.06)
 	if hunger <= 0.0 or thirst <= 0.0:
-		health -= int(8.0 * delta)
+		_apply_damage(8.0 * delta)
 	if in_safe_zone:
 		hunger = minf(100.0, hunger + delta * 0.8)
 		thirst = minf(100.0, thirst + delta * 1.4)
@@ -507,6 +508,14 @@ func _input(event):
 			touch_id = -1
 			move_touch = Vector2.ZERO
 			_gather_nearby()
+	elif event.is_action_pressed("interact"):
+		_gather_nearby()
+	elif event.is_action_pressed("build_fire"):
+		_build_fire()
+	elif event.is_action_pressed("build_house"):
+		_build_house()
+	elif event.is_action_pressed("build_boat"):
+		_build_boat()
 	elif event is InputEventScreenDrag and event.index == touch_id:
 		move_touch = (event.position - touch_start) / 90.0
 		move_touch = move_touch.limit_length(1.0)
@@ -568,13 +577,20 @@ func _update_combat(delta):
 		var d = player.global_position - e.global_position
 		if d.length() < 18.0 and not in_safe_zone:
 			e.velocity = d.normalized() * 2.2; e.move_and_slide()
-			if d.length() < 1.5: health = max(0, health - int(delta * 12.0))
+			if d.length() < 1.5: _apply_damage(12.0 * delta)
 	for b in fort_bosses:
 		if not is_instance_valid(b): continue
 		var d = player.global_position - b.global_position
 		if d.length() < 26.0 and not in_safe_zone:
 			b.velocity = d.normalized() * 1.6; b.move_and_slide()
-			if d.length() < 2.0: health = max(0, health - int(delta * 18.0))
+			if d.length() < 2.0: _apply_damage(18.0 * delta)
+
+func _apply_damage(amount:float):
+	damage_buffer += amount
+	var whole=int(floor(damage_buffer))
+	if whole>0:
+		health=max(0,health-whole)
+		damage_buffer-=whole
 
 func _shoot():
 	if ammo <= 0 or in_safe_zone: return
