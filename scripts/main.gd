@@ -490,7 +490,7 @@ func _build_hud():
 	layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
-	var actions = [["TOPLA", _gather_nearby], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting]]
+	var actions = [["TOPLA", _gather_nearby], ["ATES", _shoot], ["KAMP", _build_fire], ["EV", _build_house], ["BOT", _build_boat], ["HARITA", _toggle_map], ["ENVANTER", _toggle_inventory], ["URET", _toggle_crafting], ["PARCA", _cycle_build_piece]]
 	for i in actions.size():
 		var b = Button.new()
 		b.text = actions[i][0]
@@ -707,14 +707,23 @@ func _build_fire():
 func _build_house():
 	if not build_mode:
 		build_mode=true; _ensure_build_preview(); return
-	if house_parts >= 6 or wood < 20: return
-	wood -= 20
-	if house_parts == 0:
-		build_origin = build_preview.global_position if build_preview else player.global_position + player_facing*5.0
-	var parts=[Vector3(0,.2,0),Vector3(0,1.7,-2.5),Vector3(0,1.7,2.5),Vector3(-2.5,1.7,0),Vector3(2.5,1.7,0),Vector3(0,3.5,0)]
-	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(.3,3,5),Vector3(.3,3,5),Vector3(5,.3,5)]
-	_add_static_box(build_origin + parts[house_parts], sizes[house_parts], Color(0.42,0.23,0.08)); house_parts += 1
-	if house_parts>=6: build_mode=false; if build_preview: build_preview.visible=false
+	if wood<20: return
+	var p=build_preview.global_position if build_preview else player.global_position+player_facing*5.0
+	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5)]
+	var offsets=[Vector3(0,.2,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,1.5,0),Vector3(0,3.1,0)]
+	wood-=20; _add_static_box(p+offsets[build_piece],sizes[build_piece],Color(.42,.23,.08)); house_parts+=1
+	if gather_label: gather_label.text=build_piece_names[build_piece]+" KURULDU"; gather_label.visible=true; message_time=1.0
+
+func _cycle_build_piece():
+	build_piece=(build_piece+1)%build_piece_names.size()
+	if hotbar_label: hotbar_label.text="YAPI: "+build_piece_names[build_piece]
+	if build_mode: _update_preview_shape()
+
+func _update_preview_shape():
+	if build_preview==null: return
+	var box=BoxMesh.new()
+	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5)]
+	box.size=sizes[build_piece]; build_preview.mesh=box
 
 func _build_boat():
 	if boat_built or wood < 40: return
@@ -939,7 +948,7 @@ func _ensure_build_preview():
 	if build_preview==null:
 		build_preview=MeshInstance3D.new(); var box=BoxMesh.new(); box.size=Vector3(5,.35,5); build_preview.mesh=box
 		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.2,.9,.35,.38); mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; build_preview.material_override=mat; add_child(build_preview)
-	build_preview.visible=true
+	build_preview.visible=true; _update_preview_shape()
 
 func _update_build_preview():
 	if not build_mode or build_preview==null or player==null: return
