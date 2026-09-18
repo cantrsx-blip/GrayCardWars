@@ -9,12 +9,6 @@ func _process(_delta):
 		if main:
 			decorate(main)
 			decorated = true
-	if player == null or not is_instance_valid(player):
-		player = find_player(get_tree().current_scene)
-	if player:
-		# Current prototype uses a flat visible ground. Keep the character locked
-		# to that real surface so procedural height math cannot bury or launch it.
-		player.position.y = 1.0
 
 func find_player(n: Node) -> CharacterBody3D:
 	if n == null:
