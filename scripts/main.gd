@@ -569,6 +569,7 @@ func _physics_process(delta):
 	_update_aim_marker()
 	_update_weapon_feedback(delta)
 	_update_day_cycle(delta)
+	_update_crafting_feedback(delta)
 	if health <= 0:
 		_respawn()
 	var zone = "VAHSI"
@@ -922,7 +923,8 @@ func _create_crafting():
 	var title=Label.new(); title.text="URETIM"; title.position=Vector2(22,18); title.add_theme_font_size_override("font_size",26); craft_panel.add_child(title)
 	var recipes=[["TAS BALTA  •  20 ODUN + 10 TAS",0],["TAS KAZMA  •  15 ODUN + 15 TAS",1],["5 MERMI  •  5 TAS",2]]
 	for i in recipes.size():
-		var b=Button.new(); b.text=recipes[i][0]; b.position=Vector2(45,75+i*70); b.size=Vector2(400,55); b.add_theme_font_size_override("font_size",18); b.pressed.connect(_craft.bind(recipes[i][1])); craft_panel.add_child(b)
+		var b=Button.new(); b.text=recipes[i][0]; b.position=Vector2(45,75+i*70); b.size=Vector2(400,55); b.add_theme_font_size_override("font_size",18); crafting_flash_button=b
+		b.pressed.connect(_craft.bind(recipes[i][1])); craft_panel.add_child(b)
 	var layers=get_children().filter(func(n): return n is CanvasLayer); if layers.size()>0: layers[-1].add_child(craft_panel)
 	craft_panel.visible=false
 
@@ -933,6 +935,7 @@ func _craft(kind:int):
 		wood-=15; stone-=15; pickaxe_count=1; selected_tool="TAS KAZMA"
 	elif kind==2 and stone>=5:
 		stone-=5; ammo+=5
+	_craft_success_feedback()
 	else:
 		if gather_label: gather_label.text="MALZEME YETERSIZ"; gather_label.visible=true; message_time=1.2
 		return
@@ -1147,3 +1150,19 @@ func _update_day_cycle(delta:float):
 	var env=get_viewport().world_3d.environment
 	if env:
 		env.ambient_light_energy=move_toward(env.ambient_light_energy,.28 if night else .72,delta*.08)
+
+
+func _craft_success_feedback():
+	crafting_flash_time=.45
+	if crafting_flash_button:
+		crafting_flash_button.modulate=Color(.25,1.0,.35,1.0)
+	_flash_message("URETIM TAMAMLANDI")
+
+func _update_crafting_feedback(delta:float):
+	if crafting_flash_time<=0.0: return
+	crafting_flash_time-=delta
+	if crafting_flash_button:
+		var pulse=.65+sin(crafting_flash_time*30.0)*.18
+		crafting_flash_button.scale=Vector2(pulse+0.35,pulse+0.35)
+		if crafting_flash_time<=0.0:
+			crafting_flash_button.modulate=Color.WHITE; crafting_flash_button.scale=Vector2.ONE
