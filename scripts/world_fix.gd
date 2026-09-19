@@ -17,9 +17,9 @@ func _process(_delta):
 	var scene_id=scene.get_instance_id()
 	if decorated and decorated_scene_id==scene_id:
 		return
-	decorate(scene)
 	decorated=true
 	decorated_scene_id=scene_id
+	decorate.call_deferred(scene)
 
 func decorate(main:Node):
 	if main==null or not main.has_method("height_at"):
