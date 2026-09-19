@@ -225,10 +225,6 @@ func _build_world_staged() -> void:
 	# Raiders and bosses intentionally disabled for the KARA KIYI rebuild.
 	zone_label.text=""
 
-func _yield_world_batch(index:int, batch_size:int=32) -> void:
-	if index > 0 and index % batch_size == 0:
-		await get_tree().process_frame
-
 func height_at(x: float, z: float) -> float:
 	if _near_poi(x, z):
 		return 0.0
@@ -420,7 +416,8 @@ func _build_rocks_staged() -> void:
 			_make_kara_rock(rock_body)
 			var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
 			rock_body.set_meta("loot","stone")
-		await _yield_world_batch(i)
+		if i > 0 and i % 32 == 0:
+			await get_tree().process_frame
 
 func _build_meteors_staged() -> void:
 	for i in 156:
@@ -430,7 +427,8 @@ func _build_meteors_staged() -> void:
 			_make_meteor(meteor_body)
 			var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
 			meteor_body.set_meta("loot","meteor")
-		await _yield_world_batch(i)
+		if i > 0 and i % 32 == 0:
+			await get_tree().process_frame
 
 func _build_trees_staged() -> void:
 	for i in 330:
@@ -440,7 +438,8 @@ func _build_trees_staged() -> void:
 			_make_kara_tree(tree_body)
 			var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.34; trunk_shape.height=5.2; trunk_col.shape=trunk_shape; trunk_col.position.y=2.6; tree_body.add_child(trunk_col)
 			tree_body.set_meta("loot","wood")
-		await _yield_world_batch(i)
+		if i > 0 and i % 32 == 0:
+			await get_tree().process_frame
 
 func _build_hills_and_pits():
 	# Terrain heightfield already provides hills and pits. Avoid duplicate cylinder geometry.
