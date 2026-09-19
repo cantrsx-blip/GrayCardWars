@@ -48,11 +48,15 @@ jobs:
       - name: Extract realistic survival assets
         run: |
           test -f GrayCardWars_Realistic_Survival_Assets.zip
-          rm -rf assets
+          # Extract the legacy survival pack without deleting newer repository assets.
+          # The previous rm -rf assets removed shop PNGs before every APK export.
           unzip -q -o GrayCardWars_Realistic_Survival_Assets.zip -d .
-          git checkout HEAD -- assets/environment/coast/og.jpg || true
+          git checkout HEAD -- assets/weapons-ammo-armor assets/armor-assets-2 assets/environment/coast/og.jpg || true
           test -d assets
+          test -f assets/weapons-ammo-armor/spear_gray_128.png
+          test -f assets/armor-assets-2/wood_helmet_gray_128.png
           echo "Asset files: $(find assets -type f | wc -l)"
+          echo "Shop images: $(find assets/weapons-ammo-armor assets/armor-assets-2 -type f -name '*_128.png' | wc -l)"
           find assets -type f | head -30
 
       - name: Initialize Godot editor settings
