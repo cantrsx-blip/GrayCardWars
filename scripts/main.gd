@@ -1150,6 +1150,17 @@ func _nearest_build_surface(point:Vector3,max_dist:=8.0) -> Node3D:
 			best_d=d; best=n
 	return best
 
+func _edge_slot_free(p:Vector3,yaw:float)->bool:
+	for w in built_walls:
+		if not is_instance_valid(w): continue
+		if absf(w.global_position.y-p.y)>.25: continue
+		if Vector2(w.global_position.x-p.x,w.global_position.z-p.z).length()>.35: continue
+		var a=fposmod(w.rotation_degrees.y,180.0)
+		var b=fposmod(yaw,180.0)
+		if absf(a-b)<1.0 or absf(absf(a-b)-180.0)<1.0:
+			return false
+	return true
+
 func _update_build_preview():
 	if not build_mode or build_preview==null or player==null: return
 	preview_valid=false
@@ -1200,6 +1211,7 @@ func _update_build_preview():
 			else:
 				build_preview.global_position=probe
 	elif build_piece==0:
+		# Foundations remain ground-floor pieces only. Roofs are upper-floor build surfaces, not foundations.
 		var p=probe
 		if floor:
 			var delta=probe-floor.global_position
@@ -1212,20 +1224,30 @@ func _update_build_preview():
 			p.x=roundf(p.x/5.0)*5.0; p.z=roundf(p.z/5.0)*5.0
 			p.y=_foundation_top_y(p.x,p.z)
 		build_preview.global_position=p; build_preview.rotation_degrees.y=0; preview_valid=true
-	elif floor:
-		var delta=probe-floor.global_position
-		var p=floor.global_position; var yaw=0.0
-		if absf(delta.x)>absf(delta.z):
-			p.x+=2.5*(1.0 if delta.x>=0.0 else -1.0); yaw=90.0
-		else:
-			p.z+=2.5*(1.0 if delta.z>=0.0 else -1.0); yaw=0.0
-		if build_piece in [1,2,3]:
-			p.y=floor.global_position.y+.225; preview_valid=true
-		elif build_piece==4:
-			p=floor.global_position+Vector3(0,3.225,0); yaw=0.0; preview_valid=true
-		build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
 	else:
-		build_preview.global_position=probe
+		var surface=_nearest_build_surface(probe,7.0)
+		if surface:
+			var delta=probe-surface.global_position
+			var p=surface.global_position; var yaw=0.0
+			if absf(delta.x)>absf(delta.z):
+				p.x+=2.5*(1.0 if delta.x>=0.0 else -1.0); yaw=90.0
+			else:
+				p.z+=2.5*(1.0 if delta.z>=0.0 else -1.0); yaw=0.0
+			var base_y=surface.global_position.y+(.225 if surface in built_floors else .09)
+			if build_piece in [1,2,3]:
+				p.y=base_y
+				preview_valid=_edge_slot_free(p,yaw)
+			elif build_piece==4:
+				p=surface.global_position+Vector3(0,(.225 if surface in built_floors else .09)+3.0,0)
+				yaw=0.0
+				# One roof per level/tile. This roof becomes the next build surface.
+				preview_valid=true
+				for r in built_roofs:
+					if is_instance_valid(r) and r.global_position.distance_to(p)<.35:
+						preview_valid=false; break
+			build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
+		else:
+			build_preview.global_position=probe
 	var mat=build_preview.material_override as StandardMaterial3D
 	if mat: mat.albedo_color=Color(.2,.9,.35,.42) if preview_valid else Color(.95,.12,.08,.40)
 
