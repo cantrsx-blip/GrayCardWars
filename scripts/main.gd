@@ -97,10 +97,6 @@ var selected_tool := "ELLER"
 var axe_count := 0
 var pickaxe_count := 0
 var build_mode := false
-var spirit_build_mode := false
-var spirit_origin := Vector3.ZERO
-var spirit_body: Node3D
-const SPIRIT_BUILD_RADIUS := 75.0
 var build_preview: Node3D
 var build_piece := 0
 var build_piece_names := ["TEMEL","DUVAR","KAPI","PENCERE","TAVAN","MERDIVEN"]
@@ -506,7 +502,7 @@ func _build_hud():
 	var scope_btn=Button.new(); scope_btn.text="🔭"; scope_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); scope_btn.position=Vector2(-350,-320); scope_btn.size=Vector2(82,82); scope_btn.add_theme_font_size_override("font_size",28)
 	var scope_style=StyleBoxFlat.new(); scope_style.bg_color=Color(.10,.10,.10,.30); scope_style.corner_radius_top_left=41; scope_style.corner_radius_top_right=41; scope_style.corner_radius_bottom_left=41; scope_style.corner_radius_bottom_right=41
 	scope_btn.add_theme_stylebox_override("normal",scope_style); scope_btn.add_theme_stylebox_override("pressed",scope_style); scope_btn.pressed.connect(_toggle_scope); layer.add_child(scope_btn)
-	var build_btn=Button.new(); build_btn.text="İNŞA ET / KAPAT"; build_btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT); build_btn.position=Vector2(28,-390); build_btn.size=Vector2(150,56); build_btn.pressed.connect(_build_house); layer.add_child(build_btn)
+	var build_btn=Button.new(); build_btn.text="İNŞA ET"; build_btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT); build_btn.position=Vector2(28,-390); build_btn.size=Vector2(150,56); build_btn.pressed.connect(_build_house); layer.add_child(build_btn)
 	crouch_button=Button.new(); crouch_button.text="↓ Çömel"; crouch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); crouch_button.position=Vector2(-238,-104); crouch_button.size=Vector2(104,80); crouch_button.add_theme_font_size_override("font_size",18)
 	var crouch_style=StyleBoxFlat.new(); crouch_style.bg_color=Color(.12,.12,.12,.34); crouch_style.corner_radius_top_left=40; crouch_style.corner_radius_top_right=40; crouch_style.corner_radius_bottom_left=40; crouch_style.corner_radius_bottom_right=40
 	crouch_button.add_theme_stylebox_override("normal",crouch_style); crouch_button.add_theme_stylebox_override("pressed",crouch_style); crouch_button.pressed.connect(_toggle_crouch); layer.add_child(crouch_button)
@@ -564,16 +560,7 @@ func _physics_process(delta):
 	if fly_mode: speed*=2.2
 	# FPS view direction is controlled by right-side look drag, not movement stick.
 	player.velocity.x=dir.x*speed; player.velocity.z=dir.z*speed
-	if spirit_build_mode:
-		player.velocity.y=0.0
-		player.position += Vector3(player.velocity.x,0,player.velocity.z)*delta
-		var offset=player.global_position-spirit_origin
-		offset.y=0.0
-		if offset.length()>SPIRIT_BUILD_RADIUS:
-			offset=offset.normalized()*SPIRIT_BUILD_RADIUS
-			player.global_position.x=spirit_origin.x+offset.x
-			player.global_position.z=spirit_origin.z+offset.z
-	elif fly_mode:
+	if fly_mode:
 		player.velocity.y=0.0
 		player.position += Vector3(player.velocity.x,0,player.velocity.z)*delta
 	else:
@@ -586,7 +573,7 @@ func _physics_process(delta):
 	player.position.x = clampf(player.position.x, -MAP_HALF + 2.0, MAP_HALF - 2.0)
 	player.position.z = clampf(player.position.z, -MAP_HALF + 2.0, MAP_HALF - 2.0)
 	var hy = height_at(player.position.x, player.position.z)
-	if not fly_mode and not spirit_build_mode:
+	if not fly_mode:
 		# Terrain has no physics body, so only clamp when falling to terrain. Never overwrite
 		# positive jump velocity, otherwise jumping teleports/snaps instead of making an arc.
 		var floor_under:=false
@@ -599,7 +586,7 @@ func _physics_process(delta):
 		if not floor_under and player.position.y<=terrain_y and player.velocity.y<=0.0:
 			player.position.y=terrain_y
 			player.velocity.y=0.0
-	elif fly_mode and player.position.y < hy+3.0: player.position.y=hy+3.0
+	elif player.position.y < hy+3.0: player.position.y=hy+3.0
 	in_pit = hy < -2.0
 	in_dry = _near_poi(player.position.x, player.position.z)
 	var flat = Vector2(player.position.x, player.position.z)
@@ -859,11 +846,7 @@ func _add_house_light(roof_pos:Vector3):
 
 func _build_house():
 	if not build_mode:
-		_enter_spirit_build_mode(); return
-	if spirit_build_mode:
-		_exit_spirit_build_mode()
-		if build_preview: build_preview.visible=false
-		return
+		build_mode=true; _ensure_build_preview(); return
 	_update_build_preview()
 	if not preview_valid: _flash_message("BU PARCA BURAYA KURULAMAZ"); return
 	if wood<20: return
@@ -1168,39 +1151,10 @@ func _select_hotbar(slot:int):
 	var names=["ELLER","TAS BALTA","TAS KAZMA","SILAH","YAPI CEKICI"]
 	selected_tool=names[slot]; hotbar_label.text=selected_tool
 	_update_held_item(slot)
-	if slot==4:
-		_enter_spirit_build_mode()
+	if slot==4: build_mode=true; _ensure_build_preview()
 	else:
-		_exit_spirit_build_mode()
-		if build_preview: build_preview.visible=false
-
-func _enter_spirit_build_mode():
-	if player==null: return
-	if not spirit_build_mode:
-		spirit_build_mode=true
-		build_mode=true
-		spirit_origin=player.global_position
-		# Leave a visible body marker where the player entered build mode.
-		spirit_body=Node3D.new(); spirit_body.position=spirit_origin; add_child(spirit_body)
-		var body=MeshInstance3D.new(); var bm=CapsuleMesh.new(); bm.radius=.42; bm.height=1.7; body.mesh=bm
-		body.position.y=.15; body.material_override=_simple_mat(Color(.34,.34,.36,.75)); spirit_body.add_child(body)
-		player.set_collision_layer_value(1,false); player.set_collision_mask_value(1,false)
-		_flash_message("RUH İNŞA MODU")
-	_ensure_build_preview()
-
-func _exit_spirit_build_mode():
-	if not spirit_build_mode:
 		build_mode=false
-		return
-	spirit_build_mode=false
-	build_mode=false
-	if player:
-		player.global_position=spirit_origin
-		player.velocity=Vector3.ZERO
-		player.set_collision_layer_value(1,true); player.set_collision_mask_value(1,true)
-	if is_instance_valid(spirit_body): spirit_body.queue_free()
-	spirit_body=null
-	_flash_message("NORMAL OYUNA DÖNÜLDÜ")
+		if build_preview: build_preview.visible=false
 
 func _ensure_build_preview():
 	if build_preview==null:
