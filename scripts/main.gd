@@ -1162,9 +1162,15 @@ func _update_build_preview():
 		elif build_piece==4:
 			p=floor.global_position+Vector3(0,3.225,0); yaw=0.0; preview_valid=true
 		elif build_piece==5:
-			# On a foundation, stairs rise exactly one wall storey from deck to roof.
-			p=floor.global_position+Vector3(0,.225,0)
-			yaw=roundf(player.rotation_degrees.y/90.0)*90.0
+			# Snap stairs to the aimed foundation edge. The upper end lands on the deck/roof grid.
+			var side=Vector3.ZERO
+			if absf(delta.x)>absf(delta.z):
+				side=Vector3(1.0 if delta.x>=0.0 else -1.0,0,0)
+				yaw=90.0 if side.x>0.0 else -90.0
+			else:
+				side=Vector3(0,0,1.0 if delta.z>=0.0 else -1.0)
+				yaw=180.0 if side.z>0.0 else 0.0
+			p=floor.global_position+side*2.5+Vector3(0,.225,0)
 			preview_valid=true
 		build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
 	elif build_piece==5:
@@ -1206,7 +1212,7 @@ func _build_stairs(p:Vector3,yaw:=0.0)->Node3D:
 		var d=Vector2(p.x-f.global_position.x,p.z-f.global_position.z).length()
 		if d<3.0 and absf(p.y-f.global_position.y)<1.0:
 			on_floor=true; break
-	var rise=3.0 if on_floor else maxf(.45,_foundation_top_y(p.x,p.z)-height_at(p.x,p.z))
+	var rise=3.0 if on_floor else .45
 	var run=5.0
 	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
 	# Six broad steps create a walkable staircase with real collision.
