@@ -483,13 +483,9 @@ func _build_gatherables():
 	# Vegetation intentionally disabled; trees are spawned by _build_world only.
 	pass
 
-func _rand_outside_trade(min_r: float, max_r: float) -> Vector3:
-	var p = Vector3.ZERO
-	for _i in 24:
-		p = Vector3(randf_range(-max_r, max_r), 0, randf_range(-max_r, max_r))
-		if p.length() > min_r:
-			return p
-	return Vector3(min_r + 10, 0, 0)
+func _rand_outside_trade(_min_r: float, max_r: float) -> Vector3:
+	# Legacy safe-zone exclusion removed: resources may now populate the map center naturally.
+	return Vector3(randf_range(-max_r,max_r),0,randf_range(-max_r,max_r))
 
 func _build_trade_zone():
 	# Safe/trade zone removed. Terrain now continues naturally through the map center.
@@ -1035,7 +1031,12 @@ func _update_resource_respawns(delta:float):
 		respawn_nodes.remove_at(i)
 
 func _build_blocks_respawn(p:Vector3)->bool:
-	if house_parts>0 and Vector2(p.x-build_origin.x,p.z-build_origin.z).length()<7.0: return true
+	# Check the actual placed structure nodes instead of one old build_origin point.
+	for n in get_children():
+		if not (n is Node3D) or not is_instance_valid(n): continue
+		if not n.has_meta("build_piece"): continue
+		var q:Vector3=n.global_position
+		if Vector2(p.x-q.x,p.z-q.z).length()<3.6: return true
 	if fire_built and Vector2(p.x-campfire_pos.x,p.z-campfire_pos.z).length()<3.0: return true
 	return false
 
