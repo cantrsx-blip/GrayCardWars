@@ -843,7 +843,7 @@ func _build_house():
 		0:
 			made=_build_foundation(p); built_floors.append(made)
 		1:
-			made=_house_asset("house_wall",p,yaw,Vector3(5.3,3,.18)); built_walls.append(made)
+			made=_build_wall_panel(p,yaw); built_walls.append(made)
 		2:
 			made=_build_door_frame(p,yaw); built_walls.append(made)
 		3:
@@ -1225,6 +1225,13 @@ func _build_stairs(p:Vector3,yaw:=0.0)->Node3D:
 		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(3.0,h,depth+.04); mi.mesh=bm; mi.position=Vector3(0,h*.5,z); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
 		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(3.0,h,depth+.04); cs.shape=sh; cs.position=Vector3(0,h*.5,z); root.add_child(cs)
 	root.set_meta("build_piece","MERDIVEN"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
+	return root
+
+func _build_wall_panel(p:Vector3,yaw:=0.0)->Node3D:
+	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
+	var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(5.36,3.0,.22); mi.mesh=bm; mi.position=Vector3(0,1.5,0); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
+	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(5.36,3.0,.22); cs.shape=sh; cs.position=Vector3(0,1.5,0); root.add_child(cs)
+	root.set_meta("build_piece","DUVAR"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
 	return root
 
 func _build_door_frame(p:Vector3,yaw:=0.0)->Node3D:
