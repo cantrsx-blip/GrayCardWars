@@ -564,7 +564,17 @@ func _physics_process(delta):
 	player.position.x = clampf(player.position.x, -MAP_HALF + 2.0, MAP_HALF - 2.0)
 	player.position.z = clampf(player.position.z, -MAP_HALF + 2.0, MAP_HALF - 2.0)
 	var hy = height_at(player.position.x, player.position.z)
-	if not fly_mode: player.position.y = hy + PLAYER_HEIGHT
+	if not fly_mode:
+		# Do not force the player back to terrain while standing on a constructed foundation.
+		# move_and_slide() keeps the CharacterBody on static build collisions.
+		var floor_under:=false
+		for f in built_floors:
+			if not is_instance_valid(f): continue
+			var lp=player.global_position-f.global_position
+			if absf(lp.x)<=2.48 and absf(lp.z)<=2.48 and player.global_position.y>=f.global_position.y:
+				floor_under=true; break
+		if not floor_under:
+			player.position.y = hy + PLAYER_HEIGHT
 	elif player.position.y < hy+3.0: player.position.y=hy+3.0
 	in_pit = hy < -2.0
 	in_dry = _near_poi(player.position.x, player.position.z)
@@ -833,7 +843,7 @@ func _build_house():
 		0:
 			made=_build_foundation(p); built_floors.append(made)
 		1:
-			made=_house_asset("house_wall",p,yaw,Vector3(5,3,.18)); built_walls.append(made)
+			made=_house_asset("house_wall",p,yaw,Vector3(5.3,3,.18)); built_walls.append(made)
 		2:
 			made=_build_door_frame(p,yaw); built_walls.append(made)
 		3:
@@ -854,7 +864,7 @@ func _cycle_build_piece():
 func _update_preview_shape():
 	if build_preview==null: return
 	var box=BoxMesh.new()
-	var sizes=[Vector3(5,.45,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5)]
+	var sizes=[Vector3(5,.45,5),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5,.35,5)]
 	box.size=sizes[build_piece]; build_preview.mesh=box
 
 func _build_boat():
@@ -1147,6 +1157,7 @@ func _update_build_preview():
 		else:
 			p.z+=2.5*(1.0 if delta.z>=0.0 else -1.0); yaw=0.0
 		if build_piece in [1,2,3]:
+			# Extend edge pieces by their half-thickness at both ends so 90-degree corners meet cleanly.
 			p.y=floor.global_position.y+.225; preview_valid=true
 		elif build_piece==4:
 			p=floor.global_position+Vector3(0,3.225,0); yaw=0.0; preview_valid=true
@@ -1183,16 +1194,16 @@ func _build_door_frame(p:Vector3,yaw:=0.0)->Node3D:
 	if visual!=null:
 		root.add_child(visual)
 	# 1.6 m clear opening, 2.25 m high. Posts meet neighboring wall edges exactly.
-	for x in [-1.65,1.65]:
-		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(1.7,3.0,.18); mi.mesh=bm; mi.position=Vector3(x,1.5,0); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
-		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(1.7,3.0,.18); cs.shape=sh; cs.position=Vector3(x,1.5,0); root.add_child(cs)
+	for x in [-1.725,1.725]:
+		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(1.85,3.0,.18); mi.mesh=bm; mi.position=Vector3(x,1.5,0); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
+		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(1.85,3.0,.18); cs.shape=sh; cs.position=Vector3(x,1.5,0); root.add_child(cs)
 	var top=MeshInstance3D.new(); var tb=BoxMesh.new(); tb.size=Vector3(1.6,.75,.18); top.mesh=tb; top.position=Vector3(0,2.625,0); top.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(top)
 	var tcs=CollisionShape3D.new(); var tsh=BoxShape3D.new(); tsh.size=Vector3(1.6,.75,.18); tcs.shape=tsh; tcs.position=Vector3(0,2.625,0); root.add_child(tcs)
 	root.set_meta("build_piece","KAPI"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
 	return root
 
 func _build_window_frame(p:Vector3,yaw:=0.0)->Node3D:
-	return _house_asset("house_window_wall",p,yaw,Vector3(5,3,.18))
+	return _house_asset("house_window_wall",p,yaw,Vector3(5.3,3,.18))
 
 func _build_interior_prop(p:Vector3,kind:int,yaw:=0.0):
 	var obj:Node3D
