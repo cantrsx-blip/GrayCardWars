@@ -49,7 +49,7 @@ func _start_game():
 	var cfg=ConfigFile.new()
 	cfg.set_value("player","character",selected_character)
 	cfg.save("user://player.cfg")
-	get_tree().change_scene_to_file("res://scenes/Main.tscn")
+	get_tree().change_scene_to_file.call_deferred("res://scenes/Main.tscn")
 
 func _unhandled_input(event):
 	if event is InputEventKey and event.pressed and event.keycode==KEY_ENTER:
