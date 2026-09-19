@@ -35,7 +35,8 @@ func decorate(main:Node):
 	quad.material=mat
 	var mm=MultiMesh.new(); mm.transform_format=MultiMesh.TRANSFORM_3D; mm.mesh=quad
 	var transforms:Array[Transform3D]=[]
-	while transforms.size()<360:
+	var grass_count:=80 if OS.has_feature("mobile") else 360
+	while transforms.size()<grass_count:
 		var x=rng.randf_range(-195.0,195.0); var z=rng.randf_range(-195.0,195.0)
 		if Vector2(x,z).length()<21.0 or near_poi(main,x,z): continue
 		var y=float(main.call("height_at",x,z))
