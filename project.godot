@@ -1,6 +1,7 @@
 config_version=5
 
 [application]
+config/features=PackedStringArray("4.5", "GL Compatibility")
 config/name="GRAY CARD WARS"
 config/icon="res://file_000000003cbc82108d80fc507c423a7e.png"
 run/main_scene="res://scenes/Intro.tscn"
@@ -15,6 +16,7 @@ window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
 [rendering]
+environment/defaults/default_clear_color=Color(0.48, 0.65, 0.76, 1)
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
