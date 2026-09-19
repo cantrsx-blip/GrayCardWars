@@ -835,9 +835,9 @@ func _build_house():
 		1:
 			made=_house_asset("house_wall",p,yaw,Vector3(5,3,.18)); built_walls.append(made)
 		2:
-			_build_door_frame(p,yaw); built_walls.append(_nearest_floor())
+			made=_build_door_frame(p,yaw); built_walls.append(made)
 		3:
-			_build_window_frame(p,yaw); built_walls.append(_nearest_floor())
+			made=_build_window_frame(p,yaw); built_walls.append(made)
 		4:
 			made=_house_asset("house_roof",p,yaw,Vector3(5,.18,5)); _add_house_light(p)
 		5: made=_house_asset("house_stairs",p,yaw,Vector3(3,1.6,3))
@@ -1122,31 +1122,37 @@ func _update_build_preview():
 	if not build_mode or build_preview==null or player==null: return
 	preview_valid=false
 	var forward=-player.global_transform.basis.z; forward.y=0.0; forward=forward.normalized()
-	var floor=_nearest_floor()
+	var probe=player.global_position+forward*5.0
+	var floor=_nearest_floor(12.0)
 	if build_piece==0:
-		var p=player.global_position+forward*5.0
+		# Snap a new 5x5 foundation to the nearest existing foundation edge using the aimed end point.
+		var p=probe
 		if floor:
-			var delta=p-floor.global_position
-			if absf(delta.x)>absf(delta.z): p=floor.global_position+Vector3(5.0*signf(delta.x),0,0)
-			else: p=floor.global_position+Vector3(0,0,5.0*signf(delta.z))
-			# Connected foundations share one exact deck height; only their support legs adapt to terrain.
+			var delta=probe-floor.global_position
+			if absf(delta.x)>absf(delta.z):
+				p=floor.global_position+Vector3(5.0*(1.0 if delta.x>=0.0 else -1.0),0,0)
+			else:
+				p=floor.global_position+Vector3(0,0,5.0*(1.0 if delta.z>=0.0 else -1.0))
 			p.y=floor.global_position.y
-		else: p.y=_foundation_top_y(p.x,p.z)
+		else:
+			p.x=roundf(p.x/5.0)*5.0; p.z=roundf(p.z/5.0)*5.0
+			p.y=_foundation_top_y(p.x,p.z)
 		build_preview.global_position=p; build_preview.rotation_degrees.y=0; preview_valid=true
 	elif floor:
+		# Walls, doorways and windows share the exact same four foundation edge anchors.
+		var delta=probe-floor.global_position
 		var p=floor.global_position; var yaw=0.0
-		var local_player=player.global_position-floor.global_position
-		if absf(local_player.x)>absf(local_player.z):
-			p.x+=2.5*signf(local_player.x); yaw=90.0
+		if absf(delta.x)>absf(delta.z):
+			p.x+=2.5*(1.0 if delta.x>=0.0 else -1.0); yaw=90.0
 		else:
-			p.z+=2.5*signf(local_player.z); yaw=0.0
+			p.z+=2.5*(1.0 if delta.z>=0.0 else -1.0); yaw=0.0
 		if build_piece in [1,2,3]:
 			p.y=floor.global_position.y+.225; preview_valid=true
 		elif build_piece==4:
 			p=floor.global_position+Vector3(0,3.225,0); yaw=0.0; preview_valid=true
 		build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
 	else:
-		build_preview.global_position=player.global_position+forward*5.0
+		build_preview.global_position=probe
 	var mat=build_preview.material_override as StandardMaterial3D
 	if mat: mat.albedo_color=Color(.2,.9,.35,.42) if preview_valid else Color(.95,.12,.08,.40)
 
@@ -1170,12 +1176,23 @@ func _build_foundation(p:Vector3)->Node3D:
 		leg.position=Vector3(off.x,-.225-leg_h*.5,off.y); leg.material_override=_simple_mat(Color(.20,.14,.09)); root.add_child(leg)
 	return root
 
-func _build_door_frame(p:Vector3,yaw:=0.0):
-	# Keep the doorway clear. A visible closed slab previously blocked the player.
-	_house_asset("house_doorway",p,yaw,Vector3(5,3,.18))
+func _build_door_frame(p:Vector3,yaw:=0.0)->Node3D:
+	# Doorway collision is built from a header + two posts so the opening is physically passable.
+	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
+	var visual=_load_asset(asset_paths["house_doorway"])
+	if visual!=null:
+		root.add_child(visual)
+	# 1.6 m clear opening, 2.25 m high. Posts meet neighboring wall edges exactly.
+	for x in [-1.65,1.65]:
+		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(1.7,3.0,.18); mi.mesh=bm; mi.position=Vector3(x,1.5,0); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
+		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(1.7,3.0,.18); cs.shape=sh; cs.position=Vector3(x,1.5,0); root.add_child(cs)
+	var top=MeshInstance3D.new(); var tb=BoxMesh.new(); tb.size=Vector3(1.6,.75,.18); top.mesh=tb; top.position=Vector3(0,2.625,0); top.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(top)
+	var tcs=CollisionShape3D.new(); var tsh=BoxShape3D.new(); tsh.size=Vector3(1.6,.75,.18); tcs.shape=tsh; tcs.position=Vector3(0,2.625,0); root.add_child(tcs)
+	root.set_meta("build_piece","KAPI"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
+	return root
 
-func _build_window_frame(p:Vector3,yaw:=0.0):
-	_house_asset("house_window_wall",p,yaw,Vector3(5,3,.18))
+func _build_window_frame(p:Vector3,yaw:=0.0)->Node3D:
+	return _house_asset("house_window_wall",p,yaw,Vector3(5,3,.18))
 
 func _build_interior_prop(p:Vector3,kind:int,yaw:=0.0):
 	var obj:Node3D
