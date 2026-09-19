@@ -826,7 +826,7 @@ func _build_house():
 	var p=build_preview.global_position
 	var yaw=build_preview.rotation_degrees.y
 	wood-=20
-	var made:Node3D=null
+	var made: Node3D = null
 	match build_piece:
 		0:
 			made=_build_foundation(p); built_floors.append(made)
@@ -1109,7 +1109,7 @@ func _ensure_build_preview():
 	build_preview.visible=true; _update_preview_shape()
 
 func _nearest_floor(max_dist:=9.0) -> Node3D:
-	var best:Node3D=null; var best_d=max_dist
+	var best: Node3D = null; var best_d: float = float(max_dist)
 	for f in built_floors:
 		if not is_instance_valid(f): continue
 		var d=player.global_position.distance_to(f.global_position)
