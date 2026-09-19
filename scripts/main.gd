@@ -895,13 +895,13 @@ func _build_house():
 		0:
 			made=_build_foundation(p); built_floors.append(made)
 		1:
-			made=_house_asset("house_wall",p,yaw,Vector3(3,3,.18)); built_walls.append(made)
+			made=_house_asset("house_wall",p,yaw,Vector3(5,3,.18)); built_walls.append(made)
 		2:
 			_build_door_frame(p,yaw); built_walls.append(_nearest_floor())
 		3:
 			_build_window_frame(p,yaw); built_walls.append(_nearest_floor())
 		4:
-			made=_house_asset("house_roof",p,yaw,Vector3(3,.18,3)); _add_house_light(p)
+			made=_house_asset("house_roof",p,yaw,Vector3(5,.18,5)); _add_house_light(p)
 		5: made=_house_asset("house_stairs",p,yaw,Vector3(3,1.6,3))
 		8: _build_interior_prop(p,build_piece,yaw+180.0)
 		_: _build_interior_prop(p,build_piece,yaw)
@@ -1183,31 +1183,24 @@ func _update_build_preview():
 	var floor=_nearest_floor()
 	if build_piece==0:
 		var p=player.global_position+forward*5.0
-		# First foundation can be on terrain. Additional foundations snap to the existing foundation grid.
 		if floor:
-			var local=p-floor.global_position
-			var sx=round(local.x/3.0)*3.0; var sz=round(local.z/3.0)*3.0
-			if absf(sx)>=absf(sz): sz=0.0; sx=3.0*signf(sx if absf(sx)>.1 else forward.x)
-			else: sx=0.0; sz=3.0*signf(sz if absf(sz)>.1 else forward.z)
-			p=floor.global_position+Vector3(sx,0,sz)
+			var delta=p-floor.global_position
+			if absf(delta.x)>absf(delta.z): p=floor.global_position+Vector3(5.0*signf(delta.x),0,0)
+			else: p=floor.global_position+Vector3(0,0,5.0*signf(delta.z))
+			p.y=_foundation_top_y(p.x,p.z)
 		else: p.y=_foundation_top_y(p.x,p.z)
 		build_preview.global_position=p; build_preview.rotation_degrees.y=0; preview_valid=true
 	elif floor:
-		var rel=forward
-		# Camera direction selects one of the four floor edges.
 		var p=floor.global_position; var yaw=0.0
-		if absf(rel.x)>absf(rel.z):
-			p.x+=1.5*signf(rel.x); yaw=90.0
+		var local_player=player.global_position-floor.global_position
+		if absf(local_player.x)>absf(local_player.z):
+			p.x+=2.5*signf(local_player.x); yaw=90.0
 		else:
-			p.z+=1.5*signf(rel.z); yaw=0.0
+			p.z+=2.5*signf(local_player.z); yaw=0.0
 		if build_piece in [1,2,3]:
-			p.y=floor.global_position.y+.22; preview_valid=true
+			p.y=floor.global_position.y+.225; preview_valid=true
 		elif build_piece==4:
-			if built_walls.size()>0: p=floor.global_position+Vector3(0,3.22,0); preview_valid=true
-		elif build_piece in [6,7,8,9,10]:
-			p=floor.global_position+Vector3(0,.12,0); preview_valid=true
-		elif build_piece==5:
-			p=floor.global_position+Vector3(0,.12,0); preview_valid=true
+			p=floor.global_position+Vector3(0,3.225,0); yaw=0.0; preview_valid=true
 		build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
 	else:
 		build_preview.global_position=player.global_position+forward*5.0
@@ -1231,11 +1224,11 @@ func _build_foundation(p:Vector3)->Node3D:
 	return root
 
 func _build_door_frame(p:Vector3,yaw:=0.0):
-	_house_asset("house_doorway",p,yaw,Vector3(3,3,.18))
-	_house_asset("house_door",p,yaw,Vector3(.95,2.05,.12))
+	# Keep the doorway clear. A visible closed slab previously blocked the player.
+	_house_asset("house_doorway",p,yaw,Vector3(5,3,.18))
 
 func _build_window_frame(p:Vector3,yaw:=0.0):
-	_house_asset("house_window_wall",p,yaw,Vector3(3,3,.18))
+	_house_asset("house_window_wall",p,yaw,Vector3(5,3,.18))
 
 func _build_interior_prop(p:Vector3,kind:int,yaw:=0.0):
 	var obj:Node3D
