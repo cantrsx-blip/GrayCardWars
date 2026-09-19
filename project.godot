@@ -1,6 +1,6 @@
 [application]
 config/name="GRAY CARD WARS"
-run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/Intro.tscn"
 
 
 [autoload]
