@@ -83,7 +83,7 @@ var hud: Label
 var move_touch := Vector2.ZERO
 var touch_start := Vector2.ZERO
 var touch_id := -1
-var in_safe_zone := true
+var in_safe_zone := false
 var in_pit := false
 var in_dry := false
 var damage_buffer := 0.0
@@ -91,7 +91,6 @@ var shoot_flash_time := 0.0
 var hit_label: Label
 var world_env: WorldEnvironment
 var zone_label: Label
-var trade_panel: Control
 var message_time := 0.0
 var respawn_label: Label
 var gather_label: Label
@@ -218,14 +217,14 @@ func _build_world_staged() -> void:
 	await get_tree().process_frame
 	_build_hills_and_pits()
 	await get_tree().process_frame
-	_build_bosses()
+	_build_pois()
 	await get_tree().process_frame
 	# Small plants/mushrooms removed. Trees are the only vegetation for now.
 	# Raiders and bosses intentionally disabled for the KARA KIYI rebuild.
 	zone_label.text=""
 
 func height_at(x: float, z: float) -> float:
-	if _near_boss(x, z):
+	if _near_poi(x, z):
 		return 0.0
 	var h := 0.0
 	h += sin(x * 0.032) * cos(z * 0.027) * 5.0
@@ -238,7 +237,7 @@ func height_at(x: float, z: float) -> float:
 			h -= t * t * 7.5
 	return clampf(h, -8.0, 10.0)
 
-func _near_boss(x: float, z: float) -> bool:
+func _near_poi(x: float, z: float) -> bool:
 	for b in bosses:
 		if Vector2(x - b.pos.x, z - b.pos.z).length() < BOSS_DRY:
 			return true
@@ -364,7 +363,7 @@ func _build_world():
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
 	for i in 156:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
-		if _near_boss(p.x, p.z): continue
+		if _near_poi(p.x, p.z): continue
 		var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); add_child(rock_body)
 		_make_kara_rock(rock_body)
 		var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
@@ -372,14 +371,14 @@ func _build_world():
 	# Meteors match the normal stone count and use the same grounded scale.
 	for i in 156:
 		var mp = _rand_outside_trade(28, MAP_HALF - 12)
-		if _near_boss(mp.x, mp.z): continue
+		if _near_poi(mp.x, mp.z): continue
 		var meteor_body=StaticBody3D.new(); meteor_body.position=Vector3(mp.x,height_at(mp.x,mp.z),mp.z); add_child(meteor_body)
 		_make_meteor(meteor_body)
 		var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
 		meteor_body.set_meta("loot","meteor")
 	for i in 330:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
-		if _near_boss(p.x, p.z): continue
+		if _near_poi(p.x, p.z): continue
 		var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
 		_make_kara_tree(tree_body)
 		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.34; trunk_shape.height=5.2; trunk_col.shape=trunk_shape; trunk_col.position.y=2.6; tree_body.add_child(trunk_col)
@@ -496,7 +495,7 @@ func _build_trade_zone():
 	# Safe/trade zone removed. Terrain now continues naturally through the map center.
 	pass
 
-func _build_bosses():
+func _build_pois():
 	# Historical landmarks and combat bosses are removed. Build ten abandoned survival POIs.
 	for b in bosses:
 		_build_survival_poi(b)
@@ -552,7 +551,7 @@ func _build_hud():
 	waypoint_label=Label.new(); waypoint_label.set_anchors_preset(Control.PRESET_TOP_WIDE); waypoint_label.position=Vector2(0,76); waypoint_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; waypoint_label.add_theme_font_size_override("font_size",20); layer.add_child(waypoint_label)
 	_create_creative_menu(layer); _setup_sfx(); fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
-func _nearest_boss() -> String:
+func _nearest_poi() -> String:
 	var best := ""
 	var best_d := 9999.0
 	for b in bosses:
@@ -609,7 +608,7 @@ func _physics_process(delta):
 	if not fly_mode: player.position.y = hy + PLAYER_HEIGHT
 	elif player.position.y < hy+3.0: player.position.y=hy+3.0
 	in_pit = hy < -2.0
-	in_dry = _near_boss(player.position.x, player.position.z)
+	in_dry = _near_poi(player.position.x, player.position.z)
 	var flat = Vector2(player.position.x, player.position.z)
 	in_safe_zone = false
 	_update_combat(delta)
@@ -633,8 +632,8 @@ func _physics_process(delta):
 	if in_pit:
 		zone = "CUKUR"
 	elif in_dry:
-		zone = "KURAK / KALE"
-	zone_label.text="%s  •  %s" % [zone,_nearest_boss()]
+		zone = "TERK EDILMIS BOLGE"
+	zone_label.text="%s  •  %s" % [zone,_nearest_poi()]
 	hud.text = "HP %d  Ac %d  Su %d  Kart %d  Mermi %d\nOdun %d  Tas %d  Cim %d  Bugday %d  Mantar %d" % [
 		health, int(hunger), int(thirst), gray_cards, ammo,
 		wood, stone, grass_n, wheat_n, mushroom_n
@@ -717,41 +716,6 @@ func _input(event):
 	elif event.is_action_pressed("build_house"):
 		_build_house()
 
-func _gather_nearby():
-	_play_sfx("chop"); _gather_particles()
-	if player == null:
-		return
-	for n in get_children():
-		var pos = n.position
-		if n.get_child_count() > 0 and n is StaticBody3D:
-			pos = n.position
-		if pos.distance_to(player.position) > 3.2:
-			continue
-		if n.has_meta("trade") or n.has_meta("boss_id"):
-			continue
-		if not n.has_meta("loot"):
-			continue
-		var kind = str(n.get_meta("loot"))
-		if kind == "wood":
-			wood += 35 if axe_count>0 else 25
-		elif kind == "stone":
-			stone += 30 if pickaxe_count>0 else 20
-		elif kind == "grass":
-			grass_n += 8
-		elif kind == "wheat":
-			wheat_n += 5
-		elif kind == "mushroom":
-			mushroom_n += 2
-			hunger = minf(100.0, hunger + 8.0)
-		if gather_label:
-			var names={"wood":"ODUN +25","stone":"TAS +20","grass":"CIM +8","wheat":"BUGDAY +5","mushroom":"MANTAR +2"}; gather_label.text=names.get(kind,"TOPLANDI"); gather_label.visible=true; message_time=1.1
-		_schedule_resource_respawn(n,kind)
-		if kind=="wood": _fell_tree(n)
-		elif kind=="stone": _break_rock(n)
-		else: n.queue_free()
-		return
-
-
 func _enemy_visual(color: Color, scale_v := Vector3.ONE) -> Node3D:
 	var root=Node3D.new(); root.scale=scale_v
 	var cloth=StandardMaterial3D.new(); cloth.albedo_color=color
@@ -794,13 +758,13 @@ func _update_combat(delta):
 	for e in enemies:
 		if not is_instance_valid(e): continue
 		var d = player.global_position - e.global_position; var flat=Vector3(d.x,0,d.z)
-		if flat.length() < 18.0 and not in_safe_zone:
+		if flat.length() < 18.0:
 			e.velocity = flat.normalized() * 2.2; e.move_and_slide(); e.global_position.y=height_at(e.global_position.x,e.global_position.z)+.05
 			if d.length() < 1.5: _apply_damage(12.0 * delta)
 	for b in fort_bosses:
 		if not is_instance_valid(b): continue
 		var d = player.global_position - b.global_position; var flat=Vector3(d.x,0,d.z)
-		if flat.length() < 26.0 and not in_safe_zone:
+		if flat.length() < 26.0:
 			b.velocity = flat.normalized() * 1.6; b.move_and_slide(); b.global_position.y=height_at(b.global_position.x,b.global_position.z)+.05
 			if d.length() < 2.0: _apply_damage(18.0 * delta)
 
@@ -842,7 +806,7 @@ func _primary_action():
 			_break_rock(obj)
 
 func _shoot():
-	if ammo <= 0 or in_safe_zone: return
+	if ammo <= 0: return
 	ammo -= 1
 	var target: CharacterBody3D = null; var best := 18.0
 	for e in enemies:
@@ -975,7 +939,6 @@ func _update_map_dot():
 func _respawn():
 	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
 	health=100; hunger=70.0; thirst=80.0; damage_buffer=0.0; player.velocity=Vector3.ZERO; player.position=Vector3(0,PLAYER_HEIGHT,0)
-	if trade_panel: trade_panel.visible=false
 	if map_panel: map_panel.visible=false
 	if respawn_label:
 		respawn_label.text="YENIDEN DOGDUN  •  Kaynaklarin yarisi kaybedildi  •  Kartlar korundu"; respawn_label.visible=true; message_time=3.5
@@ -1024,33 +987,6 @@ func _build_survival_poi(b):
 		for x in [-6.0,0.0,6.0]: _landmark_box(c+Vector3(x,2,0),Vector3(4,4,7),Color(.28,.25,.22))
 func _simple_mat(c:Color)->StandardMaterial3D:
 	var m=StandardMaterial3D.new(); m.albedo_color=c; m.roughness=.75; return m
-
-
-func _create_trade_panel(layer:CanvasLayer):
-	trade_panel=Control.new(); trade_panel.position=Vector2(390,185); trade_panel.size=Vector2(500,300); trade_panel.visible=false
-	var bg=ColorRect.new(); bg.size=trade_panel.size; bg.color=Color(.05,.07,.06,.92); trade_panel.add_child(bg)
-	var title=Label.new(); title.text="GUVENLI TAKAS MERKEZI"; title.position=Vector2(120,18); title.add_theme_font_size_override("font_size",22); trade_panel.add_child(title)
-	var offers=[["1 KART  >  +15 MERMI",0],["1 KART  >  +35 YIYECEK",1],["1 KART  >  +35 SU",2],["2 KART  >  +40 HP",3]]
-	for i in offers.size():
-		var b=Button.new(); b.text=offers[i][0]; b.position=Vector2(75,62+i*52); b.size=Vector2(350,44); b.pressed.connect(_buy_trade.bind(offers[i][1])); trade_panel.add_child(b)
-	layer.add_child(trade_panel)
-
-func _toggle_trade():
-	if not in_safe_zone: return
-	trade_panel.visible=not trade_panel.visible
-
-func _buy_trade(kind:int):
-	if not in_safe_zone: trade_panel.visible=false; return
-	var cost=2 if kind==3 else 1
-	if gray_cards<cost: return
-	gray_cards-=cost
-	if kind==0: ammo+=15
-	elif kind==1: hunger=minf(100.0,hunger+35.0)
-	elif kind==2: thirst=minf(100.0,thirst+35.0)
-	else: health=min(100,health+40)
-
-func _trade():
-	_toggle_trade()
 
 
 func _toggle_inventory():
