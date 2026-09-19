@@ -853,7 +853,7 @@ func _build_house():
 		3:
 			made=_build_window_frame(p,yaw); built_walls.append(made)
 		4:
-			made=_house_asset("house_roof",p,yaw,Vector3(5,.18,5)); _add_house_light(p)
+			made=_build_roof_panel(p,yaw); _add_house_light(p)
 		5: made=_build_stairs(p,yaw)
 		8: _build_interior_prop(p,build_piece,yaw+180.0)
 		_: _build_interior_prop(p,build_piece,yaw)
@@ -1174,6 +1174,7 @@ func _update_build_preview():
 			else:
 				side=Vector3(0,0,1.0 if delta.z>=0.0 else -1.0)
 				yaw=180.0 if side.z>0.0 else 0.0
+			# Stair centre sits on the edge plane: three of six treads inside, three outside.
 			p=floor.global_position+side*2.5+Vector3(0,.225,0)
 			preview_valid=true
 		build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
@@ -1209,28 +1210,25 @@ func _build_foundation(p:Vector3)->Node3D:
 	return root
 
 func _build_stairs(p:Vector3,yaw:=0.0)->Node3D:
-	# Terrain stairs climb to foundation height; foundation stairs climb one full 3 m wall storey.
 	var on_floor:=false
 	for f in built_floors:
 		if not is_instance_valid(f): continue
-		var d=Vector2(p.x-f.global_position.x,p.z-f.global_position.z).length()
-		if d<3.0 and absf(p.y-f.global_position.y)<1.0:
+		if Vector2(p.x-f.global_position.x,p.z-f.global_position.z).length()<3.0:
 			on_floor=true; break
 	var rise=3.0 if on_floor else .45
 	var run=5.0
 	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
-	# Six broad steps create a walkable staircase with real collision.
 	var steps:=6
+	var depth=run/float(steps)
 	for i in steps:
 		var t=float(i+1)/float(steps)
-		var h=rise*t
-		var depth=run/float(steps)
+		var y=rise*t
+		# Thin tread only: underside stays open and usable.
 		var z=-run*.5+depth*(float(i)+.5)
-		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(3.0,h,depth+.04); mi.mesh=bm; mi.position=Vector3(0,h*.5,z); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
-		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(3.0,h,depth+.04); cs.shape=sh; cs.position=Vector3(0,h*.5,z); root.add_child(cs)
+		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(3.0,.16,depth+.05); mi.mesh=bm; mi.position=Vector3(0,y,z); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
+		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(3.0,.16,depth+.05); cs.shape=sh; cs.position=Vector3(0,y,z); root.add_child(cs)
 	root.set_meta("build_piece","MERDIVEN"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
 	return root
-
 func _build_wall_panel(p:Vector3,yaw:=0.0)->Node3D:
 	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
 	var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(5.36,3.0,.22); mi.mesh=bm; mi.position=Vector3(0,1.5,0); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
@@ -1238,24 +1236,35 @@ func _build_wall_panel(p:Vector3,yaw:=0.0)->Node3D:
 	root.set_meta("build_piece","DUVAR"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
 	return root
 
+func _add_frame_box(root:Node3D,size:Vector3,pos:Vector3):
+	var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=size; mi.mesh=bm; mi.position=pos; mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
+	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=size; cs.shape=sh; cs.position=pos; root.add_child(cs)
+
 func _build_door_frame(p:Vector3,yaw:=0.0)->Node3D:
-	# Doorway collision is built from a header + two posts so the opening is physically passable.
 	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
-	var visual=_load_asset(asset_paths["house_doorway"])
-	if visual!=null:
-		root.add_child(visual)
-	# 1.6 m clear opening, 2.25 m high. Posts meet neighboring wall edges exactly.
-	for x in [-1.725,1.725]:
-		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(1.85,3.0,.18); mi.mesh=bm; mi.position=Vector3(x,1.5,0); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
-		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(1.85,3.0,.18); cs.shape=sh; cs.position=Vector3(x,1.5,0); root.add_child(cs)
-	var top=MeshInstance3D.new(); var tb=BoxMesh.new(); tb.size=Vector3(1.6,.75,.18); top.mesh=tb; top.position=Vector3(0,2.625,0); top.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(top)
-	var tcs=CollisionShape3D.new(); var tsh=BoxShape3D.new(); tsh.size=Vector3(1.6,.75,.18); tcs.shape=tsh; tcs.position=Vector3(0,2.625,0); root.add_child(tcs)
+	var opening=1.65
+	var side=(5.36-opening)*.5
+	_add_frame_box(root,Vector3(side,3.0,.22),Vector3(-(opening+side)*.5,1.5,0))
+	_add_frame_box(root,Vector3(side,3.0,.22),Vector3((opening+side)*.5,1.5,0))
+	_add_frame_box(root,Vector3(opening,.72,.22),Vector3(0,2.64,0))
 	root.set_meta("build_piece","KAPI"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
 	return root
 
 func _build_window_frame(p:Vector3,yaw:=0.0)->Node3D:
-	return _house_asset("house_window_wall",p,yaw,Vector3(5.3,3,.18))
+	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
+	var opening_w=2.0; var side=(5.36-opening_w)*.5
+	_add_frame_box(root,Vector3(side,3.0,.22),Vector3(-(opening_w+side)*.5,1.5,0))
+	_add_frame_box(root,Vector3(side,3.0,.22),Vector3((opening_w+side)*.5,1.5,0))
+	_add_frame_box(root,Vector3(opening_w,.85,.22),Vector3(0,.425,0))
+	_add_frame_box(root,Vector3(opening_w,.70,.22),Vector3(0,2.65,0))
+	root.set_meta("build_piece","PENCERE"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
+	return root
 
+func _build_roof_panel(p:Vector3,yaw:=0.0)->Node3D:
+	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
+	_add_frame_box(root,Vector3(5.08,.18,5.08),Vector3.ZERO)
+	root.set_meta("build_piece","TAVAN"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
+	return root
 func _build_interior_prop(p:Vector3,kind:int,yaw:=0.0):
 	var obj:Node3D
 	if kind==6:
