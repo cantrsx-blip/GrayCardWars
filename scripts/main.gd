@@ -106,7 +106,7 @@ var pickaxe_count := 0
 var build_mode := false
 var build_preview: Node3D
 var build_piece := 0
-var build_piece_names := ["ZEMIN","DUVAR","KAPI","PENCERE","TAVAN","MERDIVEN","SANDIK","YATAK","TEZGAH","SOBA","LAMBA"]
+var build_piece_names := ["ZEMIN","DUVAR","KAPI","PENCERE","TAVAN"]
 var scoped := false
 var has_scope := true
 var scope_overlay: Control
@@ -172,6 +172,7 @@ var metal_parts := 0
 var scope_stage := 0
 var crouched := false
 var crouch_button: Button
+var waypoint_ground_arrow: Node3D
 const RESOURCE_RESPAWN := 90.0
 var respawn_nodes: Array = []
 
@@ -357,7 +358,7 @@ func _build_world():
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
-	for i in 52:
+	for i in 156:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z): continue
 		var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); add_child(rock_body)
@@ -365,14 +366,14 @@ func _build_world():
 		var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
 		rock_body.set_meta("loot","stone")
 	# Meteors match the normal stone count and use the same grounded scale.
-	for i in 52:
+	for i in 156:
 		var mp = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(mp.x, mp.z): continue
 		var meteor_body=StaticBody3D.new(); meteor_body.position=Vector3(mp.x,height_at(mp.x,mp.z),mp.z); add_child(meteor_body)
 		_make_meteor(meteor_body)
 		var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
 		meteor_body.set_meta("loot","meteor")
-	for i in 110:
+	for i in 330:
 		var p = _rand_outside_trade(28, MAP_HALF - 12)
 		if _near_boss(p.x, p.z): continue
 		var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
@@ -470,28 +471,14 @@ func _build_rock_ring(center: Vector3, _accent: Color) -> void:
 		var r=FORT_HALF+9.0+float(i%3)*3.0
 		var p=Vector3(center.x+cos(a)*r,0,center.z+sin(a)*r); p.y=height_at(p.x,p.z)
 		var rock_body=StaticBody3D.new(); rock_body.position=p; rock_body.rotation_degrees.y=randf_range(0,360); add_child(rock_body)
-		var rock=_load_asset(rock_assets[i%rock_assets.size()])
-		if rock!=null:
-			rock.scale=Vector3.ONE*randf_range(.9,1.35); rock_body.add_child(rock)
-			_ground_asset_to_terrain(rock,p.x,p.z)
-		else:
-			var rmi=MeshInstance3D.new(); var rbm=BoxMesh.new(); rbm.size=Vector3(.9,.8,.9); rmi.mesh=rbm; rmi.position.y=.4; rmi.material_override=_simple_mat(Color(.38,.34,.30)); rock_body.add_child(rmi)
-		var rcs=CollisionShape3D.new(); var rsh=BoxShape3D.new(); rsh.size=Vector3(.9,.8,.9); rcs.shape=rsh; rcs.position.y=.4; rock_body.add_child(rcs)
+		_make_kara_rock(rock_body)
+		var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
 		rock_body.set_meta("loot","stone")
 		placed+=1
 
 func _build_gatherables():
-	var gather_defs=[
-		[55,20.0,MAP_HALF-14.0,"res://assets/environment/plants/plant_grass_01.glb","grass"],
-		[32,22.0,MAP_HALF-14.0,"res://assets/environment/plants/plant_dry_grass_01.glb","wheat"],
-		[22,24.0,MAP_HALF-16.0,"res://assets/environment/plants/plant_weed_01.glb","mushroom"]
-	]
-	for def in gather_defs:
-		for i in int(def[0]):
-			var p=_rand_outside_trade(float(def[1]),float(def[2]))
-			if _near_boss(p.x,p.z): continue
-			var plant=_place_asset(str(def[3]),self,Vector3(p.x,height_at(p.x,p.z)+.02,p.z),Vector3.ONE*randf_range(.9,1.3),Vector3(0,randf_range(0,360),0))
-			if plant!=null: plant.set_meta("loot",str(def[4]))
+	# Vegetation intentionally disabled; trees are spawned by _build_world only.
+	pass
 
 func _rand_outside_trade(min_r: float, max_r: float) -> Vector3:
 	var p = Vector3.ZERO
@@ -527,10 +514,10 @@ func _build_trade_zone():
 		add_child(stall)
 
 func _build_bosses():
-	# Keep only grounded survival forts made from wood, light stone and weathered metal.
-	# Landmark sculptures and boss markers are intentionally removed.
+	# Survival fort plus its recognizable landmark. Combat bosses remain disabled.
 	for b in bosses:
 		_build_fort(b.pos, b.color)
+		_build_landmark(b)
 
 func _build_player():
 	player = CharacterBody3D.new()
@@ -556,10 +543,10 @@ func _build_hud():
 	hit_label=Label.new(); hit_label.set_anchors_preset(Control.PRESET_CENTER); hit_label.position=Vector2(-20,-35); hit_label.text="+"; hit_label.visible=false; hit_label.add_theme_font_size_override("font_size",32); layer.add_child(hit_label)
 	zone_label=Label.new(); zone_label.set_anchors_preset(Control.PRESET_TOP_WIDE); zone_label.position=Vector2(0,18); zone_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; zone_label.add_theme_font_size_override("font_size",24); layer.add_child(zone_label)
 	hud=Label.new(); hud.position=Vector2(176,22); hud.add_theme_font_size_override("font_size",18); layer.add_child(hud)
-	joystick_base=ColorRect.new(); joystick_base.position=Vector2(42,500); joystick_base.size=Vector2(150,150); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
-	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(48,48); joystick_knob.size=Vector2(54,54); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
+	joystick_base=ColorRect.new(); joystick_base.set_anchors_preset(Control.PRESET_BOTTOM_LEFT); joystick_base.position=Vector2(24,-324); joystick_base.size=Vector2(300,300); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
+	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(96,96); joystick_knob.size=Vector2(108,108); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
 	# URET, DOLDUR, BOMBA and TNT are intentionally removed from the gameplay HUD.
-	var actions=[["TOPLA",_gather_nearby],["KULLAN",_use_nearest_interior],["ATES",_shoot],["KAMP",_build_fire],["EV",_build_house],["HARITA",_toggle_map],["ENVANTER",_toggle_inventory],["PARCA",_cycle_build_piece],["DURBUN",_toggle_scope],["ZIPLA",_jump],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down]]
+	var actions=[["TOPLA",_gather_nearby],["KULLAN",_use_nearest_interior],["ENVANTER",_toggle_inventory],["PARCA",_cycle_build_piece],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down]]
 	for i in actions.size():
 		var b=Button.new(); b.text=actions[i][0]; b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15); b.pressed.connect(actions[i][1]); layer.add_child(b)
@@ -568,7 +555,12 @@ func _build_hud():
 	var action_btn=Button.new(); action_btn.text=""; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
 	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.pressed.connect(_primary_action); layer.add_child(action_btn)
-	crouch_button=Button.new(); crouch_button.text="↓"; crouch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); crouch_button.position=Vector2(-238,-104); crouch_button.size=Vector2(80,80); crouch_button.add_theme_font_size_override("font_size",30)
+	var jump_btn=Button.new(); jump_btn.text="↑ Zıpla"; jump_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); jump_btn.position=Vector2(-238,-310); jump_btn.size=Vector2(92,76); jump_btn.add_theme_font_size_override("font_size",18); jump_btn.pressed.connect(_jump); layer.add_child(jump_btn)
+	var scope_btn=Button.new(); scope_btn.text="🔭"; scope_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); scope_btn.position=Vector2(-350,-320); scope_btn.size=Vector2(82,82); scope_btn.add_theme_font_size_override("font_size",28)
+	var scope_style=StyleBoxFlat.new(); scope_style.bg_color=Color(.10,.10,.10,.30); scope_style.corner_radius_top_left=41; scope_style.corner_radius_top_right=41; scope_style.corner_radius_bottom_left=41; scope_style.corner_radius_bottom_right=41
+	scope_btn.add_theme_stylebox_override("normal",scope_style); scope_btn.add_theme_stylebox_override("pressed",scope_style); scope_btn.pressed.connect(_toggle_scope); layer.add_child(scope_btn)
+	var build_btn=Button.new(); build_btn.text="İNŞA ET"; build_btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT); build_btn.position=Vector2(28,-390); build_btn.size=Vector2(150,56); build_btn.pressed.connect(_build_house); layer.add_child(build_btn)
+	crouch_button=Button.new(); crouch_button.text="↓ Çömel"; crouch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); crouch_button.position=Vector2(-238,-104); crouch_button.size=Vector2(104,80); crouch_button.add_theme_font_size_override("font_size",18)
 	var crouch_style=StyleBoxFlat.new(); crouch_style.bg_color=Color(.12,.12,.12,.34); crouch_style.corner_radius_top_left=40; crouch_style.corner_radius_top_right=40; crouch_style.corner_radius_bottom_left=40; crouch_style.corner_radius_bottom_right=40
 	crouch_button.add_theme_stylebox_override("normal",crouch_style); crouch_button.add_theme_stylebox_override("pressed",crouch_style); crouch_button.pressed.connect(_toggle_crouch); layer.add_child(crouch_button)
 	var aim=Label.new(); aim.text="+"; aim.set_anchors_preset(Control.PRESET_CENTER); aim.position=Vector2(-14,-22); aim.size=Vector2(28,44); aim.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; aim.add_theme_font_size_override("font_size",32); aim.add_theme_color_override("font_color",Color(.95,.08,.06,1)); aim.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(aim)
@@ -675,7 +667,7 @@ func _toggle_crouch():
 	crouched=not crouched
 	camera.position.y=.34 if crouched else .72
 	player_move_speed=2.4 if crouched else 3.4
-	if crouch_button: crouch_button.text="↑" if crouched else "↓"
+	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
 
 func _look_pad_input(event):
 	if event is InputEventScreenDrag and player and camera:
@@ -881,6 +873,9 @@ func _house_asset(key:String,p:Vector3,yaw:float,size:Vector3)->Node3D:
 	body.set_meta("build_piece",build_piece_names[build_piece]); body.set_meta("structure_hp",structure_hp_default); body.set_meta("material","wood")
 	return body
 
+func _add_house_light(roof_pos:Vector3):
+	var light=OmniLight3D.new(); light.position=roof_pos+Vector3(0,-1.35,0); light.light_color=Color(1.0,.88,.68); light.light_energy=.85; light.omni_range=7.0; light.shadow_enabled=false; add_child(light)
+
 func _build_house():
 	if not build_mode:
 		build_mode=true; _ensure_build_preview(); return
@@ -900,7 +895,8 @@ func _build_house():
 			_build_door_frame(p,yaw+180.0); built_walls.append(_nearest_floor())
 		3:
 			_build_window_frame(p,yaw); built_walls.append(_nearest_floor())
-		4: made=_house_asset("house_roof",p,yaw,Vector3(3,.18,3))
+		4:
+			made=_house_asset("house_roof",p,yaw,Vector3(3,.18,3)); _add_house_light(p)
 		5: made=_house_asset("house_stairs",p,yaw,Vector3(3,1.6,3))
 		8: _build_interior_prop(p,build_piece,yaw+180.0)
 		_: _build_interior_prop(p,build_piece,yaw)
@@ -915,7 +911,7 @@ func _cycle_build_piece():
 func _update_preview_shape():
 	if build_preview==null: return
 	var box=BoxMesh.new()
-	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5),Vector3(2.2,.35,4.0),Vector3(1.5,1,1),Vector3(1.2,.45,2.2),Vector3(2.2,1.1,.8),Vector3(1.2,1.1,1.2),Vector3(.35,1.5,.35)]
+	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5)]
 	box.size=sizes[build_piece]; build_preview.mesh=box
 
 func _build_boat():
@@ -926,6 +922,10 @@ func _build_boat():
 	var boat=_place_asset(asset_paths["boat"],self,bp,bc["scale"],bc["rot"])
 	if boat!=null: boat.name="PlayerBoat"
 	else: _add_static_box(bp,Vector3(3,.6,6),Color(.35,.16,.05))
+
+func _minimap_input(event):
+	if event is InputEventScreenTouch and event.pressed:
+		_toggle_map()
 
 func _toggle_map():
 	if map_panel == null: _create_map()
@@ -1144,16 +1144,16 @@ func _craft(kind:int):
 
 
 func _create_hotbar(layer:CanvasLayer):
-	hotbar=HBoxContainer.new(); hotbar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); hotbar.position=Vector2(270,-70); hotbar.size=Vector2(740,56); hotbar.alignment=BoxContainer.ALIGNMENT_CENTER
+	hotbar=HBoxContainer.new(); hotbar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM); hotbar.position=Vector2(-490,-88); hotbar.size=Vector2(980,78); hotbar.alignment=BoxContainer.ALIGNMENT_CENTER
 	var slots=[["EL",0],["🪓",1],["⛏",2],["▰",3],["🔨",4],["",5],["",6]]
 	for slot in slots:
-		var b=Button.new(); b.text=slot[0]; b.custom_minimum_size=Vector2(92,50); b.add_theme_font_size_override("font_size",22)
+		var b=Button.new(); b.text=slot[0]; b.custom_minimum_size=Vector2(138,75); b.add_theme_font_size_override("font_size",28)
 		var st=StyleBoxFlat.new(); st.bg_color=Color(.08,.08,.08,.30); st.border_width_left=1; st.border_width_top=1; st.border_width_right=1; st.border_width_bottom=1; st.border_color=Color(.8,.8,.8,.35)
 		b.add_theme_stylebox_override("normal",st); b.add_theme_stylebox_override("pressed",st)
 		if int(slot[1])<=4: b.pressed.connect(_select_hotbar.bind(int(slot[1])))
 		hotbar.add_child(b)
 	layer.add_child(hotbar)
-	hotbar_label=Label.new(); hotbar_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); hotbar_label.position=Vector2(0,-100); hotbar_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; hotbar_label.text="ELLER"; layer.add_child(hotbar_label)
+	hotbar_label=Label.new(); hotbar_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM); hotbar_label.position=Vector2(-180,-118); hotbar_label.size=Vector2(360,28); hotbar_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; hotbar_label.text="ELLER"; layer.add_child(hotbar_label)
 
 func _select_hotbar(slot:int):
 	if slot==1 and axe_count==0: return
@@ -1279,6 +1279,7 @@ func _create_minimap(layer:CanvasLayer):
 	minimap_dot=ColorRect.new(); minimap_dot.size=Vector2(8,8); minimap_dot.color=Color(1,.82,.12,1); minimap_panel.add_child(minimap_dot)
 	minimap_dir=Label.new(); minimap_dir.text="▲"; minimap_dir.size=Vector2(18,18); minimap_panel.add_child(minimap_dir)
 	_add_minimap_landmarks()
+	minimap_panel.mouse_filter=Control.MOUSE_FILTER_STOP; minimap_panel.gui_input.connect(_minimap_input)
 	layer.add_child(minimap_panel)
 
 func _update_minimap():
@@ -1647,7 +1648,7 @@ func _craft_explosive(kind:String):
 
 func metal_scrap() -> int:
 	# Placeholder resource hook until scrap loot is added.
-	return 9999 if cheat_mode else stone
+	return 9999 if cheat_mode else metal_parts
 
 
 func _throw_grenade():
@@ -1697,8 +1698,28 @@ func _fly_down():
 		player.position.y=ground; fly_mode=false; _flash_message("ZEMINE INILDI")
 	else: _flash_message("UCUS: 1 KADEME ALCALDI")
 
+func _ensure_waypoint_ground_arrow():
+	if waypoint_ground_arrow!=null and is_instance_valid(waypoint_ground_arrow): return
+	waypoint_ground_arrow=Node3D.new(); waypoint_ground_arrow.name="WaypointGroundArrow"; add_child(waypoint_ground_arrow)
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(1.0,.78,.08,.88); mat.emission_enabled=true; mat.emission=Color(.65,.35,.03); mat.emission_energy_multiplier=.65
+	var shaft=MeshInstance3D.new(); var sb=BoxMesh.new(); sb.size=Vector3(.65,.05,3.0); shaft.mesh=sb; shaft.position=Vector3(0,.04,-1.0); shaft.material_override=mat; waypoint_ground_arrow.add_child(shaft)
+	var head=MeshInstance3D.new(); var hb=BoxMesh.new(); hb.size=Vector3(2.1,.05,1.35); head.mesh=hb; head.position=Vector3(0,.04,-2.55); head.rotation_degrees.y=45; head.material_override=mat; waypoint_ground_arrow.add_child(head)
+
+func _update_waypoint_ground_arrow():
+	if not waypoint_active or player==null:
+		if waypoint_ground_arrow: waypoint_ground_arrow.visible=false
+		return
+	_ensure_waypoint_ground_arrow(); waypoint_ground_arrow.visible=true
+	var to=waypoint_pos-player.global_position; to.y=0.0
+	if to.length()<.1: return
+	var dir=to.normalized(); var pos=player.global_position+dir*5.0
+	pos.y=height_at(pos.x,pos.z)+.06
+	waypoint_ground_arrow.global_position=pos
+	waypoint_ground_arrow.rotation.y=atan2(-dir.x,-dir.z)
+
 func _update_navigation_ui():
 	if player==null: return
+	_update_waypoint_ground_arrow()
 	var compass="↑"
 	var ang=atan2(player_facing.x,-player_facing.z)
 	if absf(ang)>PI*.75: compass="↓"
