@@ -388,97 +388,6 @@ func _build_hills_and_pits():
 	# Terrain heightfield already provides hills and pits. Avoid duplicate cylinder geometry.
 	pass
 
-func _build_fort(center: Vector3, accent: Color) -> void:
-	var y0 := 0.0
-	# kurak zemin + metal/tas taban (hasar yok)
-	var floor = MeshInstance3D.new()
-	var fmesh = BoxMesh.new()
-	fmesh.size = Vector3(FORT_HALF * 2.0 + 2.0, 0.25, FORT_HALF * 2.0 + 2.0)
-	floor.mesh = fmesh
-	floor.position = Vector3(center.x, y0 + 0.12, center.z)
-	var fm = StandardMaterial3D.new()
-	fm.albedo_color = Color(.28,.22,.16)
-	floor.material_override = fm
-	add_child(floor)
-
-	var wood_c = Color(.25,.14,.07)
-	var stone_c = Color(.62,.60,.55)
-	var metal_c = Color(.34,.25,.20)
-	var seg = FORT_HALF - GATE_W * 0.5
-	# Kuzey / guney duvar: iki parca + kapı boslugu
-	_add_static_box(Vector3(center.x - (seg + GATE_W) * 0.5, y0 + WALL_H * 0.5, center.z - FORT_HALF), Vector3(seg, WALL_H, WALL_T), stone_c)
-	_add_static_box(Vector3(center.x + (seg + GATE_W) * 0.5, y0 + WALL_H * 0.5, center.z - FORT_HALF), Vector3(seg, WALL_H, WALL_T), wood_c)
-	_add_static_box(Vector3(center.x - (seg + GATE_W) * 0.5, y0 + WALL_H * 0.5, center.z + FORT_HALF), Vector3(seg, WALL_H, WALL_T), wood_c)
-	_add_static_box(Vector3(center.x + (seg + GATE_W) * 0.5, y0 + WALL_H * 0.5, center.z + FORT_HALF), Vector3(seg, WALL_H, WALL_T), stone_c)
-	# Dogu / bati
-	_add_static_box(Vector3(center.x - FORT_HALF, y0 + WALL_H * 0.5, center.z - (seg + GATE_W) * 0.5), Vector3(WALL_T, WALL_H, seg), metal_c)
-	_add_static_box(Vector3(center.x - FORT_HALF, y0 + WALL_H * 0.5, center.z + (seg + GATE_W) * 0.5), Vector3(WALL_T, WALL_H, seg), stone_c)
-	_add_static_box(Vector3(center.x + FORT_HALF, y0 + WALL_H * 0.5, center.z - (seg + GATE_W) * 0.5), Vector3(WALL_T, WALL_H, seg), stone_c)
-	_add_static_box(Vector3(center.x + FORT_HALF, y0 + WALL_H * 0.5, center.z + (seg + GATE_W) * 0.5), Vector3(WALL_T, WALL_H, seg), metal_c)
-
-	# 4 kapi cercevesi (giris acik, cerceve hasarsiz)
-	var frames = [
-		Vector3(center.x, y0 + 3.2, center.z - FORT_HALF),
-		Vector3(center.x, y0 + 3.2, center.z + FORT_HALF),
-		Vector3(center.x - FORT_HALF, y0 + 3.2, center.z),
-		Vector3(center.x + FORT_HALF, y0 + 3.2, center.z)
-	]
-	for i in frames.size():
-		var fr = frames[i]
-		var along_z = (i < 2)
-		if along_z:
-			_add_static_box(fr + Vector3(-GATE_W * 0.5, 0, 0), Vector3(0.45, 3.6, 0.55), metal_c)
-			_add_static_box(fr + Vector3(GATE_W * 0.5, 0, 0), Vector3(0.45, 3.6, 0.55), metal_c)
-			_add_static_box(fr + Vector3(0, 1.7, 0), Vector3(GATE_W + 0.4, 0.4, 0.55), wood_c)
-		else:
-			_add_static_box(fr + Vector3(0, 0, -GATE_W * 0.5), Vector3(0.55, 3.6, 0.45), metal_c)
-			_add_static_box(fr + Vector3(0, 0, GATE_W * 0.5), Vector3(0.55, 3.6, 0.45), metal_c)
-			_add_static_box(fr + Vector3(0, 1.7, 0), Vector3(0.55, 0.4, GATE_W + 0.4), wood_c)
-
-	# pencereler: duvar ustunde gorsel (carpisma yok, sadece delik gorunumu)
-	_add_window(Vector3(center.x - FORT_HALF * 0.55, y0 + 3.2, center.z - FORT_HALF), true)
-	_add_window(Vector3(center.x + FORT_HALF * 0.55, y0 + 3.2, center.z + FORT_HALF), true)
-	_add_window(Vector3(center.x - FORT_HALF, y0 + 3.2, center.z - FORT_HALF * 0.55), false)
-	_add_window(Vector3(center.x + FORT_HALF, y0 + 3.2, center.z + FORT_HALF * 0.55), false)
-
-	# Kale disi kayalik: 4 koridor haric girilmez
-	_build_rock_ring(center, accent)
-
-func _add_window(pos: Vector3, along_z: bool) -> void:
-	var w = MeshInstance3D.new()
-	var box = BoxMesh.new()
-	if along_z:
-		box.size = Vector3(1.6, 1.2, 0.2)
-	else:
-		box.size = Vector3(0.2, 1.2, 1.6)
-	w.mesh = box
-	w.position = pos
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.15, 0.18, 0.22)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color.a = 0.55
-	w.material_override = mat
-	add_child(w)
-
-func _build_rock_ring(center: Vector3, _accent: Color) -> void:
-	# Sparse natural ring: 12 rocks max per fort, with four clear gate corridors.
-	var placed:=0
-	for i in 16:
-		if placed>=12: break
-		var a=float(i)*TAU/16.0
-		var blocked:=false
-		for k in 4:
-			var gate_a=k*PI*.5
-			if abs(atan2(sin(a-gate_a),cos(a-gate_a)))<.26: blocked=true
-		if blocked: continue
-		var r=FORT_HALF+9.0+float(i%3)*3.0
-		var p=Vector3(center.x+cos(a)*r,0,center.z+sin(a)*r); p.y=height_at(p.x,p.z)
-		var rock_body=StaticBody3D.new(); rock_body.position=p; rock_body.rotation_degrees.y=randf_range(0,360); add_child(rock_body)
-		_make_kara_rock(rock_body)
-		var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
-		rock_body.set_meta("loot","stone")
-		placed+=1
-
 func _build_gatherables():
 	# Vegetation intentionally disabled; trees are spawned by _build_world only.
 	pass
@@ -968,30 +877,57 @@ func _landmark_cyl(p:Vector3, r_bot:float, r_top:float, h:float, col:Color):
 
 func _build_survival_poi(b):
 	var c:Vector3=b.pos; var col:Color=b.color; var id:String=b.id
+	# Distinct abandoned survival silhouettes. No historical landmark or boss-fort geometry.
 	if id=="unfinished_house":
-		_landmark_box(c+Vector3(0,.3,0),Vector3(12,.6,10),col)
-		for x in [-5.0,5.0]: _landmark_box(c+Vector3(x,3,0),Vector3(.6,6,10),Color(.30,.20,.12))
+		_landmark_box(c+Vector3(0,.25,0),Vector3(12,.5,10),Color(.32,.29,.25))
+		for p in [Vector3(-5,2.5,-4.5),Vector3(5,2.5,-4.5),Vector3(-5,2.5,4.5),Vector3(5,2.5,4.5)]: _landmark_box(c+p,Vector3(.55,5,.55),col)
+		_landmark_box(c+Vector3(-3.5,4.7,0),Vector3(5,.35,9),Color(.26,.22,.18),Vector3(0,0,-8))
 	elif id=="watchtower":
 		for x in [-3.0,3.0]:
-			for z in [-3.0,3.0]: _landmark_box(c+Vector3(x,5,z),Vector3(.5,10,.5),col)
-		_landmark_box(c+Vector3(0,9,0),Vector3(8,.5,8),col)
+			for z in [-3.0,3.0]: _landmark_box(c+Vector3(x,4.5,z),Vector3(.45,9,.45),col)
+		_landmark_box(c+Vector3(0,8.7,0),Vector3(8,.45,8),col)
+		_landmark_box(c+Vector3(0,10.2,0),Vector3(5.5,2.6,5.5),Color(.25,.24,.21))
+		_landmark_box(c+Vector3(0,11.8,0),Vector3(7,.25,7),Color(.18,.18,.17))
 	elif id=="plane_wreck":
-		_landmark_box(c+Vector3(0,1,0),Vector3(14,2,3),col,Vector3(0,22,8)); _landmark_box(c+Vector3(0,1,0),Vector3(4,.25,18),col,Vector3(0,22,8))
+		_landmark_box(c+Vector3(0,1,0),Vector3(15,2.1,3.2),col,Vector3(0,24,7))
+		_landmark_box(c+Vector3(-1,.9,0),Vector3(5,.25,19),Color(.27,.29,.29),Vector3(0,24,7))
+		_landmark_box(c+Vector3(6,.8,1),Vector3(5,1.2,2.5),Color(.22,.23,.23),Vector3(0,38,18))
 	elif id=="tank_site":
-		_landmark_box(c+Vector3(0,1,0),Vector3(6,2.2,9),col); _landmark_box(c+Vector3(0,2.5,0),Vector3(4,1.4,4),col); _landmark_box(c+Vector3(0,2.7,-5),Vector3(.45,.45,8),col)
+		_landmark_box(c+Vector3(0,.8,0),Vector3(7,1.6,10),Color(.24,.29,.21))
+		_landmark_box(c+Vector3(0,2,0),Vector3(4.2,1.3,4.4),col)
+		_landmark_box(c+Vector3(0,2.2,-6),Vector3(.5,.5,9),Color(.18,.21,.17))
+		for x in [-3.7,3.7]: _landmark_box(c+Vector3(x,.65,0),Vector3(.65,1.3,10.5),Color(.12,.13,.11))
 	elif id=="factory":
-		_landmark_box(c+Vector3(0,3,0),Vector3(18,6,12),col); _landmark_cyl(c+Vector3(6,9,3),1.2,1.0,12,Color(.25,.24,.23))
+		_landmark_box(c+Vector3(0,3,0),Vector3(19,6,13),col)
+		_landmark_box(c+Vector3(-5,6.6,0),Vector3(7,.3,13),Color(.20,.20,.19),Vector3(0,0,8))
+		_landmark_cyl(c+Vector3(6,9,3),1.25,1.0,12,Color(.22,.21,.20))
+		_landmark_cyl(c+Vector3(2,7,-4),.8,.7,8,Color(.30,.23,.18))
 	elif id=="junkyard":
-		for i in 8: _landmark_box(c+Vector3((i%4)*4-6,.7,(i/4)*6-3),Vector3(3,1.4,5),col,Vector3(0,i*13,0))
+		for i in 9:
+			var x=float(i%3)*5.0-5.0; var z=float(i/3)*5.5-5.5
+			_landmark_box(c+Vector3(x,.65,z),Vector3(3.6,1.3,5.2),Color(.30,.22,.17),Vector3(0,i*17,0))
+		for x in [-8.0,8.0]: _landmark_box(c+Vector3(x,1.4,0),Vector3(.3,2.8,18),Color(.20,.19,.17))
 	elif id=="military_post":
-		_landmark_box(c+Vector3(0,1.5,0),Vector3(12,3,8),col); _landmark_box(c+Vector3(0,1.2,-7),Vector3(10,2.4,1),Color(.43,.37,.24))
+		_landmark_box(c+Vector3(0,1.5,0),Vector3(12,3,8),Color(.25,.29,.22))
+		_landmark_box(c+Vector3(-7,1,-5),Vector3(5,2,3.5),col)
+		for x in [-8.0,8.0]: _landmark_box(c+Vector3(x,.9,3),Vector3(.8,1.8,13),Color(.35,.33,.27))
+		_landmark_box(c+Vector3(0,.8,9),Vector3(17,1.6,.7),Color(.35,.33,.27))
 	elif id=="bunker":
-		_landmark_box(c+Vector3(0,1,0),Vector3(14,2,10),col); _landmark_box(c+Vector3(0,1,-5),Vector3(4,2,.5),Color(.16,.16,.15))
+		_landmark_box(c+Vector3(0,.45,0),Vector3(15,.9,11),Color(.29,.30,.29))
+		_landmark_box(c+Vector3(0,1.2,-4.5),Vector3(5,2.4,1),Color(.15,.16,.15))
+		_landmark_box(c+Vector3(-2.7,1.2,-2.5),Vector3(.5,2.4,5),col)
+		_landmark_box(c+Vector3(2.7,1.2,-2.5),Vector3(.5,2.4,5),col)
 	elif id=="gas_station":
-		_landmark_box(c+Vector3(0,2,3),Vector3(12,4,8),col); _landmark_box(c+Vector3(0,3,-5),Vector3(14,.4,6),Color(.36,.31,.24))
+		_landmark_box(c+Vector3(4,2.2,3),Vector3(10,4.4,8),Color(.34,.29,.23))
+		_landmark_box(c+Vector3(-3,3,-4),Vector3(15,.35,7),Color(.31,.28,.24))
+		for x in [-6.0,0.0]: _landmark_box(c+Vector3(x,1,-4),Vector3(.8,2,.8),Color(.25,.18,.14))
+		for x in [-6.0,0.0]: _landmark_box(c+Vector3(x,.8,-4),Vector3(1.5,1.6,.8),Color(.37,.22,.15))
 	elif id=="shipyard":
-		_landmark_box(c+Vector3(0,.4,0),Vector3(18,.8,12),col)
-		for x in [-6.0,0.0,6.0]: _landmark_box(c+Vector3(x,2,0),Vector3(4,4,7),Color(.28,.25,.22))
+		_landmark_box(c+Vector3(0,.35,0),Vector3(20,.7,13),Color(.28,.25,.21))
+		_landmark_box(c+Vector3(-6,2,0),Vector3(5,4,8),col)
+		_landmark_box(c+Vector3(5,1.5,1),Vector3(7,3,4),Color(.30,.23,.18))
+		for x in [-8.0,-3.0,2.0,7.0]: _landmark_box(c+Vector3(x,-.1,-8),Vector3(.6,1.8,7),Color(.24,.19,.14))
+
 func _simple_mat(c:Color)->StandardMaterial3D:
 	var m=StandardMaterial3D.new(); m.albedo_color=c; m.roughness=.75; return m
 
