@@ -91,6 +91,7 @@ var gather_label: Label
 var campfire_pos := Vector3.ZERO
 var heal_buffer := 0.0
 var inventory_panel: Control
+var store_panel: Control
 var craft_panel: Control
 var hotbar: Control
 var selected_tool := "ELLER"
@@ -513,7 +514,33 @@ func _build_hud():
 	_create_creative_menu(layer); _setup_sfx(); fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
 func _open_store():
-	_flash_message("MAĞAZA YAKINDA")
+	if store_panel==null:
+		_create_store_panel()
+	store_panel.visible=not store_panel.visible
+
+func _create_store_panel():
+	var layers=get_children().filter(func(n): return n is CanvasLayer)
+	if layers.is_empty(): return
+	store_panel=Panel.new()
+	store_panel.set_anchors_preset(Control.PRESET_CENTER)
+	store_panel.position=Vector2(-300,-220)
+	store_panel.size=Vector2(600,440)
+	layers[-1].add_child(store_panel)
+	var title=Label.new(); title.text="MAĞAZA"; title.position=Vector2(20,16); title.size=Vector2(500,42); title.add_theme_font_size_override("font_size",28); store_panel.add_child(title)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(532,14); close.size=Vector2(50,42); close.pressed.connect(_open_store); store_panel.add_child(close)
+	var categories=["TÜM MALZEMELER","SİLAHLAR","MERMİLER","ZIRHLAR","ALETLER"]
+	for i in categories.size():
+		var b=Button.new()
+		b.text=categories[i]
+		b.position=Vector2(55,78+i*64)
+		b.size=Vector2(490,52)
+		b.add_theme_font_size_override("font_size",20)
+		b.pressed.connect(_store_category.bind(categories[i]))
+		store_panel.add_child(b)
+	store_panel.visible=true
+
+func _store_category(category:String):
+	_flash_message("MAĞAZA: "+category)
 
 func _nearest_poi() -> String:
 	var best := ""
