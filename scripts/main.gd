@@ -99,7 +99,7 @@ var pickaxe_count := 0
 var build_mode := false
 var build_preview: Node3D
 var build_piece := 0
-var build_piece_names := ["TEMEL","DUVAR","KAPI","PENCERE","TAVAN"]
+var build_piece_names := ["TEMEL","DUVAR","KAPI","PENCERE","TAVAN","MERDIVEN"]
 var scoped := false
 var has_scope := true
 var scope_overlay: Control
@@ -850,7 +850,7 @@ func _build_house():
 			made=_build_window_frame(p,yaw); built_walls.append(made)
 		4:
 			made=_house_asset("house_roof",p,yaw,Vector3(5,.18,5)); _add_house_light(p)
-		5: made=_house_asset("house_stairs",p,yaw,Vector3(3,1.6,3))
+		5: made=_build_stairs(p,yaw)
 		8: _build_interior_prop(p,build_piece,yaw+180.0)
 		_: _build_interior_prop(p,build_piece,yaw)
 	house_parts+=1
@@ -864,7 +864,7 @@ func _cycle_build_piece():
 func _update_preview_shape():
 	if build_preview==null: return
 	var box=BoxMesh.new()
-	var sizes=[Vector3(5,.45,5),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5,.35,5)]
+	var sizes=[Vector3(5,.45,5),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5,.35,5),Vector3(3,3,5)]
 	box.size=sizes[build_piece]; build_preview.mesh=box
 
 func _build_boat():
@@ -1161,7 +1161,18 @@ func _update_build_preview():
 			p.y=floor.global_position.y+.225; preview_valid=true
 		elif build_piece==4:
 			p=floor.global_position+Vector3(0,3.225,0); yaw=0.0; preview_valid=true
+		elif build_piece==5:
+			# On a foundation, stairs rise exactly one wall storey from deck to roof.
+			p=floor.global_position+Vector3(0,.225,0)
+			yaw=roundf(player.rotation_degrees.y/90.0)*90.0
+			preview_valid=true
 		build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
+	elif build_piece==5:
+		# On bare terrain, start at soil level and climb to a foundation deck.
+		var p=probe; p.y=height_at(p.x,p.z)
+		build_preview.global_position=p
+		build_preview.rotation_degrees.y=roundf(player.rotation_degrees.y/90.0)*90.0
+		preview_valid=true
 	else:
 		build_preview.global_position=probe
 	var mat=build_preview.material_override as StandardMaterial3D
@@ -1185,6 +1196,29 @@ func _build_foundation(p:Vector3)->Node3D:
 		var leg=MeshInstance3D.new(); var lm=BoxMesh.new(); lm.size=Vector3(.32,leg_h,.32); leg.mesh=lm
 		# Leg top touches the underside of the deck; leg bottom reaches its own terrain sample.
 		leg.position=Vector3(off.x,-.225-leg_h*.5,off.y); leg.material_override=_simple_mat(Color(.20,.14,.09)); root.add_child(leg)
+	return root
+
+func _build_stairs(p:Vector3,yaw:=0.0)->Node3D:
+	# Terrain stairs climb to foundation height; foundation stairs climb one full 3 m wall storey.
+	var on_floor:=false
+	for f in built_floors:
+		if not is_instance_valid(f): continue
+		var d=Vector2(p.x-f.global_position.x,p.z-f.global_position.z).length()
+		if d<3.0 and absf(p.y-f.global_position.y)<1.0:
+			on_floor=true; break
+	var rise=3.0 if on_floor else maxf(.45,_foundation_top_y(p.x,p.z)-height_at(p.x,p.z))
+	var run=5.0
+	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
+	# Six broad steps create a walkable staircase with real collision.
+	var steps:=6
+	for i in steps:
+		var t=float(i+1)/float(steps)
+		var h=rise*t
+		var depth=run/float(steps)
+		var z=-run*.5+depth*(float(i)+.5)
+		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(3.0,h,depth+.04); mi.mesh=bm; mi.position=Vector3(0,h*.5,z); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
+		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(3.0,h,depth+.04); cs.shape=sh; cs.position=Vector3(0,h*.5,z); root.add_child(cs)
+	root.set_meta("build_piece","MERDIVEN"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
 	return root
 
 func _build_door_frame(p:Vector3,yaw:=0.0)->Node3D:
