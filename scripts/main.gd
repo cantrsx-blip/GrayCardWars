@@ -873,9 +873,30 @@ func _cycle_build_piece():
 func _update_preview_shape():
 	if build_preview==null: return
 	if build_piece==5:
-		# Wedge preview: the triangular/slope silhouette makes the stair's high end obvious.
-		var prism=PrismMesh.new(); prism.size=Vector3(3.0,3.0,5.0); prism.left_to_right=1.0
-		build_preview.mesh=prism
+		# Show the real stair silhouette in preview instead of a triangular wedge.
+		var steps:=6
+		var st=ArrayMesh.new()
+		var arrays=[]
+		arrays.resize(Mesh.ARRAY_MAX)
+		var verts=PackedVector3Array()
+		var inds=PackedInt32Array()
+		var run=5.0
+		var depth=run/float(steps)
+		for i in steps:
+			var t=float(i)/float(steps-1)
+			var y=3.0*t
+			var z0=-run*.5+depth*float(i)
+			var z1=z0+depth
+			var x0=-1.5; var x1=1.5
+			var base=verts.size()
+			verts.append_array(PackedVector3Array([
+				Vector3(x0,y,z0),Vector3(x1,y,z0),Vector3(x1,y,z1),Vector3(x0,y,z1)
+			]))
+			inds.append_array(PackedInt32Array([base,base+1,base+2,base,base+2,base+3]))
+		arrays[Mesh.ARRAY_VERTEX]=verts
+		arrays[Mesh.ARRAY_INDEX]=inds
+		st.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+		build_preview.mesh=st
 	else:
 		var box=BoxMesh.new()
 		var sizes=[Vector3(5,.45,5),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5,.35,5),Vector3(3,3,5)]
