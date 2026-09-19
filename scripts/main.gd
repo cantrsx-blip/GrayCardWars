@@ -523,23 +523,32 @@ func _create_store_panel():
 	if layers.is_empty(): return
 	store_panel=Panel.new()
 	store_panel.set_anchors_preset(Control.PRESET_CENTER)
-	store_panel.position=Vector2(-300,-220)
-	store_panel.size=Vector2(600,440)
+	store_panel.position=Vector2(-350,-270)
+	store_panel.size=Vector2(700,540)
 	layers[-1].add_child(store_panel)
-	var title=Label.new(); title.text="MAĞAZA"; title.position=Vector2(20,16); title.size=Vector2(500,42); title.add_theme_font_size_override("font_size",28); store_panel.add_child(title)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(532,14); close.size=Vector2(50,42); close.pressed.connect(_open_store); store_panel.add_child(close)
+	var title=Label.new(); title.text="MAĞAZA"; title.position=Vector2(20,12); title.size=Vector2(560,38); title.add_theme_font_size_override("font_size",26); store_panel.add_child(title)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(632,10); close.size=Vector2(50,38); close.pressed.connect(_open_store); store_panel.add_child(close)
 	var categories=["TÜM MALZEMELER","SİLAHLAR","MERMİLER","ZIRHLAR","ALETLER"]
 	for i in categories.size():
-		var b=Button.new()
-		b.text=categories[i]
-		b.position=Vector2(55,78+i*64)
-		b.size=Vector2(490,52)
-		b.add_theme_font_size_override("font_size",20)
-		b.pressed.connect(_store_category.bind(categories[i]))
-		store_panel.add_child(b)
+		var b=Button.new(); b.text=categories[i]
+		b.position=Vector2(18+i*132,58); b.size=Vector2(126,44); b.add_theme_font_size_override("font_size",14)
+		b.pressed.connect(_store_category.bind(categories[i])); store_panel.add_child(b)
+	_store_category("TÜM MALZEMELER")
 	store_panel.visible=true
 
 func _store_category(category:String):
+	if store_panel==null: return
+	var old_grid=store_panel.get_node_or_null("ItemGrid")
+	if old_grid: old_grid.queue_free()
+	var grid=GridContainer.new(); grid.name="ItemGrid"; grid.columns=5
+	grid.position=Vector2(35,120); grid.size=Vector2(630,380)
+	store_panel.add_child(grid)
+	for i in 25:
+		var slot=Button.new()
+		slot.custom_minimum_size=Vector2(118,68)
+		slot.text=str(i+1)
+		slot.tooltip_text=category+" "+str(i+1)
+		grid.add_child(slot)
 	_flash_message("MAĞAZA: "+category)
 
 func _nearest_poi() -> String:
