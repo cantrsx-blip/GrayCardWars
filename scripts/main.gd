@@ -523,31 +523,81 @@ func _create_store_panel():
 	if layers.is_empty(): return
 	store_panel=Panel.new()
 	store_panel.set_anchors_preset(Control.PRESET_CENTER)
-	store_panel.position=Vector2(-350,-270)
-	store_panel.size=Vector2(700,540)
+	store_panel.position=Vector2(-390,-290)
+	store_panel.size=Vector2(780,580)
 	layers[-1].add_child(store_panel)
-	var title=Label.new(); title.text="MAĞAZA"; title.position=Vector2(20,12); title.size=Vector2(560,38); title.add_theme_font_size_override("font_size",26); store_panel.add_child(title)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(632,10); close.size=Vector2(50,38); close.pressed.connect(_open_store); store_panel.add_child(close)
-	var categories=["TÜM MALZEMELER","SİLAHLAR","MERMİLER","ZIRHLAR","ALETLER"]
+	var title=Label.new(); title.text="MAĞAZA"; title.position=Vector2(20,12); title.size=Vector2(620,38); title.add_theme_font_size_override("font_size",26); store_panel.add_child(title)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(712,10); close.size=Vector2(50,38); close.pressed.connect(_open_store); store_panel.add_child(close)
+	var categories=["SİLAHLAR","MERMİLER","ZIRHLAR"]
 	for i in categories.size():
 		var b=Button.new(); b.text=categories[i]
-		b.position=Vector2(18+i*132,58); b.size=Vector2(126,44); b.add_theme_font_size_override("font_size",14)
+		b.position=Vector2(20+i*180,58); b.size=Vector2(170,44); b.add_theme_font_size_override("font_size",15)
 		b.pressed.connect(_store_category.bind(categories[i])); store_panel.add_child(b)
-	_store_category("TÜM MALZEMELER")
+	_store_category("SİLAHLAR")
 	store_panel.visible=true
+
+func _store_items(category:String) -> Array:
+	var colors=["gray","green","blue","orange","red"]
+	var bases:Array=[]
+	if category=="SİLAHLAR":
+		bases=[
+			["spear","Mızrak"],["torch","Meşale"],["bow","Yay"],["crossbow","Arbalet"],
+			["pistol","Tabanca"],["shotgun","Pompalı"],["rifle","Tüfek"],["explosive","Patlayıcı"]
+		]
+	elif category=="MERMİLER":
+		bases=[
+			["pistol_ammo","Tabanca Mermisi"],["shotgun_shell","Pompalı Mermisi"],["rifle_ammo","Tüfek Mermisi"],
+			["arrow","Ok"],["spearhead","Mızrak Ucu"]
+		]
+	elif category=="ZIRHLAR":
+		bases=[
+			["wood_helmet","Ahşap Kask"],["wood_chest","Ahşap Göğüslük"],["wood_pants","Ahşap Pantolon"],["wood_boots","Ahşap Bot"],
+			["stone_helmet","Taş Kask"],["stone_chest","Taş Göğüslük"],["stone_pants","Taş Pantolon"],["stone_boots","Taş Bot"],
+			["metal_helmet","Metal Kask"],["metal_chest","Metal Göğüslük"],["metal_pants","Metal Pantolon"],["metal_boots","Metal Bot"]
+		]
+	var items:Array=[]
+	for base in bases:
+		for rarity in colors:
+			var suffix=rarity
+			if category=="MERMİLER":
+				match rarity:
+					"gray": suffix="normal_gray"
+					"green": suffix="sharp_green"
+					"blue": suffix="piercing_blue"
+					"orange": suffix="incendiary_orange"
+					"red": suffix="explosive_red"
+			var folder="armor-assets-2" if category=="ZIRHLAR" else "weapons-ammo-armor"
+			var path="res://assets/%s/%s_%s_128.png" % [folder,base[0],suffix]
+			items.append({"name":base[1],"rarity":rarity,"path":path})
+	return items
+
+func _store_rarity_name(rarity:String) -> String:
+	match rarity:
+		"gray": return "Gri"
+		"green": return "Yeşil"
+		"blue": return "Mavi"
+		"orange": return "Turuncu"
+		"red": return "Kırmızı"
+	return rarity
 
 func _store_category(category:String):
 	if store_panel==null: return
-	var old_grid=store_panel.get_node_or_null("ItemGrid")
-	if old_grid: old_grid.queue_free()
-	var grid=GridContainer.new(); grid.name="ItemGrid"; grid.columns=5
-	grid.position=Vector2(35,120); grid.size=Vector2(630,380)
-	store_panel.add_child(grid)
-	for i in 25:
+	var old=store_panel.get_node_or_null("ItemsScroll")
+	if old: old.queue_free()
+	var scroll=ScrollContainer.new(); scroll.name="ItemsScroll"; scroll.position=Vector2(20,116); scroll.size=Vector2(740,440)
+	store_panel.add_child(scroll)
+	var grid=GridContainer.new(); grid.name="ItemGrid"; grid.columns=5; grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	scroll.add_child(grid)
+	for item in _store_items(category):
 		var slot=Button.new()
-		slot.custom_minimum_size=Vector2(118,68)
-		slot.text=str(i+1)
-		slot.tooltip_text=category+" "+str(i+1)
+		slot.custom_minimum_size=Vector2(136,112)
+		slot.expand_icon=true
+		slot.icon_max_width=82
+		slot.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
+		if ResourceLoader.exists(item.path):
+			slot.icon=load(item.path)
+		else:
+			slot.text=item.name
 		grid.add_child(slot)
 	_flash_message("MAĞAZA: "+category)
 
