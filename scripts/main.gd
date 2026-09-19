@@ -1071,7 +1071,8 @@ func _update_build_preview():
 			var delta=p-floor.global_position
 			if absf(delta.x)>absf(delta.z): p=floor.global_position+Vector3(5.0*signf(delta.x),0,0)
 			else: p=floor.global_position+Vector3(0,0,5.0*signf(delta.z))
-			p.y=_foundation_top_y(p.x,p.z)
+			# Connected foundations share one exact deck height; only their support legs adapt to terrain.
+			p.y=floor.global_position.y
 		else: p.y=_foundation_top_y(p.x,p.z)
 		build_preview.global_position=p; build_preview.rotation_degrees.y=0; preview_valid=true
 	elif floor:
@@ -1103,8 +1104,12 @@ func _build_foundation(p:Vector3)->Node3D:
 	var deck=MeshInstance3D.new(); var dm=BoxMesh.new(); dm.size=Vector3(5,.45,5); deck.mesh=dm; deck.material_override=_simple_mat(Color(.31,.20,.11)); root.add_child(deck)
 	var dcs=CollisionShape3D.new(); var dsh=BoxShape3D.new(); dsh.size=Vector3(5,.45,5); dcs.shape=dsh; root.add_child(dcs)
 	for off in [Vector2(-2.15,-2.15),Vector2(2.15,-2.15),Vector2(-2.15,2.15),Vector2(2.15,2.15)]:
-		var gy=height_at(p.x+off.x,p.z+off.y); var leg_h=maxf(.35,p.y-gy)
-		var leg=MeshInstance3D.new(); var lm=BoxMesh.new(); lm.size=Vector3(.32,leg_h,.32); leg.mesh=lm; leg.position=Vector3(off.x,-leg_h*.5-.22,off.y); leg.material_override=_simple_mat(Color(.20,.14,.09)); root.add_child(leg)
+		var gy=height_at(p.x+off.x,p.z+off.y)
+		var deck_bottom=p.y-.225
+		var leg_h=maxf(.35,deck_bottom-gy)
+		var leg=MeshInstance3D.new(); var lm=BoxMesh.new(); lm.size=Vector3(.32,leg_h,.32); leg.mesh=lm
+		# Leg top touches the underside of the deck; leg bottom reaches its own terrain sample.
+		leg.position=Vector3(off.x,-.225-leg_h*.5,off.y); leg.material_override=_simple_mat(Color(.20,.14,.09)); root.add_child(leg)
 	return root
 
 func _build_door_frame(p:Vector3,yaw:=0.0):
