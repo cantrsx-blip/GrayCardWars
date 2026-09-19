@@ -22,7 +22,17 @@ func _build_intro():
 	var data=[["KAYA","KESKİN NİŞANCI","res://KAYA.jpg"],["S.A.Z","KAMUFLAJ USTASI","res://SAZ.jpg"],["AKREP","OTOMATİK SİLAH UZMANI","res://AKREP.jpg"]]
 	for item in data:
 		var card=VBoxContainer.new(); card.custom_minimum_size=Vector2(258,330); row.add_child(card)
-		var portrait=TextureButton.new(); portrait.texture_normal=load(item[2]); portrait.ignore_texture_size=true; portrait.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_COVERED; portrait.custom_minimum_size=Vector2(258,258); portrait.pressed.connect(_select_character.bind(item[0])); card.add_child(portrait)
+		var portrait=TextureButton.new()
+		var portrait_path:String=item[2]
+		if ResourceLoader.exists(portrait_path):
+			var portrait_texture=ResourceLoader.load(portrait_path)
+			if portrait_texture is Texture2D:
+				portrait.texture_normal=portrait_texture
+		portrait.ignore_texture_size=true
+		portrait.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_COVERED
+		portrait.custom_minimum_size=Vector2(258,258)
+		portrait.pressed.connect(_select_character.bind(item[0]))
+		card.add_child(portrait)
 		var b=Button.new(); b.text=item[0]+"\n"+item[1]; b.custom_minimum_size=Vector2(258,66); b.add_theme_font_size_override("font_size",18); b.pressed.connect(_select_character.bind(item[0])); card.add_child(b); cards[item[0]]=b
 	role_label=Label.new(); role_label.set_anchors_preset(Control.PRESET_CENTER); role_label.position=Vector2(-430,176); role_label.size=Vector2(860,52); role_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; role_label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; role_label.add_theme_font_size_override("font_size",17); add_child(role_label)
 	start_button=Button.new(); start_button.text="GÖREVE BAŞLA"; start_button.set_anchors_preset(Control.PRESET_CENTER); start_button.position=Vector2(-145,238); start_button.size=Vector2(290,58); start_button.add_theme_font_size_override("font_size",21); start_button.pressed.connect(_start_game); add_child(start_button)
