@@ -409,36 +409,36 @@ func _build_world_base():
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
 
 func _build_rocks_staged() -> void:
-	for i in 156:
+	for i in (40 if OS.has_feature("mobile") else 156):
 		var p = _rand_map_point(MAP_HALF - 12)
 		if not _near_poi(p.x, p.z):
 			var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); add_child(rock_body)
 			_make_kara_rock(rock_body)
 			var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
 			rock_body.set_meta("loot","stone")
-		if i > 0 and i % 32 == 0:
+		if i > 0 and i % 16 == 0:
 			await get_tree().process_frame
 
 func _build_meteors_staged() -> void:
-	for i in 156:
+	for i in (40 if OS.has_feature("mobile") else 156):
 		var mp = _rand_map_point(MAP_HALF - 12)
 		if not _near_poi(mp.x, mp.z):
 			var meteor_body=StaticBody3D.new(); meteor_body.position=Vector3(mp.x,height_at(mp.x,mp.z),mp.z); add_child(meteor_body)
 			_make_meteor(meteor_body)
 			var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
 			meteor_body.set_meta("loot","meteor")
-		if i > 0 and i % 32 == 0:
+		if i > 0 and i % 16 == 0:
 			await get_tree().process_frame
 
 func _build_trees_staged() -> void:
-	for i in 330:
+	for i in (80 if OS.has_feature("mobile") else 330):
 		var p = _rand_map_point(MAP_HALF - 12)
 		if not _near_poi(p.x, p.z):
 			var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
 			_make_kara_tree(tree_body)
 			var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.34; trunk_shape.height=5.2; trunk_col.shape=trunk_shape; trunk_col.position.y=2.6; tree_body.add_child(trunk_col)
 			tree_body.set_meta("loot","wood")
-		if i > 0 and i % 32 == 0:
+		if i > 0 and i % 16 == 0:
 			await get_tree().process_frame
 
 func _build_hills_and_pits():
@@ -519,6 +519,8 @@ func _nearest_poi() -> String:
 	return best
 
 func _physics_process(delta):
+	if player == null or camera == null or hud == null or zone_label == null:
+		return
 	if message_time>0.0:
 		message_time-=delta
 		if message_time<=0.0:
@@ -826,7 +828,7 @@ func _build_house():
 	var p=build_preview.global_position
 	var yaw=build_preview.rotation_degrees.y
 	wood-=20
-	var made: Node3D = null
+	var made: Node3D
 	match build_piece:
 		0:
 			made=_build_foundation(p); built_floors.append(made)
@@ -1109,7 +1111,7 @@ func _ensure_build_preview():
 	build_preview.visible=true; _update_preview_shape()
 
 func _nearest_floor(max_dist:=9.0) -> Node3D:
-	var best: Node3D = null; var best_d: float = float(max_dist)
+	var best: Node3D; var best_d: float = float(max_dist)
 	for f in built_floors:
 		if not is_instance_valid(f): continue
 		var d=player.global_position.distance_to(f.global_position)
@@ -1192,7 +1194,7 @@ func _build_interior_prop(p:Vector3,kind:int,yaw:=0.0):
 	if obj!=null: obj.add_to_group("interior_interactable")
 
 func _use_nearest_interior():
-	var best:Node3D=null; var dist=3.0
+	var best: Node3D; var dist=3.0
 	for n in get_tree().get_nodes_in_group("interior_interactable"):
 		var d=player.global_position.distance_to(n.global_position)
 		if d<dist: dist=d; best=n
