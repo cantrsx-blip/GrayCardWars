@@ -595,6 +595,34 @@ func _store_category(category:String):
 	if old: old.queue_free()
 	var scroll=ScrollContainer.new(); scroll.name="ItemsScroll"; scroll.position=Vector2(20,116); scroll.size=Vector2(740,440); scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
 	store_panel.add_child(scroll)
+
+	# Silahlar mobilde sabit 5 sütunlu düzen kullanır. Diğer kategorilere dokunma.
+	if category=="SİLAHLAR":
+		var board=Control.new(); board.name="WeaponsBoard"; board.custom_minimum_size=Vector2(720,920)
+		scroll.add_child(board)
+		var items=_store_items(category)
+		var card_w=136.0
+		var card_h=108.0
+		var gap_x=8.0
+		var gap_y=8.0
+		for i in items.size():
+			var item=items[i]
+			var row=int(i/5)
+			var col=i%5
+			var slot=Button.new()
+			slot.position=Vector2(col*(card_w+gap_x),row*(card_h+gap_y))
+			slot.size=Vector2(card_w,card_h)
+			slot.expand_icon=true
+			slot.icon_max_width=88
+			slot.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
+			if ResourceLoader.exists(item.path):
+				slot.icon=load(item.path)
+			else:
+				slot.text=item.name+"\n"+_store_rarity_name(item.rarity)
+			board.add_child(slot)
+		_flash_message("MAĞAZA: "+category)
+		return
+
 	var grid=GridContainer.new(); grid.name="ItemGrid"; grid.columns=5; grid.custom_minimum_size=Vector2(720,0); grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	scroll.add_child(grid)
 	for item in _store_items(category):
