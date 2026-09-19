@@ -871,7 +871,9 @@ func _cycle_build_piece():
 func _update_preview_shape():
 	if build_preview==null: return
 	if build_piece==5:
-		var prism=PrismMesh.new(); prism.size=Vector3(3.0,3.0,5.0); build_preview.mesh=prism
+		# Wedge preview: the triangular/slope silhouette makes the stair's high end obvious.
+		var prism=PrismMesh.new(); prism.size=Vector3(3.0,3.0,5.0); prism.left_to_right=1.0
+		build_preview.mesh=prism
 	else:
 		var box=BoxMesh.new()
 		var sizes=[Vector3(5,.45,5),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5,.35,5),Vector3(3,3,5)]
