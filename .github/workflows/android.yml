@@ -89,18 +89,30 @@ jobs:
           GODOT=/tmp/godot/Godot_v4.5.1-stable_linux.x86_64
           "$GODOT" --headless --editor --path . --quit --verbose
 
-      - name: Runtime smoke test main scene
+      - name: Validate scripts and runtime
         run: |
           GODOT=/tmp/godot/Godot_v4.5.1-stable_linux.x86_64
-          set -o pipefail
           mkdir -p build
-          timeout 20s "$GODOT" --headless --path . --verbose 2>&1 | tee build/runtime.log || STATUS=$?
-          STATUS=${STATUS:-0}
-          if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Invalid access|Invalid get index|Failed to load script|Failed to instantiate|ERROR:" build/runtime.log; then
-            echo "Godot runtime errors detected"
+          : > build/runtime.log
+          set +e
+          timeout 25s "$GODOT" --headless --path . --verbose 2>&1 | tee -a build/runtime.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+
+          # Keep a compact diagnostic file in the repository workspace so every
+          # failed run exposes the exact Godot error lines as an artifact.
+          grep -n -E -B3 -A8 "SCRIPT ERROR|Parse Error|Invalid call|Invalid access|Invalid get index|Failed to load script|Failed to instantiate|ERROR:"             build/runtime.log > build/godot-errors.txt || true
+
+          echo "===== GODOT ERROR SUMMARY ====="
+          cat build/godot-errors.txt || true
+          echo "===== END GODOT ERROR SUMMARY ====="
+
+          if [ -s build/godot-errors.txt ]; then
             exit 1
           fi
-          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then exit "$STATUS"; fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+            exit "$STATUS"
+          fi
 
       - name: Direct verbose Android export
         run: |
@@ -126,4 +138,5 @@ jobs:
           path: |
             build/export.log
             build/runtime.log
+            build/godot-errors.txt
           if-no-files-found: ignore
