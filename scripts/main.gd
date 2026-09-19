@@ -202,6 +202,10 @@ func _ready():
 	# expensive world over several frames instead of blocking the first render.
 	_build_player()
 	_build_hud()
+	# WorldEnvironment must exist before the first physics tick. Previously it was
+	# created later by the staged loader, while _update_day_cycle() accessed
+	# get_viewport().world_3d.environment immediately after entering Main.
+	_build_world_environment()
 	zone_label.text="DUNYA YUKLENIYOR..."
 	call_deferred("_build_world_staged")
 
@@ -358,8 +362,25 @@ func _make_kara_rock(parent:Node3D) -> void:
 	rock.mesh=rm; rock.position.y=.48; rock.scale=Vector3(1.25,.72,1.0); rock.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.68,.67,.63); mat.roughness=.96; rock.material_override=mat; parent.add_child(rock)
 
+func _build_world_environment() -> void:
+	if world_env != null:
+		return
+	world_env=WorldEnvironment.new()
+	var env=Environment.new()
+	env.background_mode=Environment.BG_COLOR
+	env.background_color=Color(.48,.65,.76)
+	env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color=Color(.62,.68,.72)
+	env.ambient_light_energy=.65
+	env.tonemap_mode=Environment.TONE_MAPPER_FILMIC
+	env.fog_enabled=true
+	env.fog_light_color=Color(.68,.73,.75)
+	env.fog_density=.0028
+	world_env.environment=env
+	add_child(world_env)
+
 func _build_world_base():
-	world_env=WorldEnvironment.new(); var env=Environment.new(); env.background_mode=Environment.BG_COLOR; env.background_color=Color(.48,.65,.76); env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color=Color(.62,.68,.72); env.ambient_light_energy=0.65; env.tonemap_mode=Environment.TONE_MAPPER_FILMIC; env.fog_enabled=true; env.fog_light_color=Color(.68,.73,.75); env.fog_density=.0028; world_env.environment=env; add_child(world_env)
+	_build_world_environment()
 	var sun=DirectionalLight3D.new(); sun.rotation_degrees=Vector3(-52,-28,0); sun.light_energy=1.15; sun.shadow_enabled=true; sun.directional_shadow_max_distance=95; add_child(sun)
 	_build_terrain_mesh()
 	# Coastal water band for boat construction.
@@ -1282,7 +1303,7 @@ func _update_day_cycle(delta:float):
 	var hour=int(floor(day_clock)); var minute=int(floor((day_clock-hour)*60.0))
 	if day_label: day_label.text="%02d:%02d  %s" % [hour,minute,("☀" if hour>=6 and hour<19 else "☾")]
 	var night=hour<6 or hour>=19
-	var env=get_viewport().world_3d.environment
+	var env:Environment=world_env.environment if world_env else null
 	if env:
 		env.ambient_light_energy=move_toward(env.ambient_light_energy,.28 if night else .72,delta*.08)
 
