@@ -534,6 +534,7 @@ func _create_store_panel():
 		b.position=Vector2(18+i*146,58); b.size=Vector2(140,44); b.add_theme_font_size_override("font_size",14)
 		b.pressed.connect(_store_category.bind(categories[i])); store_panel.add_child(b)
 	_store_category("TÜMÜ")
+	_validate_shop_icons()
 	store_panel.visible=true
 
 func _store_items(category:String) -> Array:
@@ -589,48 +590,68 @@ func _store_rarity_name(rarity:String) -> String:
 		"red": return "Kırmızı"
 	return rarity
 
+func _load_item_texture(path:String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		var t = ResourceLoader.load(path)
+		if t is Texture2D:
+			return t
+	if FileAccess.file_exists(path):
+		var img := Image.new()
+		if img.load(path) == OK:
+			return ImageTexture.create_from_image(img)
+	push_warning("MISSING ICON: " + path)
+	return null
+
+func _make_store_slot(item:Dictionary) -> Control:
+	var panel=Panel.new()
+	panel.custom_minimum_size=Vector2(136,104)
+	panel.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
+	var tex=_load_item_texture(item.path)
+	if tex!=null:
+		var rect=TextureRect.new()
+		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		rect.texture=tex
+		rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.mouse_filter=Control.MOUSE_FILTER_IGNORE
+		panel.add_child(rect)
+	else:
+		var missing_style=StyleBoxFlat.new()
+		missing_style.bg_color=Color(0,0,0,0)
+		missing_style.border_color=Color(1,0,0,1)
+		missing_style.set_border_width_all(2)
+		panel.add_theme_stylebox_override("panel",missing_style)
+	return panel
+
+func _validate_shop_icons() -> void:
+	var missing=0
+	for cat in ["SİLAHLAR","MERMİLER","ZIRHLAR"]:
+		for item in _store_items(cat):
+			if _load_item_texture(item.path)==null:
+				missing+=1
+				print("MISSING ",item.path)
+	print("SHOP ICONS MISSING=",missing)
+
 func _store_category(category:String):
 	if store_panel==null: return
 	var old=store_panel.get_node_or_null("ItemsScroll")
-	if old: old.queue_free()
-	var scroll=ScrollContainer.new(); scroll.name="ItemsScroll"; scroll.position=Vector2(20,116); scroll.size=Vector2(740,440); scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+	if old:
+		store_panel.remove_child(old)
+		old.queue_free()
+	var scroll=ScrollContainer.new()
+	scroll.name="ItemsScroll"
+	scroll.position=Vector2(20,116)
+	scroll.size=Vector2(740,440)
+	scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
 	store_panel.add_child(scroll)
-
-	# Silahlar mobilde sabit 5 sütunlu düzen kullanır. Diğer kategorilere dokunma.
-	if category=="SİLAHLAR":
-		# Önce 25 görünür kutuyu garanti et: 5 sütun x 5 satır.
-		# Görseller daha sonra bu kutuların üstüne bağlanacak.
-		var grid=GridContainer.new()
-		grid.name="WeaponsGrid25"
-		grid.columns=5
-		grid.custom_minimum_size=Vector2(720,580)
-		grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-		scroll.add_child(grid)
-		var colors=["Gri","Yeşil","Mavi","Turuncu","Kırmızı"]
-		var rows=["Mızrak","Meşale","Yay","Arbalet","Tabanca"]
-		for row in rows:
-			for rarity in colors:
-				var slot=Button.new()
-				slot.custom_minimum_size=Vector2(136,104)
-				slot.text=row+"\n"+rarity
-				slot.add_theme_font_size_override("font_size",13)
-				grid.add_child(slot)
-		_flash_message("SİLAHLAR: 25 KUTU")
-		return
-
-	var grid=GridContainer.new(); grid.name="ItemGrid"; grid.columns=5; grid.custom_minimum_size=Vector2(720,0); grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var grid=GridContainer.new()
+	grid.name="ItemGrid"
+	grid.columns=5
+	grid.custom_minimum_size=Vector2(720,0)
+	grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	scroll.add_child(grid)
 	for item in _store_items(category):
-		var slot=Button.new()
-		slot.custom_minimum_size=Vector2(136,112); slot.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-		slot.expand_icon=true
-		slot.icon_max_width=82
-		slot.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
-		if ResourceLoader.exists(item.path):
-			slot.icon=load(item.path)
-		else:
-			slot.text=item.name
-		grid.add_child(slot)
+		grid.add_child(_make_store_slot(item))
 	_flash_message("MAĞAZA: "+category)
 
 func _nearest_poi() -> String:
