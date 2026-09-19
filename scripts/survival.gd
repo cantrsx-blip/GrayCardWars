@@ -160,7 +160,7 @@ func _gather():
 func _shoot():
 	if ammo<=0:return
 	ammo-=1
-	var best:CharacterBody3D=null; var bd=16.0
+	var best:CharacterBody3D; var bd=16.0
 	for e in enemies:
 		if is_instance_valid(e):
 			var d=e.global_position.distance_to(player.global_position)
