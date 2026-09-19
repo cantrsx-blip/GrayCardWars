@@ -198,24 +198,34 @@ var pits := [
 ]
 
 func _ready():
-	# Render a guaranteed first frame before expensive mobile world generation.
+	# Keep scene entry light on Android: show the camera/HUD first, then build the
+	# expensive world over several frames instead of blocking the first render.
 	_build_player()
 	_build_hud()
-	_build_weather_system()
 	zone_label.text="DUNYA YUKLENIYOR..."
-	_build_world_staged()
+	call_deferred("_build_world_staged")
 
 func _build_world_staged() -> void:
 	await get_tree().process_frame
-	_build_world()
+	_build_weather_system()
+	await get_tree().process_frame
+	_build_world_base()
+	await get_tree().process_frame
+	_build_rocks_staged()
+	await get_tree().process_frame
+	_build_meteors_staged()
+	await get_tree().process_frame
+	_build_trees_staged()
 	await get_tree().process_frame
 	_build_hills_and_pits()
-	await get_tree().process_frame
 	_build_pois()
-	await get_tree().process_frame
 	# Small plants/mushrooms removed. Trees are the only vegetation for now.
 	# Raiders and bosses intentionally disabled for the KARA KIYI rebuild.
 	zone_label.text=""
+
+func _yield_world_batch(index:int, batch_size:int=32) -> void:
+	if index > 0 and index % batch_size == 0:
+		await get_tree().process_frame
 
 func height_at(x: float, z: float) -> float:
 	if _near_poi(x, z):
@@ -348,35 +358,43 @@ func _make_kara_rock(parent:Node3D) -> void:
 	rock.mesh=rm; rock.position.y=.48; rock.scale=Vector3(1.25,.72,1.0); rock.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.68,.67,.63); mat.roughness=.96; rock.material_override=mat; parent.add_child(rock)
 
-func _build_world():
+func _build_world_base():
 	world_env=WorldEnvironment.new(); var env=Environment.new(); env.background_mode=Environment.BG_COLOR; env.background_color=Color(.48,.65,.76); env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color=Color(.62,.68,.72); env.ambient_light_energy=0.65; env.tonemap_mode=Environment.TONE_MAPPER_FILMIC; env.fog_enabled=true; env.fog_light_color=Color(.68,.73,.75); env.fog_density=.0028; world_env.environment=env; add_child(world_env)
 	var sun=DirectionalLight3D.new(); sun.rotation_degrees=Vector3(-52,-28,0); sun.light_energy=1.15; sun.shadow_enabled=true; sun.directional_shadow_max_distance=95; add_child(sun)
 	_build_terrain_mesh()
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
+
+func _build_rocks_staged() -> void:
 	for i in 156:
 		var p = _rand_map_point(MAP_HALF - 12)
-		if _near_poi(p.x, p.z): continue
-		var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); add_child(rock_body)
-		_make_kara_rock(rock_body)
-		var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
-		rock_body.set_meta("loot","stone")
-	# Meteors match the normal stone count and use the same grounded scale.
+		if not _near_poi(p.x, p.z):
+			var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); add_child(rock_body)
+			_make_kara_rock(rock_body)
+			var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
+			rock_body.set_meta("loot","stone")
+		await _yield_world_batch(i)
+
+func _build_meteors_staged() -> void:
 	for i in 156:
 		var mp = _rand_map_point(MAP_HALF - 12)
-		if _near_poi(mp.x, mp.z): continue
-		var meteor_body=StaticBody3D.new(); meteor_body.position=Vector3(mp.x,height_at(mp.x,mp.z),mp.z); add_child(meteor_body)
-		_make_meteor(meteor_body)
-		var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
-		meteor_body.set_meta("loot","meteor")
+		if not _near_poi(mp.x, mp.z):
+			var meteor_body=StaticBody3D.new(); meteor_body.position=Vector3(mp.x,height_at(mp.x,mp.z),mp.z); add_child(meteor_body)
+			_make_meteor(meteor_body)
+			var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
+			meteor_body.set_meta("loot","meteor")
+		await _yield_world_batch(i)
+
+func _build_trees_staged() -> void:
 	for i in 330:
 		var p = _rand_map_point(MAP_HALF - 12)
-		if _near_poi(p.x, p.z): continue
-		var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
-		_make_kara_tree(tree_body)
-		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.34; trunk_shape.height=5.2; trunk_col.shape=trunk_shape; trunk_col.position.y=2.6; tree_body.add_child(trunk_col)
-		tree_body.set_meta("loot","wood")
+		if not _near_poi(p.x, p.z):
+			var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
+			_make_kara_tree(tree_body)
+			var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.34; trunk_shape.height=5.2; trunk_col.shape=trunk_shape; trunk_col.position.y=2.6; tree_body.add_child(trunk_col)
+			tree_body.set_meta("loot","wood")
+		await _yield_world_batch(i)
 
 func _build_hills_and_pits():
 	# Terrain heightfield already provides hills and pits. Avoid duplicate cylinder geometry.
