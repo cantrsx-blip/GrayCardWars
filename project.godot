@@ -1,5 +1,6 @@
 [application]
 config/name="GRAY CARD WARS"
+config/icon="res://file_000000003cbc82108d80fc507c423a7e.png"
 run/main_scene="res://scenes/Intro.tscn"
 
 
