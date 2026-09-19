@@ -209,9 +209,9 @@ func _ready():
 
 func _build_world_staged() -> void:
 	await get_tree().process_frame
-	_build_weather_system()
-	await get_tree().process_frame
 	_build_world_base()
+	await get_tree().process_frame
+	_build_weather_system()
 	await get_tree().process_frame
 	_build_rocks_staged()
 	await get_tree().process_frame
@@ -782,7 +782,7 @@ func _primary_action():
 func _shoot():
 	if ammo <= 0: return
 	ammo -= 1
-	var target: CharacterBody3D = null; var best := 18.0
+	var target: CharacterBody3D; var best := 18.0
 	for e in enemies:
 		if is_instance_valid(e):
 			var d = e.global_position.distance_to(player.global_position)
