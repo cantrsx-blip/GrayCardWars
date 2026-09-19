@@ -106,7 +106,7 @@ var pickaxe_count := 0
 var build_mode := false
 var build_preview: Node3D
 var build_piece := 0
-var build_piece_names := ["ZEMIN","DUVAR","KAPI","PENCERE","TAVAN"]
+var build_piece_names := ["TEMEL","DUVAR","KAPI","PENCERE","TAVAN"]
 var scoped := false
 var has_scope := true
 var scope_overlay: Control
@@ -177,16 +177,16 @@ const RESOURCE_RESPAWN := 90.0
 var respawn_nodes: Array = []
 
 var bosses := [
-	{"id": "eiffel", "name": "Eyfel Kulesi", "pos": Vector3(-130, 0, 130), "color": Color(0.45, 0.32, 0.18)},
-	{"id": "colosseum", "name": "Kolezyum", "pos": Vector3(0, 0, 160), "color": Color(0.62, 0.55, 0.42)},
-	{"id": "great_wall", "name": "Cin Seddi", "pos": Vector3(140, 0, 130), "color": Color(0.55, 0.48, 0.38)},
-	{"id": "sydney_opera", "name": "Sydney Opera", "pos": Vector3(170, 0, 0), "color": Color(0.82, 0.80, 0.72)},
-	{"id": "pisa", "name": "Pisa Kulesi", "pos": Vector3(140, 0, -130), "color": Color(0.78, 0.74, 0.66)},
-	{"id": "golden_gate", "name": "Golden Gate", "pos": Vector3(0, 0, -160), "color": Color(0.72, 0.28, 0.16)},
-	{"id": "hollywood", "name": "Hollywood", "pos": Vector3(-130, 0, -130), "color": Color(0.75, 0.70, 0.55)},
-	{"id": "brandenburg", "name": "Brandenburg", "pos": Vector3(-170, 0, 0), "color": Color(0.58, 0.56, 0.50)},
-	{"id": "rushmore", "name": "Mount Rushmore", "pos": Vector3(-160, 0, 80), "color": Color(0.50, 0.48, 0.44)},
-	{"id": "space_needle", "name": "Space Needle", "pos": Vector3(160, 0, 80), "color": Color(0.70, 0.72, 0.74)}
+	{"id":"unfinished_house","name":"Tamamlanmamis Ev","pos":Vector3(-130,0,130),"color":Color(.34,.28,.20)},
+	{"id":"watchtower","name":"Gozetleme Kulesi","pos":Vector3(0,0,160),"color":Color(.30,.27,.22)},
+	{"id":"plane_wreck","name":"Ucak Enkazi","pos":Vector3(140,0,130),"color":Color(.30,.32,.33)},
+	{"id":"tank_site","name":"Tank Bolgesi","pos":Vector3(170,0,0),"color":Color(.25,.29,.22)},
+	{"id":"factory","name":"Fabrika","pos":Vector3(140,0,-130),"color":Color(.30,.29,.27)},
+	{"id":"junkyard","name":"Arac Hurdaligi","pos":Vector3(0,0,-160),"color":Color(.34,.25,.19)},
+	{"id":"military_post","name":"Askeri Karakol","pos":Vector3(-130,0,-130),"color":Color(.24,.28,.21)},
+	{"id":"bunker","name":"Yeralti Siginagi","pos":Vector3(-170,0,0),"color":Color(.32,.32,.30)},
+	{"id":"gas_station","name":"Terk Edilmis Benzinlik","pos":Vector3(-160,0,80),"color":Color(.38,.28,.18)},
+	{"id":"shipyard","name":"Liman Tersane","pos":Vector3(160,0,80),"color":Color(.25,.29,.31)}
 ]
 
 var pits := [
@@ -210,7 +210,6 @@ func _build_world_staged() -> void:
 	_build_world()
 	await get_tree().process_frame
 	_build_hills_and_pits()
-	_build_trade_zone()
 	await get_tree().process_frame
 	_build_bosses()
 	await get_tree().process_frame
@@ -219,8 +218,6 @@ func _build_world_staged() -> void:
 	zone_label.text=""
 
 func height_at(x: float, z: float) -> float:
-	if Vector2(x, z).length() < TRADE_RADIUS + 5.0:
-		return 0.0
 	if _near_boss(x, z):
 		return 0.0
 	var h := 0.0
@@ -489,35 +486,13 @@ func _rand_outside_trade(min_r: float, max_r: float) -> Vector3:
 	return Vector3(min_r + 10, 0, 0)
 
 func _build_trade_zone():
-	var zone = MeshInstance3D.new()
-	var cyl = CylinderMesh.new()
-	cyl.top_radius = TRADE_RADIUS
-	cyl.bottom_radius = TRADE_RADIUS
-	cyl.height = 0.12
-	zone.mesh = cyl
-	zone.position = Vector3(0, 0.06, 0)
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.18, 0.55, 0.22)
-	zone.material_override = mat
-	zone.set_meta("trade", true)
-	add_child(zone)
-	for i in 6:
-		var stall = MeshInstance3D.new()
-		var box = BoxMesh.new()
-		box.size = Vector3(1.6, 1.4, 1.2)
-		stall.mesh = box
-		var ang = i * TAU / 6.0
-		stall.position = Vector3(cos(ang) * 7.0, 0.7, sin(ang) * 7.0)
-		var sm = StandardMaterial3D.new()
-		sm.albedo_color = Color(0.36, 0.24, 0.12)
-		stall.material_override = sm
-		add_child(stall)
+	# Safe/trade zone removed. Terrain now continues naturally through the map center.
+	pass
 
 func _build_bosses():
-	# Survival fort plus its recognizable landmark. Combat bosses remain disabled.
+	# Historical landmarks and combat bosses are removed. Build ten abandoned survival POIs.
 	for b in bosses:
-		_build_fort(b.pos, b.color)
-		_build_landmark(b)
+		_build_survival_poi(b)
 
 func _build_player():
 	player = CharacterBody3D.new()
@@ -543,16 +518,15 @@ func _build_hud():
 	hit_label=Label.new(); hit_label.set_anchors_preset(Control.PRESET_CENTER); hit_label.position=Vector2(-20,-35); hit_label.text="+"; hit_label.visible=false; hit_label.add_theme_font_size_override("font_size",32); layer.add_child(hit_label)
 	zone_label=Label.new(); zone_label.set_anchors_preset(Control.PRESET_TOP_WIDE); zone_label.position=Vector2(0,18); zone_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; zone_label.add_theme_font_size_override("font_size",24); layer.add_child(zone_label)
 	hud=Label.new(); hud.position=Vector2(176,22); hud.add_theme_font_size_override("font_size",18); layer.add_child(hud)
-	joystick_base=ColorRect.new(); joystick_base.set_anchors_preset(Control.PRESET_BOTTOM_LEFT); joystick_base.position=Vector2(24,-324); joystick_base.size=Vector2(300,300); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
-	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(96,96); joystick_knob.size=Vector2(108,108); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
+	joystick_base=ColorRect.new(); joystick_base.set_anchors_preset(Control.PRESET_BOTTOM_LEFT); joystick_base.position=Vector2(24,-224); joystick_base.size=Vector2(200,200); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
+	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(64,64); joystick_knob.size=Vector2(72,72); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
 	# URET, DOLDUR, BOMBA and TNT are intentionally removed from the gameplay HUD.
-	var actions=[["TOPLA",_gather_nearby],["KULLAN",_use_nearest_interior],["ENVANTER",_toggle_inventory],["PARCA",_cycle_build_piece],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down]]
+	var actions=[["KULLAN",_use_nearest_interior],["ENVANTER",_toggle_inventory],["PARCA",_cycle_build_piece],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down]]
 	for i in actions.size():
 		var b=Button.new(); b.text=actions[i][0]; b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15); b.pressed.connect(actions[i][1]); layer.add_child(b)
-	var trade=Button.new(); trade.text="TAKAS"; trade.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); trade.position=Vector2(-158,-70); trade.size=Vector2(142,54); trade.pressed.connect(_toggle_trade); layer.add_child(trade)
-	_create_trade_panel(layer); _create_hotbar(layer); _create_minimap(layer); _create_weapon_aim_ui(layer)
-	var action_btn=Button.new(); action_btn.text=""; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104)
+	_create_hotbar(layer); _create_minimap(layer); _create_weapon_aim_ui(layer)
+	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
 	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.pressed.connect(_primary_action); layer.add_child(action_btn)
 	var jump_btn=Button.new(); jump_btn.text="↑ Zıpla"; jump_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); jump_btn.position=Vector2(-238,-310); jump_btn.size=Vector2(92,76); jump_btn.add_theme_font_size_override("font_size",18); jump_btn.pressed.connect(_jump); layer.add_child(jump_btn)
@@ -592,9 +566,6 @@ func _physics_process(delta):
 	thirst = maxf(0.0, thirst - delta * 0.06)
 	if hunger <= 0.0 or thirst <= 0.0:
 		_apply_damage(8.0 * delta)
-	if in_safe_zone:
-		hunger = minf(100.0, hunger + delta * 0.8)
-		thirst = minf(100.0, thirst + delta * 1.4)
 	if fire_built and player.global_position.distance_to(campfire_pos)<5.0:
 		hunger=minf(100.0,hunger+delta*.35)
 		heal_buffer+=delta*1.2
@@ -631,8 +602,7 @@ func _physics_process(delta):
 	in_pit = hy < -2.0
 	in_dry = _near_boss(player.position.x, player.position.z)
 	var flat = Vector2(player.position.x, player.position.z)
-	in_safe_zone = flat.length() <= TRADE_RADIUS
-	if trade_panel and trade_panel.visible and not in_safe_zone: trade_panel.visible=false
+	in_safe_zone = false
 	_update_combat(delta)
 	_update_resource_respawns(delta)
 	_update_build_preview()
@@ -650,9 +620,7 @@ func _physics_process(delta):
 		_death_feedback()
 		_respawn()
 	var zone = "VAHSI"
-	if in_safe_zone:
-		zone = "TAKAS"
-	elif in_pit:
+	if in_pit:
 		zone = "CUKUR"
 	elif in_dry:
 		zone = "KURAK / KALE"
@@ -690,24 +658,22 @@ func _input(event):
 		else:
 			if event.index == touch_id:
 				touch_id=-1; move_touch=Vector2.ZERO
-				if joystick_knob: joystick_knob.position=Vector2(48,48)
-				if not touch_moved: _gather_nearby()
+				if joystick_knob: joystick_knob.position=Vector2(64,64)
+				
 			elif event.index == look_touch_id:
 				look_touch_id=-1
 	elif event is InputEventScreenDrag:
 		if event.index == touch_id:
 			if event.position.distance_to(touch_start)>18.0: touch_moved=true
-			move_touch=(event.position-touch_start)/110.0; move_touch=move_touch.limit_length(1.0)
-			if joystick_knob: joystick_knob.position=Vector2(48,48)+move_touch*38.0
+			move_touch=(event.position-touch_start)/74.0; move_touch=move_touch.limit_length(1.0)
+			if joystick_knob: joystick_knob.position=Vector2(64,64)+move_touch*26.0
 		elif event.index == look_touch_id and player and camera:
 			# Slow, controlled FPS look. Horizontal drag turns the facing direction.
 			player.rotation_degrees.y -= event.relative.x * look_sensitivity
 			look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-72.0,72.0)
 			camera.rotation_degrees.x=look_pitch
 			player_facing=-player.global_transform.basis.z
-	elif event.is_action_pressed("interact"):
-		_gather_nearby()
-	elif event.is_action_pressed("build_fire"):
+		elif event.is_action_pressed("build_fire"):
 		_build_fire()
 	elif event.is_action_pressed("build_house"):
 		_build_house()
@@ -888,11 +854,11 @@ func _build_house():
 	var made:Node3D=null
 	match build_piece:
 		0:
-			made=_house_asset("house_floor",p,0,Vector3(3,.18,3)); built_floors.append(made)
+			made=_build_foundation(p); built_floors.append(made)
 		1:
 			made=_house_asset("house_wall",p,yaw,Vector3(3,3,.18)); built_walls.append(made)
 		2:
-			_build_door_frame(p,yaw+180.0); built_walls.append(_nearest_floor())
+			_build_door_frame(p,yaw); built_walls.append(_nearest_floor())
 		3:
 			_build_window_frame(p,yaw); built_walls.append(_nearest_floor())
 		4:
@@ -911,7 +877,7 @@ func _cycle_build_piece():
 func _update_preview_shape():
 	if build_preview==null: return
 	var box=BoxMesh.new()
-	var sizes=[Vector3(5,.4,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5)]
+	var sizes=[Vector3(5,.45,5),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,3,.3),Vector3(5,.35,5)]
 	box.size=sizes[build_piece]; build_preview.mesh=box
 
 func _build_boat():
@@ -956,6 +922,7 @@ func _map_input(event):
 	waypoint_active=true
 	if map_waypoint: map_waypoint.visible=true; map_waypoint.position=Vector2(25+nx*570.0,35+nz*440.0)
 	_update_navigation_ui()
+	map_panel.visible=false
 
 func _update_map_dot():
 	if map_dot == null or player == null: return
@@ -989,43 +956,32 @@ func _add_static_box_return(pos: Vector3, size: Vector3, col: Color) -> StaticBo
 func _landmark_cyl(p:Vector3, r_bot:float, r_top:float, h:float, col:Color):
 	var mi=MeshInstance3D.new(); var cyl=CylinderMesh.new(); cyl.bottom_radius=r_bot; cyl.top_radius=r_top; cyl.height=h; mi.mesh=cyl; mi.position=p; mi.material_override=_simple_mat(col); add_child(mi)
 
-func _build_landmark(b):
+func _build_survival_poi(b):
 	var c:Vector3=b.pos; var col:Color=b.color; var id:String=b.id
-	if id=="eiffel":
-		for sx in [-1,1]:
-			for sz in [-1,1]: _landmark_box(c+Vector3(sx*3.5,5,sz*3.5),Vector3(1,10,1),col,Vector3(sz*18,0,-sx*18))
-		_landmark_box(c+Vector3(0,10,0),Vector3(8,.5,8),col); _landmark_box(c+Vector3(0,18,0),Vector3(1.1,16,1.1),col); _landmark_cyl(c+Vector3(0,28,0),.12,.12,8,col)
-	elif id=="colosseum":
-		for i in 18:
-			var a=i*TAU/18.0; _landmark_box(c+Vector3(cos(a)*9,3.5,sin(a)*6),Vector3(.8,7,.8),col)
-		_landmark_box(c+Vector3(0,7.2,0),Vector3(18,.5,12),col)
-	elif id=="great_wall":
-		_landmark_box(c+Vector3(-10,2.5,-3),Vector3(12,5,1.8),col,Vector3(0,18,0)); _landmark_box(c+Vector3(0,2.5,0),Vector3(12,5,1.8),col,Vector3.ZERO); _landmark_box(c+Vector3(10,2.5,3),Vector3(12,5,1.8),col,Vector3(0,-18,0))
-		for x in [-10.0,10.0]: _landmark_box(c+Vector3(x,5.5,0),Vector3(4,11,4),col)
-	elif id=="sydney_opera":
-		for x in [-6.0,-2.0,2.0,6.0]:
-			var mi=MeshInstance3D.new(); var cy=CylinderMesh.new(); cy.bottom_radius=3.5; cy.top_radius=2.2; cy.height=7; mi.mesh=cy; mi.position=c+Vector3(x,3,0); mi.rotation_degrees.x=90; mi.material_override=_simple_mat(col); add_child(mi)
-	elif id=="pisa":
-		var group=Node3D.new(); group.position=c; group.rotation_degrees.z=8; add_child(group)
-		for i in 5:
-			var mi=MeshInstance3D.new(); var cy=CylinderMesh.new(); cy.bottom_radius=2.4; cy.top_radius=2.4; cy.height=2.4; mi.mesh=cy; mi.position=Vector3(0,1.2+i*2.5,0); mi.material_override=_simple_mat(col); group.add_child(mi)
-		_landmark_box(c+Vector3(0,6,0),Vector3(4.8,12,4.8),col)
-	elif id=="golden_gate":
-		for x in [-8.0,8.0]: _landmark_box(c+Vector3(x,9,0),Vector3(2.2,18,2.2),col)
-		_landmark_box(c+Vector3(0,9,0),Vector3(20,.7,2.4),col)
-		for i in 6:
-			var cable=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(.12,8,.12); cable.mesh=bm; cable.position=c+Vector3(-6+i*2.4,13,0); cable.material_override=_simple_mat(col); add_child(cable)
-	elif id=="hollywood":
-		for i in 9: _landmark_box(c+Vector3(-6.4+i*1.6,2.75,0),Vector3(1.4,5.5,.7),Color(.92,.92,.86))
-	elif id=="brandenburg":
-		for x in [-6.0,-3.6,-1.2,1.2,3.6,6.0]: _landmark_cyl(c+Vector3(x,4.5,0),.45,.45,9,col)
-		_landmark_box(c+Vector3(0,9.4,0),Vector3(14,1.4,4),col)
-	elif id=="rushmore":
-		_landmark_box(c+Vector3(0,6,0),Vector3(18,12,7),col)
-		for x in [-6.0,-2.0,2.0,6.0]: _landmark_box(c+Vector3(x,8,-3.2),Vector3(3.2,3.8,2.4),Color(.58,.56,.52))
-	elif id=="space_needle":
-		_landmark_cyl(c+Vector3(0,8,0),.7,.35,16,col); _landmark_cyl(c+Vector3(0,16,0),5,3.6,1.6,col); _landmark_cyl(c+Vector3(0,20,0),.12,.12,6,col)
-
+	if id=="unfinished_house":
+		_landmark_box(c+Vector3(0,.3,0),Vector3(12,.6,10),col)
+		for x in [-5.0,5.0]: _landmark_box(c+Vector3(x,3,0),Vector3(.6,6,10),Color(.30,.20,.12))
+	elif id=="watchtower":
+		for x in [-3.0,3.0]:
+			for z in [-3.0,3.0]: _landmark_box(c+Vector3(x,5,z),Vector3(.5,10,.5),col)
+		_landmark_box(c+Vector3(0,9,0),Vector3(8,.5,8),col)
+	elif id=="plane_wreck":
+		_landmark_box(c+Vector3(0,1,0),Vector3(14,2,3),col,Vector3(0,22,8)); _landmark_box(c+Vector3(0,1,0),Vector3(4,.25,18),col,Vector3(0,22,8))
+	elif id=="tank_site":
+		_landmark_box(c+Vector3(0,1,0),Vector3(6,2.2,9),col); _landmark_box(c+Vector3(0,2.5,0),Vector3(4,1.4,4),col); _landmark_box(c+Vector3(0,2.7,-5),Vector3(.45,.45,8),col)
+	elif id=="factory":
+		_landmark_box(c+Vector3(0,3,0),Vector3(18,6,12),col); _landmark_cyl(c+Vector3(6,9,3),1.2,1.0,12,Color(.25,.24,.23))
+	elif id=="junkyard":
+		for i in 8: _landmark_box(c+Vector3((i%4)*4-6,.7,(i/4)*6-3),Vector3(3,1.4,5),col,Vector3(0,i*13,0))
+	elif id=="military_post":
+		_landmark_box(c+Vector3(0,1.5,0),Vector3(12,3,8),col); _landmark_box(c+Vector3(0,1.2,-7),Vector3(10,2.4,1),Color(.43,.37,.24))
+	elif id=="bunker":
+		_landmark_box(c+Vector3(0,1,0),Vector3(14,2,10),col); _landmark_box(c+Vector3(0,1,-5),Vector3(4,2,.5),Color(.16,.16,.15))
+	elif id=="gas_station":
+		_landmark_box(c+Vector3(0,2,3),Vector3(12,4,8),col); _landmark_box(c+Vector3(0,3,-5),Vector3(14,.4,6),Color(.36,.31,.24))
+	elif id=="shipyard":
+		_landmark_box(c+Vector3(0,.4,0),Vector3(18,.8,12),col)
+		for x in [-6.0,0.0,6.0]: _landmark_box(c+Vector3(x,2,0),Vector3(4,4,7),Color(.28,.25,.22))
 func _simple_mat(c:Color)->StandardMaterial3D:
 	var m=StandardMaterial3D.new(); m.albedo_color=c; m.roughness=.75; return m
 
@@ -1187,14 +1143,14 @@ func _update_build_preview():
 	var floor=_nearest_floor()
 	if build_piece==0:
 		var p=player.global_position+forward*5.0
-		# First floor can be on terrain. Additional floors snap to a 3m grid near an existing floor.
+		# First foundation can be on terrain. Additional foundations snap to the existing foundation grid.
 		if floor:
 			var local=p-floor.global_position
 			var sx=round(local.x/3.0)*3.0; var sz=round(local.z/3.0)*3.0
 			if absf(sx)>=absf(sz): sz=0.0; sx=3.0*signf(sx if absf(sx)>.1 else forward.x)
 			else: sx=0.0; sz=3.0*signf(sz if absf(sz)>.1 else forward.z)
 			p=floor.global_position+Vector3(sx,0,sz)
-		else: p.y=height_at(p.x,p.z)+.1
+		else: p.y=_foundation_top_y(p.x,p.z)
 		build_preview.global_position=p; build_preview.rotation_degrees.y=0; preview_valid=true
 	elif floor:
 		var rel=forward
@@ -1205,9 +1161,9 @@ func _update_build_preview():
 		else:
 			p.z+=1.5*signf(rel.z); yaw=0.0
 		if build_piece in [1,2,3]:
-			p.y=floor.global_position.y+.1; preview_valid=true
+			p.y=floor.global_position.y+.22; preview_valid=true
 		elif build_piece==4:
-			if built_walls.size()>0: p=floor.global_position+Vector3(0,3.0,0); preview_valid=true
+			if built_walls.size()>0: p=floor.global_position+Vector3(0,3.22,0); preview_valid=true
 		elif build_piece in [6,7,8,9,10]:
 			p=floor.global_position+Vector3(0,.12,0); preview_valid=true
 		elif build_piece==5:
@@ -1218,6 +1174,21 @@ func _update_build_preview():
 	var mat=build_preview.material_override as StandardMaterial3D
 	if mat: mat.albedo_color=Color(.2,.9,.35,.42) if preview_valid else Color(.95,.12,.08,.40)
 
+
+func _foundation_top_y(x:float,z:float)->float:
+	var corners=[Vector2(-2.5,-2.5),Vector2(2.5,-2.5),Vector2(-2.5,2.5),Vector2(2.5,2.5)]
+	var top=-INF
+	for off in corners: top=maxf(top,height_at(x+off.x,z+off.y))
+	return top+.35
+
+func _build_foundation(p:Vector3)->Node3D:
+	var root=StaticBody3D.new(); root.position=p; root.set_meta("build_piece","TEMEL"); root.set_meta("structure_hp",structure_hp_default); add_child(root)
+	var deck=MeshInstance3D.new(); var dm=BoxMesh.new(); dm.size=Vector3(5,.45,5); deck.mesh=dm; deck.material_override=_simple_mat(Color(.31,.20,.11)); root.add_child(deck)
+	var dcs=CollisionShape3D.new(); var dsh=BoxShape3D.new(); dsh.size=Vector3(5,.45,5); dcs.shape=dsh; root.add_child(dcs)
+	for off in [Vector2(-2.15,-2.15),Vector2(2.15,-2.15),Vector2(-2.15,2.15),Vector2(2.15,2.15)]:
+		var gy=height_at(p.x+off.x,p.z+off.y); var leg_h=maxf(.35,p.y-gy)
+		var leg=MeshInstance3D.new(); var lm=BoxMesh.new(); lm.size=Vector3(.32,leg_h,.32); leg.mesh=lm; leg.position=Vector3(off.x,-leg_h*.5-.22,off.y); leg.material_override=_simple_mat(Color(.20,.14,.09)); root.add_child(leg)
+	return root
 
 func _build_door_frame(p:Vector3,yaw:=0.0):
 	_house_asset("house_doorway",p,yaw,Vector3(3,3,.18))
@@ -1271,8 +1242,6 @@ func _flash_message(t:String):
 func _create_minimap(layer:CanvasLayer):
 	minimap_panel=Panel.new(); minimap_panel.position=Vector2(16,16); minimap_panel.size=Vector2(150,150)
 	var bg=ColorRect.new(); bg.position=Vector2(5,5); bg.size=Vector2(140,140); bg.color=Color(.08,.14,.09,.82); minimap_panel.add_child(bg)
-	# Safe trade zone
-	var safe=ColorRect.new(); safe.position=Vector2(65,65); safe.size=Vector2(10,10); safe.color=Color(.2,.9,.35,.85); minimap_panel.add_child(safe)
 	# Cardinal hints keep orientation readable on a small mobile screen.
 	for item in [["K",Vector2(70,4)],["G",Vector2(70,130)],["B",Vector2(4,68)],["D",Vector2(132,68)]]:
 		var l=Label.new(); l.text=item[0]; l.position=item[1]; minimap_panel.add_child(l)
