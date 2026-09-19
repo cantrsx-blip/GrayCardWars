@@ -9,7 +9,7 @@ var start_button: Button
 func _ready():
 	# CI runs headless, so exercise the real gameplay scene too. Android keeps the selector.
 	if DisplayServer.get_name() == "headless":
-		get_tree().change_scene_to_file("res://scenes/Main.tscn")
+		get_tree().change_scene_to_file.call_deferred("res://scenes/Main.tscn")
 		return
 	_build_intro()
 	_select_character("KAYA")
