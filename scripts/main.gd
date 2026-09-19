@@ -528,17 +528,22 @@ func _create_store_panel():
 	layers[-1].add_child(store_panel)
 	var title=Label.new(); title.text="MAĞAZA"; title.position=Vector2(20,12); title.size=Vector2(620,38); title.add_theme_font_size_override("font_size",26); store_panel.add_child(title)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(712,10); close.size=Vector2(50,38); close.pressed.connect(_open_store); store_panel.add_child(close)
-	var categories=["SİLAHLAR","MERMİLER","ZIRHLAR"]
+	var categories=["TÜMÜ","SİLAHLAR","MERMİLER","ZIRHLAR","ALETLER"]
 	for i in categories.size():
 		var b=Button.new(); b.text=categories[i]
-		b.position=Vector2(20+i*180,58); b.size=Vector2(170,44); b.add_theme_font_size_override("font_size",15)
+		b.position=Vector2(18+i*146,58); b.size=Vector2(140,44); b.add_theme_font_size_override("font_size",14)
 		b.pressed.connect(_store_category.bind(categories[i])); store_panel.add_child(b)
-	_store_category("SİLAHLAR")
+	_store_category("TÜMÜ")
 	store_panel.visible=true
 
 func _store_items(category:String) -> Array:
 	var colors=["gray","green","blue","orange","red"]
 	var bases:Array=[]
+	if category=="TÜMÜ":
+		var all:Array=[]
+		for cat in ["SİLAHLAR","MERMİLER","ZIRHLAR","ALETLER"]:
+			all.append_array(_store_items(cat))
+		return all
 	if category=="SİLAHLAR":
 		bases=[
 			["spear","Mızrak"],["torch","Meşale"],["bow","Yay"],["crossbow","Arbalet"],
@@ -555,6 +560,10 @@ func _store_items(category:String) -> Array:
 			["stone_helmet","Taş Kask"],["stone_chest","Taş Göğüslük"],["stone_pants","Taş Pantolon"],["stone_boots","Taş Bot"],
 			["metal_helmet","Metal Kask"],["metal_chest","Metal Göğüslük"],["metal_pants","Metal Pantolon"],["metal_boots","Metal Bot"]
 		]
+	elif category=="ALETLER":
+		# Alet görselleri ayrı asset olarak eklendiğinde bu listeye bağlanacak.
+		# Şimdilik kategori korunuyor ve mevcut mağaza davranışı kaybolmuyor.
+		return []
 	var items:Array=[]
 	for base in bases:
 		for rarity in colors:
@@ -584,13 +593,13 @@ func _store_category(category:String):
 	if store_panel==null: return
 	var old=store_panel.get_node_or_null("ItemsScroll")
 	if old: old.queue_free()
-	var scroll=ScrollContainer.new(); scroll.name="ItemsScroll"; scroll.position=Vector2(20,116); scroll.size=Vector2(740,440)
+	var scroll=ScrollContainer.new(); scroll.name="ItemsScroll"; scroll.position=Vector2(20,116); scroll.size=Vector2(740,440); scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
 	store_panel.add_child(scroll)
-	var grid=GridContainer.new(); grid.name="ItemGrid"; grid.columns=5; grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var grid=GridContainer.new(); grid.name="ItemGrid"; grid.columns=5; grid.custom_minimum_size=Vector2(720,0); grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	scroll.add_child(grid)
 	for item in _store_items(category):
 		var slot=Button.new()
-		slot.custom_minimum_size=Vector2(136,112)
+		slot.custom_minimum_size=Vector2(136,112); slot.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 		slot.expand_icon=true
 		slot.icon_max_width=82
 		slot.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
