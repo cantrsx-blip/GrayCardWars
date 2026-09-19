@@ -571,7 +571,9 @@ func _physics_process(delta):
 		# Do not force the player back to terrain while standing on a constructed foundation.
 		# move_and_slide() keeps the CharacterBody on static build collisions.
 		var floor_under:=false
-		for f in built_floors:
+		# Foundations and roof panels are both walkable floors. Their StaticBody collisions
+		# handle walking; this guard only prevents terrain height snapping through upper floors.
+		for f in built_floors + built_roofs:
 			if not is_instance_valid(f): continue
 			var lp=player.global_position-f.global_position
 			if absf(lp.x)<=2.48 and absf(lp.z)<=2.48 and player.global_position.y>=f.global_position.y:
