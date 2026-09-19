@@ -173,6 +173,12 @@ var scope_stage := 0
 var crouched := false
 var crouch_button: Button
 var waypoint_ground_arrow: Node3D
+var waypoint_ground_arrows: Array[Node3D] = []
+var weather_root: Node3D
+var weather_particles: GPUParticles3D
+var weather_timer := 55.0
+var weather_duration := 0.0
+var weather_state := "clear"
 const RESOURCE_RESPAWN := 90.0
 var respawn_nodes: Array = []
 
@@ -202,6 +208,7 @@ func _ready():
 	# Render a guaranteed first frame before expensive mobile world generation.
 	_build_player()
 	_build_hud()
+	_build_weather_system()
 	zone_label.text="DUNYA YUKLENIYOR..."
 	_build_world_staged()
 
@@ -520,6 +527,8 @@ func _build_hud():
 	hud=Label.new(); hud.position=Vector2(176,22); hud.add_theme_font_size_override("font_size",18); layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.set_anchors_preset(Control.PRESET_BOTTOM_LEFT); joystick_base.position=Vector2(24,-224); joystick_base.size=Vector2(200,200); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(64,64); joystick_knob.size=Vector2(72,72); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
+	for item in [["↑",Vector2(88,4)],["↓",Vector2(88,168)],["←",Vector2(8,86)],["→",Vector2(168,86)]]:
+		var jl=Label.new(); jl.text=item[0]; jl.position=item[1]; jl.size=Vector2(28,28); jl.add_theme_font_size_override("font_size",22); jl.mouse_filter=Control.MOUSE_FILTER_IGNORE; joystick_base.add_child(jl)
 	# URET, DOLDUR, BOMBA and TNT are intentionally removed from the gameplay HUD.
 	var actions=[["KULLAN",_use_nearest_interior],["ENVANTER",_toggle_inventory],["PARCA",_cycle_build_piece],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down]]
 	for i in actions.size():
@@ -612,6 +621,7 @@ func _physics_process(delta):
 	_update_aim_marker()
 	_update_weapon_feedback(delta)
 	_update_day_cycle(delta)
+	_update_weather(delta)
 	_update_footsteps(delta)
 	_update_damage_effect(delta)
 	_update_reload(delta)
@@ -629,6 +639,35 @@ func _physics_process(delta):
 		health, int(hunger), int(thirst), gray_cards, ammo,
 		wood, stone, grass_n, wheat_n, mushroom_n
 	]
+
+func _build_weather_system():
+	weather_root=Node3D.new(); weather_root.name="LocalWeather"; add_child(weather_root)
+	weather_particles=GPUParticles3D.new(); weather_particles.amount=420; weather_particles.lifetime=2.2; weather_particles.visibility_aabb=AABB(Vector3(-18,-14,-18),Vector3(36,28,36)); weather_particles.emitting=false; weather_root.add_child(weather_particles)
+	var pm=ParticleProcessMaterial.new(); pm.emission_shape=ParticleProcessMaterial.EMISSION_SHAPE_BOX; pm.emission_box_extents=Vector3(13,.5,13); pm.direction=Vector3(0,-1,0); pm.spread=8.0; pm.initial_velocity_min=12.0; pm.initial_velocity_max=18.0; pm.gravity=Vector3(0,-9,0); weather_particles.process_material=pm
+	var mesh=QuadMesh.new(); mesh.size=Vector2(.035,1.0); var mat=StandardMaterial3D.new(); mat.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED; mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; mat.albedo_color=Color(.72,.82,.88,.65); mesh.material=mat; weather_particles.draw_pass_1=mesh
+
+func _set_weather(kind:String):
+	weather_state=kind
+	if weather_particles==null: return
+	if kind=="clear":
+		weather_particles.emitting=false; weather_duration=0.0; weather_timer=randf_range(45.0,100.0); return
+	var pm=weather_particles.process_material as ParticleProcessMaterial; var mesh=weather_particles.draw_pass_1 as QuadMesh; var mat=mesh.material as StandardMaterial3D
+	if kind=="rain":
+		weather_particles.amount=460; weather_particles.lifetime=2.0; pm.initial_velocity_min=13.0; pm.initial_velocity_max=19.0; pm.gravity=Vector3(0,-10,0); mesh.size=Vector2(.035,1.15); mat.albedo_color=Color(.65,.76,.84,.62); weather_duration=randf_range(35.0,70.0)
+	else:
+		weather_particles.amount=260; weather_particles.lifetime=5.0; pm.initial_velocity_min=1.2; pm.initial_velocity_max=2.5; pm.gravity=Vector3(0,-.8,0); pm.spread=35.0; mesh.size=Vector2(.13,.13); mat.albedo_color=Color(.95,.97,1.0,.82); weather_duration=randf_range(30.0,60.0)
+	weather_particles.restart(); weather_particles.emitting=true
+
+func _update_weather(delta:float):
+	if weather_root and player: weather_root.global_position=player.global_position+Vector3(0,11,0)
+	if weather_state=="clear":
+		weather_timer-=delta
+		if weather_timer<=0.0:
+			var roll=randf()
+			_set_weather("snow" if roll<.22 else "rain")
+	else:
+		weather_duration-=delta
+		if weather_duration<=0.0: _set_weather("clear")
 
 func _toggle_crouch():
 	if player==null or camera==null: return
@@ -1667,24 +1706,35 @@ func _fly_down():
 		player.position.y=ground; fly_mode=false; _flash_message("ZEMINE INILDI")
 	else: _flash_message("UCUS: 1 KADEME ALCALDI")
 
-func _ensure_waypoint_ground_arrow():
-	if waypoint_ground_arrow!=null and is_instance_valid(waypoint_ground_arrow): return
-	waypoint_ground_arrow=Node3D.new(); waypoint_ground_arrow.name="WaypointGroundArrow"; add_child(waypoint_ground_arrow)
+func _make_waypoint_arrow()->Node3D:
+	var root=Node3D.new(); add_child(root)
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(1.0,.78,.08,.88); mat.emission_enabled=true; mat.emission=Color(.65,.35,.03); mat.emission_energy_multiplier=.65
-	var shaft=MeshInstance3D.new(); var sb=BoxMesh.new(); sb.size=Vector3(.65,.05,3.0); shaft.mesh=sb; shaft.position=Vector3(0,.04,-1.0); shaft.material_override=mat; waypoint_ground_arrow.add_child(shaft)
-	var head=MeshInstance3D.new(); var hb=BoxMesh.new(); hb.size=Vector3(2.1,.05,1.35); head.mesh=hb; head.position=Vector3(0,.04,-2.55); head.rotation_degrees.y=45; head.material_override=mat; waypoint_ground_arrow.add_child(head)
+	var shaft=MeshInstance3D.new(); var sb=BoxMesh.new(); sb.size=Vector3(.55,.05,2.2); shaft.mesh=sb; shaft.position=Vector3(0,.04,-.75); shaft.material_override=mat; root.add_child(shaft)
+	var head=MeshInstance3D.new(); var hb=BoxMesh.new(); hb.size=Vector3(1.6,.05,1.0); head.mesh=hb; head.position=Vector3(0,.04,-1.9); head.rotation_degrees.y=45; head.material_override=mat; root.add_child(head)
+	return root
+
+func _ensure_waypoint_ground_arrow():
+	if waypoint_ground_arrows.size()>0: return
+	for i in 4: waypoint_ground_arrows.append(_make_waypoint_arrow())
+	waypoint_ground_arrow=waypoint_ground_arrows[0]
 
 func _update_waypoint_ground_arrow():
+	_ensure_waypoint_ground_arrow()
 	if not waypoint_active or player==null:
-		if waypoint_ground_arrow: waypoint_ground_arrow.visible=false
+		for a in waypoint_ground_arrows: a.visible=false
 		return
-	_ensure_waypoint_ground_arrow(); waypoint_ground_arrow.visible=true
 	var to=waypoint_pos-player.global_position; to.y=0.0
-	if to.length()<.1: return
-	var dir=to.normalized(); var pos=player.global_position+dir*5.0
-	pos.y=height_at(pos.x,pos.z)+.06
-	waypoint_ground_arrow.global_position=pos
-	waypoint_ground_arrow.rotation.y=atan2(-dir.x,-dir.z)
+	var dist=to.length()
+	if dist<3.0:
+		waypoint_active=false
+		for a in waypoint_ground_arrows: a.visible=false
+		return
+	var dir=to.normalized()
+	for i in waypoint_ground_arrows.size():
+		var a=waypoint_ground_arrows[i]; var d=minf(5.0+float(i)*6.0,dist-1.0)
+		if d<=0.0: a.visible=false; continue
+		var pos=player.global_position+dir*d; pos.y=height_at(pos.x,pos.z)+.07
+		a.visible=true; a.global_position=pos; a.rotation.y=atan2(-dir.x,-dir.z)
 
 func _update_navigation_ui():
 	if player==null: return
