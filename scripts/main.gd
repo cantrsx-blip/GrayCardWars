@@ -157,7 +157,10 @@ var chest_storage: Dictionary = {"wood":0,"stone":0,"grass":0,"wheat":0,"mushroo
 var minimap_dot: Control
 var minimap_dir: Control
 var built_floors: Array[Node3D] = []
+var built_roofs: Array[Node3D] = []
 var built_walls: Array[Node3D] = []
+var stair_mode := "terrain"
+var stair_rise := .45
 var preview_valid := false
 var tree_hits: Dictionary = {}
 var rock_hits: Dictionary = {}
@@ -853,8 +856,8 @@ func _build_house():
 		3:
 			made=_build_window_frame(p,yaw); built_walls.append(made)
 		4:
-			made=_build_roof_panel(p,yaw); _add_house_light(p)
-		5: made=_build_stairs(p,yaw)
+			made=_build_roof_panel(p,yaw); built_roofs.append(made); _add_house_light(p)
+		5: made=_build_stairs(p,yaw,stair_rise)
 		8: _build_interior_prop(p,build_piece,yaw+180.0)
 		_: _build_interior_prop(p,build_piece,yaw)
 	house_parts+=1
@@ -1132,14 +1135,64 @@ func _nearest_floor(max_dist:=9.0) -> Node3D:
 		if d<best_d: best_d=d; best=f
 	return best
 
+func _nearest_build_surface(point:Vector3,max_dist:=8.0) -> Node3D:
+	var best:Node3D
+	var best_d=float(max_dist)
+	for n in built_floors + built_roofs:
+		if not is_instance_valid(n): continue
+		var d=Vector2(point.x-n.global_position.x,point.z-n.global_position.z).length()
+		if d<best_d:
+			best_d=d; best=n
+	return best
+
 func _update_build_preview():
 	if not build_mode or build_preview==null or player==null: return
 	preview_valid=false
 	var forward=-player.global_transform.basis.z; forward.y=0.0; forward=forward.normalized()
 	var probe=player.global_position+forward*5.0
 	var floor=_nearest_floor(12.0)
-	if build_piece==0:
-		# Snap a new 5x5 foundation to the nearest existing foundation edge using the aimed end point.
+	if build_piece==5:
+		var surface=_nearest_build_surface(probe,6.0)
+		if surface:
+			# Foundation/roof stairs always climb one complete wall storey.
+			stair_mode="storey"; stair_rise=3.0
+			var delta=probe-surface.global_position
+			var p=surface.global_position; var yaw=0.0
+			var side=Vector3.ZERO
+			if absf(delta.x)>absf(delta.z):
+				side=Vector3(1.0 if delta.x>=0.0 else -1.0,0,0)
+				yaw=-90.0 if side.x>0.0 else 90.0
+			else:
+				side=Vector3(0,0,1.0 if delta.z>=0.0 else -1.0)
+				yaw=0.0 if side.z>0.0 else 180.0
+			# Whole staircase stays on the floor/roof tile. Its top tread reaches the aimed wall/roof edge.
+			p=surface.global_position-side*2.5
+			p.y=surface.global_position.y+(.225 if surface in built_floors else .09)
+			build_preview.global_position=p; build_preview.rotation_degrees.y=yaw; preview_valid=true
+		else:
+			# Bare-soil stair: low end sits on soil and high end reaches the nearest foundation deck.
+			stair_mode="terrain"
+			var target=_nearest_floor(9.0)
+			if target:
+				var d=target.global_position-probe
+				var side=Vector3.ZERO; var yaw=0.0
+				if absf(d.x)>absf(d.z):
+					side=Vector3(1.0 if d.x>0.0 else -1.0,0,0); yaw=90.0 if side.x>0.0 else -90.0
+				else:
+					side=Vector3(0,0,1.0 if d.z>0.0 else -1.0); yaw=0.0 if side.z>0.0 else 180.0
+				var edge=target.global_position-side*2.5
+				var center=edge-side*2.5
+				var soil_y=height_at(center.x-side.x*2.5,center.z-side.z*2.5)
+				stair_rise=maxf(.20,target.global_position.y+.225-soil_y)
+				center.y=soil_y
+				build_preview.global_position=center; build_preview.rotation_degrees.y=yaw; preview_valid=true
+			else:
+				var p=probe; p.y=height_at(p.x,p.z)
+				stair_rise=.45
+				build_preview.global_position=p
+				build_preview.rotation_degrees.y=roundf(player.rotation_degrees.y/90.0)*90.0
+				preview_valid=true
+	elif build_piece==0:
 		var p=probe
 		if floor:
 			var delta=probe-floor.global_position
@@ -1153,7 +1206,6 @@ func _update_build_preview():
 			p.y=_foundation_top_y(p.x,p.z)
 		build_preview.global_position=p; build_preview.rotation_degrees.y=0; preview_valid=true
 	elif floor:
-		# Walls, doorways and windows share the exact same four foundation edge anchors.
 		var delta=probe-floor.global_position
 		var p=floor.global_position; var yaw=0.0
 		if absf(delta.x)>absf(delta.z):
@@ -1161,29 +1213,10 @@ func _update_build_preview():
 		else:
 			p.z+=2.5*(1.0 if delta.z>=0.0 else -1.0); yaw=0.0
 		if build_piece in [1,2,3]:
-			# Extend edge pieces by their half-thickness at both ends so 90-degree corners meet cleanly.
 			p.y=floor.global_position.y+.225; preview_valid=true
 		elif build_piece==4:
 			p=floor.global_position+Vector3(0,3.225,0); yaw=0.0; preview_valid=true
-		elif build_piece==5:
-			# Snap stairs to the aimed foundation edge. The upper end lands on the deck/roof grid.
-			var side=Vector3.ZERO
-			if absf(delta.x)>absf(delta.z):
-				side=Vector3(1.0 if delta.x>=0.0 else -1.0,0,0)
-				yaw=90.0 if side.x>0.0 else -90.0
-			else:
-				side=Vector3(0,0,1.0 if delta.z>=0.0 else -1.0)
-				yaw=180.0 if side.z>0.0 else 0.0
-			# Stair centre sits on the edge plane: three of six treads inside, three outside.
-			p=floor.global_position+side*2.5+Vector3(0,.225,0)
-			preview_valid=true
 		build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
-	elif build_piece==5:
-		# On bare terrain, start at soil level and climb to a foundation deck.
-		var p=probe; p.y=height_at(p.x,p.z)
-		build_preview.global_position=p
-		build_preview.rotation_degrees.y=roundf(player.rotation_degrees.y/90.0)*90.0
-		preview_valid=true
 	else:
 		build_preview.global_position=probe
 	var mat=build_preview.material_override as StandardMaterial3D
@@ -1209,13 +1242,7 @@ func _build_foundation(p:Vector3)->Node3D:
 		leg.position=Vector3(off.x,-.225-leg_h*.5,off.y); leg.material_override=_simple_mat(Color(.20,.14,.09)); root.add_child(leg)
 	return root
 
-func _build_stairs(p:Vector3,yaw:=0.0)->Node3D:
-	var on_floor:=false
-	for f in built_floors:
-		if not is_instance_valid(f): continue
-		if Vector2(p.x-f.global_position.x,p.z-f.global_position.z).length()<3.0:
-			on_floor=true; break
-	var rise=3.0 if on_floor else .45
+func _build_stairs(p:Vector3,yaw:=0.0,rise:=3.0)->Node3D:
 	var run=5.0
 	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
 	var steps:=6
