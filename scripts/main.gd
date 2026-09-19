@@ -937,16 +937,16 @@ func _toggle_map():
 	map_panel.visible = not map_panel.visible
 
 func _create_map():
-	map_panel = Control.new(); map_panel.position = Vector2(110,70); map_panel.size = Vector2(620,520)
-	var bg=ColorRect.new(); bg.size=map_panel.size; bg.color=Color(0.10,0.12,0.09,0.97); bg.mouse_filter=Control.MOUSE_FILTER_STOP; map_panel.add_child(bg)
-	bg.gui_input.connect(_map_input)
-	var title=Label.new(); title.text="KARA KIYI  •  Haritaya dokun: hedef koy"; title.position=Vector2(20,8); title.size=Vector2(580,30); title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; map_panel.add_child(title)
-	for b in bosses:
-		var l=Label.new(); l.text=b.name
-		l.position=Vector2(25+(b.pos.x+MAP_HALF)/(MAP_HALF*2.0)*570.0,35+(b.pos.z+MAP_HALF)/(MAP_HALF*2.0)*440.0); map_panel.add_child(l)
-	map_dot=Label.new(); map_dot.text="▲ SEN"; map_panel.add_child(map_dot)
-	map_waypoint=Label.new(); map_waypoint.text="◎ HEDEF"; map_waypoint.visible=false; map_panel.add_child(map_waypoint)
-	map_hint=Label.new(); map_hint.text=""; map_hint.position=Vector2(20,485); map_hint.size=Vector2(580,28); map_hint.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; map_panel.add_child(map_hint)
+	map_panel=Control.new(); map_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var bg=ColorRect.new(); bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); bg.color=Color(.055,.07,.055,.985); bg.mouse_filter=Control.MOUSE_FILTER_STOP; bg.gui_input.connect(_map_input); map_panel.add_child(bg)
+	var title=Label.new(); title.text="KARA KIYI  •  HEDEF NOKTASINI SEÇ"; title.set_anchors_preset(Control.PRESET_TOP_WIDE); title.position=Vector2(0,18); title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; title.add_theme_font_size_override("font_size",26); map_panel.add_child(title)
+	for bdata in bosses:
+		var l=Label.new(); l.text="• "+bdata.name
+		l.position=Vector2(70+(bdata.pos.x+MAP_HALF)/(MAP_HALF*2.0)*1140.0,65+(bdata.pos.z+MAP_HALF)/(MAP_HALF*2.0)*570.0); l.add_theme_font_size_override("font_size",15); map_panel.add_child(l)
+	map_dot=Label.new(); map_dot.text="▲ SEN"; map_dot.add_theme_font_size_override("font_size",18); map_panel.add_child(map_dot)
+	map_waypoint=Label.new(); map_waypoint.text="◎ HEDEF"; map_waypoint.add_theme_font_size_override("font_size",18); map_waypoint.visible=waypoint_active; map_panel.add_child(map_waypoint)
+	map_hint=Label.new(); map_hint.text="Haritada bir noktaya dokun. Hedef kaydedilir ve oyun ekranına dönülür."; map_hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); map_hint.position=Vector2(0,-42); map_hint.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; map_panel.add_child(map_hint)
+	var close=Button.new(); close.text="✕"; close.set_anchors_preset(Control.PRESET_TOP_RIGHT); close.position=Vector2(-70,18); close.size=Vector2(52,52); close.pressed.connect(_toggle_map); map_panel.add_child(close)
 	var layers=get_children().filter(func(n): return n is CanvasLayer)
 	if layers.size()>0: layers[-1].add_child(map_panel)
 	map_panel.visible=false
@@ -955,21 +955,22 @@ func _create_map():
 func _map_input(event):
 	if not (event is InputEventScreenTouch) or not event.pressed: return
 	var p=event.position
-	if p.x<25 or p.x>595 or p.y<35 or p.y>475: return
-	var nx=clampf((p.x-25.0)/570.0,0.0,1.0); var nz=clampf((p.y-35.0)/440.0,0.0,1.0)
+	if p.x<70 or p.x>1210 or p.y<65 or p.y>635: return
+	var nx=clampf((p.x-70.0)/1140.0,0.0,1.0); var nz=clampf((p.y-65.0)/570.0,0.0,1.0)
 	waypoint_pos=Vector3(nx*MAP_HALF*2.0-MAP_HALF,0,nz*MAP_HALF*2.0-MAP_HALF)
 	waypoint_active=true
-	if map_waypoint: map_waypoint.visible=true; map_waypoint.position=Vector2(25+nx*570.0,35+nz*440.0)
+	if map_waypoint: map_waypoint.visible=true; map_waypoint.position=Vector2(70+nx*1140.0,65+nz*570.0)
 	_update_navigation_ui()
 	map_panel.visible=false
 
 func _update_map_dot():
-	if map_dot == null or player == null: return
-	var nx=clampf((player.position.x+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
-	var nz=clampf((player.position.z+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
-	map_dot.position=Vector2(25+nx*570.0,35+nz*440.0)
-	var angle=atan2(player_facing.x,-player_facing.z)
-	map_dot.rotation=angle
+	if map_dot==null or player==null: return
+	var nx=clampf((player.position.x+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0); var nz=clampf((player.position.z+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
+	map_dot.position=Vector2(70+nx*1140.0,65+nz*570.0)
+	map_dot.rotation=atan2(player_facing.x,-player_facing.z)
+	if waypoint_active and map_waypoint:
+		var wx=clampf((waypoint_pos.x+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0); var wz=clampf((waypoint_pos.z+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
+		map_waypoint.position=Vector2(70+wx*1140.0,65+wz*570.0)
 
 func _respawn():
 	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
