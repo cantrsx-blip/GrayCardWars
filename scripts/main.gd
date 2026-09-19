@@ -563,23 +563,28 @@ func _physics_process(delta):
 		player.velocity.y=0.0
 		player.position += Vector3(player.velocity.x,0,player.velocity.z)*delta
 	else:
+		# Real jump physics: upward impulse, gravity while airborne, then collision landing.
+		if not player.is_on_floor():
+			player.velocity.y-=18.0*delta
+		elif player.velocity.y<0.0:
+			player.velocity.y=0.0
 		player.move_and_slide()
 	player.position.x = clampf(player.position.x, -MAP_HALF + 2.0, MAP_HALF - 2.0)
 	player.position.z = clampf(player.position.z, -MAP_HALF + 2.0, MAP_HALF - 2.0)
 	var hy = height_at(player.position.x, player.position.z)
 	if not fly_mode:
-		# Do not force the player back to terrain while standing on a constructed foundation.
-		# move_and_slide() keeps the CharacterBody on static build collisions.
+		# Terrain has no physics body, so only clamp when falling to terrain. Never overwrite
+		# positive jump velocity, otherwise jumping teleports/snaps instead of making an arc.
 		var floor_under:=false
-		# Foundations and roof panels are both walkable floors. Their StaticBody collisions
-		# handle walking; this guard only prevents terrain height snapping through upper floors.
 		for f in built_floors + built_roofs:
 			if not is_instance_valid(f): continue
 			var lp=player.global_position-f.global_position
 			if absf(lp.x)<=2.48 and absf(lp.z)<=2.48 and player.global_position.y>=f.global_position.y:
 				floor_under=true; break
-		if not floor_under:
-			player.position.y = hy + PLAYER_HEIGHT
+		var terrain_y=hy+PLAYER_HEIGHT
+		if not floor_under and player.position.y<=terrain_y and player.velocity.y<=0.0:
+			player.position.y=terrain_y
+			player.velocity.y=0.0
 	elif player.position.y < hy+3.0: player.position.y=hy+3.0
 	in_pit = hy < -2.0
 	in_dry = _near_poi(player.position.x, player.position.z)
@@ -1545,10 +1550,11 @@ func _update_footsteps(delta:float):
 
 
 func _jump():
-	if fly_mode and player:
-		player.position.y+=3.0
-		return
-	if player and player.is_on_floor():
+	if player==null or fly_mode: return
+	# Terrain is procedural rather than a physics floor, so allow jump when standing at
+	# terrain height as well as on foundation/roof/stair collisions.
+	var ground_y=height_at(player.position.x,player.position.z)+PLAYER_HEIGHT
+	if player.is_on_floor() or absf(player.position.y-ground_y)<.12:
 		player.velocity.y=7.2
 		_play_sfx("jump")
 
