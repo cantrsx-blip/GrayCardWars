@@ -870,9 +870,12 @@ func _cycle_build_piece():
 
 func _update_preview_shape():
 	if build_preview==null: return
-	var box=BoxMesh.new()
-	var sizes=[Vector3(5,.45,5),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5,.35,5),Vector3(3,3,5)]
-	box.size=sizes[build_piece]; build_preview.mesh=box
+	if build_piece==5:
+		var prism=PrismMesh.new(); prism.size=Vector3(3.0,3.0,5.0); build_preview.mesh=prism
+	else:
+		var box=BoxMesh.new()
+		var sizes=[Vector3(5,.45,5),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5,.35,5),Vector3(3,3,5)]
+		box.size=sizes[build_piece]; build_preview.mesh=box
 
 func _build_boat():
 	if boat_built or wood < 40: return
@@ -1154,44 +1157,46 @@ func _update_build_preview():
 	if build_piece==5:
 		var surface=_nearest_build_surface(probe,6.0)
 		if surface:
-			# Foundation/roof stairs always climb one complete wall storey.
+			# On a foundation/roof, the low end starts on the surface and the high end reaches
+			# exactly one wall height above it. The high end is aimed toward the selected edge.
 			stair_mode="storey"; stair_rise=3.0
 			var delta=probe-surface.global_position
-			var p=surface.global_position; var yaw=0.0
-			var side=Vector3.ZERO
+			var side=Vector3.ZERO; var yaw=0.0
 			if absf(delta.x)>absf(delta.z):
 				side=Vector3(1.0 if delta.x>=0.0 else -1.0,0,0)
-				yaw=-90.0 if side.x>0.0 else 90.0
+				yaw=90.0 if side.x>0.0 else -90.0
 			else:
 				side=Vector3(0,0,1.0 if delta.z>=0.0 else -1.0)
 				yaw=0.0 if side.z>0.0 else 180.0
-			# Whole staircase stays on the floor/roof tile. Its top tread reaches the aimed wall/roof edge.
-			p=surface.global_position-side*2.5
+			# Local +Z is the high end. Centering on the tile puts that end on its wall edge.
+			var p=surface.global_position
 			p.y=surface.global_position.y+(.225 if surface in built_floors else .09)
 			build_preview.global_position=p; build_preview.rotation_degrees.y=yaw; preview_valid=true
 		else:
-			# Bare-soil stair: low end sits on soil and high end reaches the nearest foundation deck.
-			stair_mode="terrain"
-			var target=_nearest_floor(9.0)
+			# Bedrock placement is only useful when the stair can terminate on a foundation.
+			var target=_nearest_floor(10.0)
 			if target:
-				var d=target.global_position-probe
+				stair_mode="terrain"
+				var to_target=target.global_position-probe
 				var side=Vector3.ZERO; var yaw=0.0
-				if absf(d.x)>absf(d.z):
-					side=Vector3(1.0 if d.x>0.0 else -1.0,0,0); yaw=90.0 if side.x>0.0 else -90.0
+				if absf(to_target.x)>absf(to_target.z):
+					side=Vector3(1.0 if to_target.x>0.0 else -1.0,0,0)
+					yaw=90.0 if side.x>0.0 else -90.0
 				else:
-					side=Vector3(0,0,1.0 if d.z>0.0 else -1.0); yaw=0.0 if side.z>0.0 else 180.0
-				var edge=target.global_position-side*2.5
-				var center=edge-side*2.5
-				var soil_y=height_at(center.x-side.x*2.5,center.z-side.z*2.5)
-				stair_rise=maxf(.20,target.global_position.y+.225-soil_y)
-				center.y=soil_y
+					side=Vector3(0,0,1.0 if to_target.z>0.0 else -1.0)
+					yaw=0.0 if side.z>0.0 else 180.0
+				# High end is locked to the foundation edge/top. Any excess low-end length
+				# is allowed below bedrock, hiding it instead of leaving floating geometry.
+				var high=target.global_position-side*2.5
+				var high_y=target.global_position.y+.225
+				var low_sample=high-side*5.0
+				var rock_y=height_at(low_sample.x,low_sample.z)
+				stair_rise=maxf(.20,high_y-rock_y)
+				var center=high-side*2.5
+				center.y=high_y-stair_rise
 				build_preview.global_position=center; build_preview.rotation_degrees.y=yaw; preview_valid=true
 			else:
-				var p=probe; p.y=height_at(p.x,p.z)
-				stair_rise=.45
-				build_preview.global_position=p
-				build_preview.rotation_degrees.y=roundf(player.rotation_degrees.y/90.0)*90.0
-				preview_valid=true
+				build_preview.global_position=probe
 	elif build_piece==0:
 		var p=probe
 		if floor:
@@ -1248,12 +1253,13 @@ func _build_stairs(p:Vector3,yaw:=0.0,rise:=3.0)->Node3D:
 	var steps:=6
 	var depth=run/float(steps)
 	for i in steps:
-		var t=float(i+1)/float(steps)
-		var y=rise*t
-		# Thin tread only: underside stays open and usable.
+		var t=float(i)/float(steps-1)
+		var tread_h=.16
+		var y=rise*t-tread_h*.5
+		# Thin treads keep the volume under the staircase open.
 		var z=-run*.5+depth*(float(i)+.5)
-		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(3.0,.16,depth+.05); mi.mesh=bm; mi.position=Vector3(0,y,z); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
-		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(3.0,.16,depth+.05); cs.shape=sh; cs.position=Vector3(0,y,z); root.add_child(cs)
+		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(3.0,tread_h,depth+.05); mi.mesh=bm; mi.position=Vector3(0,y,z); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
+		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(3.0,tread_h,depth+.05); cs.shape=sh; cs.position=Vector3(0,y,z); root.add_child(cs)
 	root.set_meta("build_piece","MERDIVEN"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
 	return root
 func _build_wall_panel(p:Vector3,yaw:=0.0)->Node3D:
