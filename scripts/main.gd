@@ -159,6 +159,7 @@ var minimap_dir: Control
 var built_floors: Array[Node3D] = []
 var built_roofs: Array[Node3D] = []
 var built_walls: Array[Node3D] = []
+var built_stairs: Array[Node3D] = []
 var stair_mode := "terrain"
 var stair_rise := .45
 var preview_valid := false
@@ -864,7 +865,8 @@ func _build_house():
 			made=_build_window_frame(p,yaw); built_walls.append(made)
 		4:
 			made=_build_roof_panel(p,yaw); built_roofs.append(made); _add_house_light(p)
-		5: made=_build_stairs(p,yaw,stair_rise)
+		5:
+			made=_build_stairs(p,yaw,stair_rise); built_stairs.append(made)
 		8: _build_interior_prop(p,build_piece,yaw+180.0)
 		_: _build_interior_prop(p,build_piece,yaw)
 	house_parts+=1
@@ -892,7 +894,7 @@ func _update_preview_shape():
 			var y=3.0*t
 			var z0=-run*.5+depth*float(i)
 			var z1=z0+depth
-			var x0=-1.5; var x1=1.5
+			var x0=-2.68; var x1=2.68
 			var base=verts.size()
 			verts.append_array(PackedVector3Array([
 				Vector3(x0,y,z0),Vector3(x1,y,z0),Vector3(x1,y,z1),Vector3(x0,y,z1)
@@ -1189,6 +1191,23 @@ func _edge_slot_free(p:Vector3,yaw:float)->bool:
 			return false
 	return true
 
+func _surface_has_roof_above(surface:Node3D)->bool:
+	if surface==null: return false
+	var expected_y=surface.global_position.y+(.225 if surface in built_floors else .09)+3.0
+	for r in built_roofs:
+		if not is_instance_valid(r): continue
+		if Vector2(r.global_position.x-surface.global_position.x,r.global_position.z-surface.global_position.z).length()<.35 and absf(r.global_position.y-expected_y)<.35:
+			return true
+	return false
+
+func _stair_below_roof(p:Vector3)->Node3D:
+	for s in built_stairs:
+		if not is_instance_valid(s): continue
+		var high=s.global_transform*Vector3(0,0,2.5)
+		if Vector2(high.x-p.x,high.z-p.z).length()<2.65 and absf(high.y-p.y)<.45:
+			return s
+	return null
+
 func _update_build_preview():
 	if not build_mode or build_preview==null or player==null: return
 	preview_valid=false
@@ -1198,6 +1217,12 @@ func _update_build_preview():
 	if build_piece==5:
 		var surface=_nearest_build_surface(probe,6.0)
 		if surface:
+			# Once a ceiling/floor exists above this tile, stairs belong to the new storey.
+			if _surface_has_roof_above(surface):
+				build_preview.global_position=probe
+				var mat_locked=build_preview.material_override as StandardMaterial3D
+				if mat_locked: mat_locked.albedo_color=Color(.95,.12,.08,.40)
+				return
 			# On a foundation/roof, the low end starts on the surface and the high end reaches
 			# exactly one wall height above it. The high end is aimed toward the selected edge.
 			stair_mode="storey"; stair_rise=3.0
@@ -1301,6 +1326,7 @@ func _build_foundation(p:Vector3)->Node3D:
 
 func _build_stairs(p:Vector3,yaw:=0.0,rise:=3.0)->Node3D:
 	var run=5.0
+	var width=5.36
 	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
 	var steps:=6
 	var depth=run/float(steps)
@@ -1308,10 +1334,15 @@ func _build_stairs(p:Vector3,yaw:=0.0,rise:=3.0)->Node3D:
 		var t=float(i)/float(steps-1)
 		var tread_h=.16
 		var y=rise*t-tread_h*.5
-		# Thin treads keep the volume under the staircase open.
 		var z=-run*.5+depth*(float(i)+.5)
-		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(3.0,tread_h,depth+.05); mi.mesh=bm; mi.position=Vector3(0,y,z); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
-		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(3.0,tread_h,depth+.05); cs.shape=sh; cs.position=Vector3(0,y,z); root.add_child(cs)
+		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(width,tread_h,depth+.08); mi.mesh=bm; mi.position=Vector3(0,y,z); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
+		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(width,tread_h,depth+.08); cs.shape=sh; cs.position=Vector3(0,y,z); root.add_child(cs)
+	# Two slim wooden stringers visually support the treads without closing the underside.
+	var angle=-atan2(rise,run)
+	var length=sqrt(run*run+rise*rise)
+	for x in [-2.35,2.35]:
+		var rail=MeshInstance3D.new(); var rm=BoxMesh.new(); rm.size=Vector3(.18,.18,length); rail.mesh=rm
+		rail.position=Vector3(x,rise*.5,0); rail.rotation.x=angle; rail.material_override=_simple_mat(Color(.30,.17,.07)); root.add_child(rail)
 	root.set_meta("build_piece","MERDIVEN"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
 	return root
 func _build_wall_panel(p:Vector3,yaw:=0.0)->Node3D:
@@ -1347,7 +1378,19 @@ func _build_window_frame(p:Vector3,yaw:=0.0)->Node3D:
 
 func _build_roof_panel(p:Vector3,yaw:=0.0)->Node3D:
 	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
-	_add_frame_box(root,Vector3(5.08,.18,5.08),Vector3.ZERO)
+	var stair=_stair_below_roof(p)
+	if stair:
+		# Stair landing gets a half-floor opening so the player can emerge onto the next storey.
+		var local_dir=stair.global_transform.basis.z.normalized()
+		var along_x=absf(local_dir.x)>absf(local_dir.z)
+		if along_x:
+			var sx=1.0 if local_dir.x>0.0 else -1.0
+			_add_frame_box(root,Vector3(2.54,.18,5.08),Vector3(-sx*1.27,0,0))
+		else:
+			var sz=1.0 if local_dir.z>0.0 else -1.0
+			_add_frame_box(root,Vector3(5.08,.18,2.54),Vector3(0,0,-sz*1.27))
+	else:
+		_add_frame_box(root,Vector3(5.08,.18,5.08),Vector3.ZERO)
 	root.set_meta("build_piece","TAVAN"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
 	return root
 func _build_interior_prop(p:Vector3,kind:int,yaw:=0.0):
