@@ -1,13 +1,8 @@
 extends Node3D
 
 const MAP_HALF := 200.0
-const TRADE_RADIUS := 16.0
 const PLAYER_HEIGHT := 1.0
-const BOSS_DRY := 42.0
-const FORT_HALF := 20.0
-const GATE_W := 5.5
-const WALL_H := 5.0
-const WALL_T := 1.4
+const POI_FLAT_RADIUS := 42.0
 
 var gray_cards := 1
 var ammo := 40
@@ -83,7 +78,6 @@ var hud: Label
 var move_touch := Vector2.ZERO
 var touch_start := Vector2.ZERO
 var touch_id := -1
-var in_safe_zone := false
 var in_pit := false
 var in_dry := false
 var damage_buffer := 0.0
@@ -181,7 +175,7 @@ var weather_state := "clear"
 const RESOURCE_RESPAWN := 90.0
 var respawn_nodes: Array = []
 
-var bosses := [
+var pois := [
 	{"id":"unfinished_house","name":"Tamamlanmamis Ev","pos":Vector3(-130,0,130),"color":Color(.34,.28,.20)},
 	{"id":"watchtower","name":"Gozetleme Kulesi","pos":Vector3(0,0,160),"color":Color(.30,.27,.22)},
 	{"id":"plane_wreck","name":"Ucak Enkazi","pos":Vector3(140,0,130),"color":Color(.30,.32,.33)},
@@ -238,8 +232,8 @@ func height_at(x: float, z: float) -> float:
 	return clampf(h, -8.0, 10.0)
 
 func _near_poi(x: float, z: float) -> bool:
-	for b in bosses:
-		if Vector2(x - b.pos.x, z - b.pos.z).length() < BOSS_DRY:
+	for b in pois:
+		if Vector2(x - b.pos.x, z - b.pos.z).length() < POI_FLAT_RADIUS:
 			return true
 	return false
 
@@ -362,7 +356,7 @@ func _build_world():
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
 	for i in 156:
-		var p = _rand_outside_trade(28, MAP_HALF - 12)
+		var p = _rand_map_point(MAP_HALF - 12)
 		if _near_poi(p.x, p.z): continue
 		var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); add_child(rock_body)
 		_make_kara_rock(rock_body)
@@ -370,14 +364,14 @@ func _build_world():
 		rock_body.set_meta("loot","stone")
 	# Meteors match the normal stone count and use the same grounded scale.
 	for i in 156:
-		var mp = _rand_outside_trade(28, MAP_HALF - 12)
+		var mp = _rand_map_point(MAP_HALF - 12)
 		if _near_poi(mp.x, mp.z): continue
 		var meteor_body=StaticBody3D.new(); meteor_body.position=Vector3(mp.x,height_at(mp.x,mp.z),mp.z); add_child(meteor_body)
 		_make_meteor(meteor_body)
 		var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
 		meteor_body.set_meta("loot","meteor")
 	for i in 330:
-		var p = _rand_outside_trade(28, MAP_HALF - 12)
+		var p = _rand_map_point(MAP_HALF - 12)
 		if _near_poi(p.x, p.z): continue
 		var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
 		_make_kara_tree(tree_body)
@@ -392,17 +386,12 @@ func _build_gatherables():
 	# Vegetation intentionally disabled; trees are spawned by _build_world only.
 	pass
 
-func _rand_outside_trade(_min_r: float, max_r: float) -> Vector3:
-	# Legacy safe-zone exclusion removed: resources may now populate the map center naturally.
+func _rand_map_point(max_r: float) -> Vector3:
 	return Vector3(randf_range(-max_r,max_r),0,randf_range(-max_r,max_r))
 
-func _build_trade_zone():
-	# Safe/trade zone removed. Terrain now continues naturally through the map center.
-	pass
-
 func _build_pois():
-	# Historical landmarks and combat bosses are removed. Build ten abandoned survival POIs.
-	for b in bosses:
+	# Build the ten abandoned survival POIs.
+	for b in pois:
 		_build_survival_poi(b)
 
 func _build_player():
@@ -459,7 +448,7 @@ func _build_hud():
 func _nearest_poi() -> String:
 	var best := ""
 	var best_d := 9999.0
-	for b in bosses:
+	for b in pois:
 		var d = Vector2(player.position.x - b.pos.x, player.position.z - b.pos.z).length()
 		if d < best_d:
 			best_d = d
@@ -515,7 +504,6 @@ func _physics_process(delta):
 	in_pit = hy < -2.0
 	in_dry = _near_poi(player.position.x, player.position.z)
 	var flat = Vector2(player.position.x, player.position.z)
-	in_safe_zone = false
 	_update_combat(delta)
 	_update_resource_respawns(delta)
 	_update_build_preview()
@@ -653,7 +641,7 @@ func _enemy_part(root:Node3D,size:Vector3,pos:Vector3,mat:Material,sphere:=false
 	m.position=pos; m.material_override=mat; root.add_child(m)
 
 func _spawn_combatants():
-	for b in bosses:
+	for b in pois:
 		for j in 3:
 			var e = CharacterBody3D.new()
 			e.position = b.pos + Vector3(cos(j * TAU / 3.0) * 12.0, 1.0, sin(j * TAU / 3.0) * 12.0)
