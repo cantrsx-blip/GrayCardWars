@@ -101,7 +101,7 @@ jobs:
 
           # Keep a compact diagnostic file in the repository workspace so every
           # failed run exposes the exact Godot error lines as an artifact.
-          grep -n -E -B3 -A8 "SCRIPT ERROR|Parse Error|Invalid call|Invalid access|Invalid get index|Failed to load script|Failed to instantiate|ERROR:"             build/runtime.log > build/godot-errors.txt || true
+          grep -n -E -B3 -A8 "SCRIPT ERROR|Parse Error|Failed to load script|Failed to instantiate|Invalid get index|Invalid call|Parent node is busy"             build/runtime.log > build/godot-errors.txt || true
 
           echo "===== GODOT ERROR SUMMARY ====="
           cat build/godot-errors.txt || true
