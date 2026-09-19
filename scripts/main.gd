@@ -201,11 +201,9 @@ func _ready():
 	# Keep scene entry light on Android: show the camera/HUD first, then build the
 	# expensive world over several frames instead of blocking the first render.
 	_build_player()
-	_build_hud()
-	# WorldEnvironment must exist before the first physics tick. Previously it was
-	# created later by the staged loader, while _update_day_cycle() accessed
-	# get_viewport().world_3d.environment immediately after entering Main.
 	_build_world_environment()
+	_build_world_light()
+	_build_hud()
 	zone_label.text="DUNYA YUKLENIYOR..."
 	call_deferred("_build_world_staged")
 
@@ -270,11 +268,15 @@ func _add_static_box(pos: Vector3, size: Vector3, col: Color) -> void:
 	add_child(body)
 
 func _load_asset(path:String)->Node3D:
-	if not ResourceLoader.exists(path): return null
-	var r=load(path)
-	if not (r is PackedScene): return null
-	var n=r.instantiate()
-	if not (n is Node3D): return null
+	if path.is_empty() or not ResourceLoader.exists(path):
+		return null
+	var r=ResourceLoader.load(path)
+	if not (r is PackedScene):
+		return null
+	var n=(r as PackedScene).instantiate()
+	if not (n is Node3D):
+		if n: n.queue_free()
+		return null
 	return n
 
 func _place_asset(path:String, parent:Node, pos:Vector3, scale_v:=Vector3.ONE, rot:=Vector3.ZERO)->Node3D:
@@ -320,27 +322,39 @@ func _add_tree_canopy(parent:Node3D, tree_path:String, tree_scale:float)->void:
 		sphere.radius=(1.45 if "pine" in tree_path else 1.8)*tree_scale; sphere.height=sphere.radius*2.0
 		crown.mesh=sphere; crown.position=off*tree_scale; crown.material_override=_simple_mat(canopy_color); parent.add_child(crown)
 
-func _build_terrain_mesh():
+func _terrain_surface(cells:int) -> ArrayMesh:
 	var st=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var cells:=64; var step:=(MAP_HALF*2.0)/float(cells)
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.22,.34,.13); mat.roughness=.96; mat.vertex_color_use_as_albedo=true
-	if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"): mat.albedo_texture=load("res://assets/environment/ground/grass_albedo.jpg")
-	if ResourceLoader.exists("res://assets/environment/ground/grass_normal.png"): mat.normal_enabled=true; mat.normal_texture=load("res://assets/environment/ground/grass_normal.png")
-	if ResourceLoader.exists("res://assets/environment/ground/grass_roughness.jpg"): mat.roughness_texture=load("res://assets/environment/ground/grass_roughness.jpg")
-	# Brand/title artwork is not a terrain texture. Terrain uses the ground PBR material only.
+	var step:=(MAP_HALF*2.0)/float(cells)
 	for z in cells:
 		for x in cells:
 			var x0=-MAP_HALF+x*step; var x1=x0+step; var z0=-MAP_HALF+z*step; var z1=z0+step
-			var a=Vector3(x0,height_at(x0,z0),z0); var b=Vector3(x1,height_at(x1,z0),z0); var c=Vector3(x1,height_at(x1,z1),z1); var d=Vector3(x0,height_at(x0,z1),z1)
+			var a=Vector3(x0,height_at(x0,z0),z0); var b=Vector3(x1,height_at(x1,z0),z0); var cc=Vector3(x1,height_at(x1,z1),z1); var d=Vector3(x0,height_at(x0,z1),z1)
 			st.set_color(_ground_color(a.y,a.z)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
 			st.set_color(_ground_color(b.y,b.z)); st.set_uv(Vector2(x1/8.0,z0/8.0)); st.add_vertex(b)
-			st.set_color(_ground_color(c.y,c.z)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
+			st.set_color(_ground_color(cc.y,cc.z)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(cc)
 			st.set_color(_ground_color(a.y,a.z)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
-			st.set_color(_ground_color(c.y,c.z)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(c)
+			st.set_color(_ground_color(cc.y,cc.z)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(cc)
 			st.set_color(_ground_color(d.y,d.z)); st.set_uv(Vector2(x0/8.0,z1/8.0)); st.add_vertex(d)
 	st.generate_normals()
-	var mesh=st.commit(); var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; terrain.material_override=mat; add_child(terrain)
-	var body=StaticBody3D.new(); body.name="TerrainCollision"; var cs=CollisionShape3D.new(); cs.shape=mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
+	return st.commit()
+
+func _build_terrain_mesh():
+	var mesh=_terrain_surface(64)
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.22,.34,.13); mat.roughness=.96; mat.vertex_color_use_as_albedo=true
+	if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"):
+		var t=ResourceLoader.load("res://assets/environment/ground/grass_albedo.jpg")
+		if t is Texture2D: mat.albedo_texture=t
+	if ResourceLoader.exists("res://assets/environment/ground/grass_normal.png"):
+		var n=ResourceLoader.load("res://assets/environment/ground/grass_normal.png")
+		if n is Texture2D: mat.normal_enabled=true; mat.normal_texture=n
+	if ResourceLoader.exists("res://assets/environment/ground/grass_roughness.jpg"):
+		var r=ResourceLoader.load("res://assets/environment/ground/grass_roughness.jpg")
+		if r is Texture2D: mat.roughness_texture=r
+	var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; terrain.material_override=mat; add_child(terrain)
+	# Keep the visible terrain detailed, but use a much coarser collision mesh on startup.
+	var collision_mesh=_terrain_surface(24)
+	var body=StaticBody3D.new(); body.name="TerrainCollision"
+	var cs=CollisionShape3D.new(); cs.shape=collision_mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
 
 func _make_kara_tree(parent:Node3D) -> void:
 	# Upright original tree: dark weathered trunk + conifer crown.
@@ -379,9 +393,20 @@ func _build_world_environment() -> void:
 	world_env.environment=env
 	add_child(world_env)
 
+func _build_world_light() -> void:
+	if get_node_or_null("WorldSun") != null:
+		return
+	var sun=DirectionalLight3D.new()
+	sun.name="WorldSun"
+	sun.rotation_degrees=Vector3(-52,-28,0)
+	sun.light_energy=1.15
+	sun.shadow_enabled=not OS.has_feature("mobile")
+	sun.directional_shadow_max_distance=95
+	add_child(sun)
+
 func _build_world_base():
 	_build_world_environment()
-	var sun=DirectionalLight3D.new(); sun.rotation_degrees=Vector3(-52,-28,0); sun.light_energy=1.15; sun.shadow_enabled=true; sun.directional_shadow_max_distance=95; add_child(sun)
+	_build_world_light()
 	_build_terrain_mesh()
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
@@ -435,7 +460,7 @@ func _build_pois():
 
 func _build_player():
 	player = CharacterBody3D.new()
-	player.position = Vector3(0, PLAYER_HEIGHT, 0)
+	player.position = Vector3(0, height_at(0.0,0.0) + PLAYER_HEIGHT, 0)
 	var col = CollisionShape3D.new()
 	var capshape = CapsuleShape3D.new()
 	capshape.radius = 0.42
@@ -573,6 +598,11 @@ func _physics_process(delta):
 
 func _build_weather_system():
 	weather_root=Node3D.new(); weather_root.name="LocalWeather"; add_child(weather_root)
+	# Compatibility renderer on Android can be fragile with startup GPU particles.
+	# Weather state still runs; particles are simply omitted on mobile.
+	if OS.has_feature("mobile"):
+		weather_particles=null
+		return
 	weather_particles=GPUParticles3D.new(); weather_particles.amount=420; weather_particles.lifetime=2.2; weather_particles.visibility_aabb=AABB(Vector3(-18,-14,-18),Vector3(36,28,36)); weather_particles.emitting=false; weather_root.add_child(weather_particles)
 	var pm=ParticleProcessMaterial.new(); pm.emission_shape=ParticleProcessMaterial.EMISSION_SHAPE_BOX; pm.emission_box_extents=Vector3(13,.5,13); pm.direction=Vector3(0,-1,0); pm.spread=8.0; pm.initial_velocity_min=12.0; pm.initial_velocity_max=18.0; pm.gravity=Vector3(0,-9,0); weather_particles.process_material=pm
 	var mesh=QuadMesh.new(); mesh.size=Vector2(.035,1.0); var mat=StandardMaterial3D.new(); mat.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED; mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; mat.albedo_color=Color(.72,.82,.88,.65); mesh.material=mat; weather_particles.draw_pass_1=mesh
