@@ -673,8 +673,10 @@ func _input(event):
 	if event is InputEventScreenTouch:
 		var vw=get_viewport().get_visible_rect().size.x
 		if event.pressed:
-			if event.position.x < vw * 0.45 and touch_id == -1:
-				touch_id=event.index; touch_start=event.position; touch_moved=false
+			# Movement joystick only owns touches that actually begin inside its left control area.
+			# Previously almost the whole left half of the screen could latch movement.
+			if event.position.x < vw * 0.32 and touch_id == -1:
+				touch_id=event.index; touch_start=event.position; touch_moved=false; move_touch=Vector2.ZERO
 			elif event.position.x >= vw * 0.45 and look_touch_id == -1:
 				look_touch_id=event.index
 		else:
@@ -687,7 +689,9 @@ func _input(event):
 	elif event is InputEventScreenDrag:
 		if event.index == touch_id:
 			if event.position.distance_to(touch_start)>18.0: touch_moved=true
-			move_touch=(event.position-touch_start)/74.0; move_touch=move_touch.limit_length(1.0)
+			move_touch=(event.position-touch_start)/54.0
+			if move_touch.length()<0.10: move_touch=Vector2.ZERO
+			else: move_touch=move_touch.limit_length(1.0)
 			if joystick_knob: joystick_knob.position=Vector2(64,64)+move_touch*26.0
 		elif event.index == look_touch_id and player and camera:
 			# Slow, controlled FPS look. Horizontal drag turns the facing direction.
