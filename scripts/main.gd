@@ -117,6 +117,7 @@ var reserve_ammo := 120
 var cheat_label: Label
 var cheat_button: Button
 var bears: Array[Node3D] = []
+var wildlife: Array[Node3D] = []
 var meteor_nodes: Array[Node3D] = []
 var creative_panel: Control
 var cheat_mode := false
@@ -235,6 +236,8 @@ func _build_world_staged() -> void:
 	_spawn_bears()
 	await get_tree().process_frame
 	_build_trees_staged()
+	await get_tree().process_frame
+	_spawn_wildlife()
 	await get_tree().process_frame
 	_build_hills_and_pits()
 	_build_pois()
@@ -636,7 +639,7 @@ func _bear_point_blocked(pos:Vector3,radius:float) -> bool:
 	return false
 
 func _bear_too_close_to_other(bear:Node3D,pos:Vector3,min_distance:float) -> bool:
-	for other in bears:
+	for other in bears+wildlife:
 		if other==bear or not is_instance_valid(other): continue
 		if Vector2(pos.x-other.global_position.x,pos.z-other.global_position.z).length()<min_distance:
 			return true
@@ -664,7 +667,7 @@ func _bear_nearest_safe_meteor_index(from_pos:Vector3,skip_index:int,requesting_
 func _bear_avoidance_direction(bear:Node3D,move_dir:Vector3) -> Vector3:
 	var nearest:Node3D=null
 	var nearest_distance=INF
-	for other in bears:
+	for other in bears+wildlife:
 		if other==bear or not is_instance_valid(other): continue
 		var offset=other.global_position-bear.global_position
 		var distance=Vector2(offset.x,offset.z).length()
@@ -774,6 +777,216 @@ func _update_bears(delta:float) -> void:
 		bear.position+=Vector3(dir.x,0.0,dir.z)*3.4*delta
 		bear.position.y=height_at(bear.position.x,bear.position.z)
 		_bear_set_body_height(bear,true)
+func _spawn_wildlife() -> void:
+	for i in 10:
+		_spawn_wild_animal("KURT","stone",0.58,3.8)
+	for i in 10:
+		_spawn_wild_animal("DOMUZ","wood",0.58,3.0)
+	for i in 15:
+		_spawn_wild_animal("GEYIK","wood",0.675,4.0)
+
+func _spawn_wild_animal(kind:String,target_loot:String,visual_scale:float,speed:float) -> void:
+	var pos=Vector3.ZERO
+	var best_gap=-1.0
+	for attempt in 70:
+		var p=_rand_map_point(MAP_HALF-16)
+		var candidate=Vector3(p.x,height_at(p.x,p.z),p.z)
+		if _bear_point_blocked(candidate,4.0): continue
+		var gap=INF
+		for other in bears+wildlife:
+			if not is_instance_valid(other): continue
+			gap=minf(gap,Vector2(candidate.x-other.global_position.x,candidate.z-other.global_position.z).length())
+		if bears.is_empty() and wildlife.is_empty(): gap=9999.0
+		if gap>best_gap:
+			best_gap=gap
+			pos=candidate
+		if gap>=18.0: break
+	var animal=CharacterBody3D.new()
+	animal.name="%s_%d" % [kind,wildlife.size()]
+	animal.position=pos
+	animal.collision_layer=0
+	animal.collision_mask=0
+	animal.set_meta("animal_kind",kind)
+	animal.set_meta("target_loot",target_loot)
+	animal.set_meta("speed",speed)
+	animal.set_meta("target_id",-1)
+	animal.set_meta("avoiding",false)
+	add_child(animal)
+	var cs=CollisionShape3D.new()
+	var shape=CapsuleShape3D.new()
+	shape.radius=0.30
+	shape.height=1.1
+	cs.shape=shape
+	cs.position.y=0.55
+	animal.add_child(cs)
+	_make_wild_animal_visual(animal,kind,visual_scale)
+	wildlife.append(animal)
+	_wildlife_choose_target(animal)
+
+func _make_wild_animal_visual(parent:Node3D,kind:String,visual_scale:float) -> void:
+	var visual=Node3D.new()
+	visual.name="AnimalVisual"
+	visual.scale=Vector3.ONE*visual_scale
+	parent.add_child(visual)
+	var main_color=Color(.42,.38,.32)
+	var dark_color=Color(.18,.16,.14)
+	if kind=="DOMUZ":
+		main_color=Color(.30,.20,.16)
+	elif kind=="GEYIK":
+		main_color=Color(.48,.30,.14)
+	var mat=_simple_mat(main_color)
+	var dark=_simple_mat(dark_color)
+	var body=MeshInstance3D.new()
+	body.name="Body"
+	var bm=SphereMesh.new()
+	bm.radius=1.45
+	bm.height=2.6
+	body.mesh=bm
+	body.scale=Vector3(1.0,.72,1.45)
+	body.position=Vector3(0,1.45,0)
+	body.material_override=mat
+	visual.add_child(body)
+	var head=MeshInstance3D.new()
+	var hm=SphereMesh.new()
+	hm.radius=.68
+	hm.height=1.2
+	head.mesh=hm
+	head.position=Vector3(0,1.95,-1.55)
+	head.material_override=mat
+	visual.add_child(head)
+	var snout=MeshInstance3D.new()
+	var sm=SphereMesh.new()
+	sm.radius=.34
+	sm.height=.58
+	snout.mesh=sm
+	snout.scale=Vector3(1.0,.7,1.25)
+	snout.position=Vector3(0,1.78,-2.12)
+	snout.material_override=dark
+	visual.add_child(snout)
+	for x in [-.62,.62]:
+		for z in [-.68,.72]:
+			var leg=MeshInstance3D.new()
+			var lm=CylinderMesh.new()
+			lm.top_radius=.20
+			lm.bottom_radius=.23
+			lm.height=1.25
+			leg.mesh=lm
+			leg.position=Vector3(x,.62,z)
+			leg.material_override=dark
+			visual.add_child(leg)
+	if kind=="GEYIK":
+		for x in [-.32,.32]:
+			var antler=MeshInstance3D.new()
+			var am=CylinderMesh.new()
+			am.top_radius=.05
+			am.bottom_radius=.08
+			am.height=.85
+			antler.mesh=am
+			antler.position=Vector3(x,2.72,-1.55)
+			antler.rotation_degrees.z=18.0 if x<0 else -18.0
+			antler.material_override=dark
+			visual.add_child(antler)
+
+func _wildlife_target_reserved(node:Node3D,requesting:Node3D) -> bool:
+	var id=node.get_instance_id()
+	for other in wildlife:
+		if other==requesting or not is_instance_valid(other): continue
+		if int(other.get_meta("target_id",-1))==id: return true
+	return false
+
+func _wildlife_choose_target(animal:Node3D) -> void:
+	var wanted=str(animal.get_meta("target_loot",""))
+	var best:Node3D=null
+	var best_distance=INF
+	for child in get_children():
+		if not child is Node3D: continue
+		if str(child.get_meta("loot",""))!=wanted: continue
+		var node=child as Node3D
+		if _wildlife_target_reserved(node,animal): continue
+		var d=Vector2(animal.global_position.x-node.global_position.x,animal.global_position.z-node.global_position.z).length_squared()
+		if d<best_distance:
+			best_distance=d
+			best=node
+	if best:
+		animal.set_meta("target_id",best.get_instance_id())
+		animal.set_meta("target_pos",best.global_position)
+
+func _all_animal_avoidance(animal:Node3D,move_dir:Vector3) -> Vector3:
+	var nearest:Node3D=null
+	var nearest_distance=INF
+	for other in bears+wildlife:
+		if other==animal or not is_instance_valid(other): continue
+		var d=Vector2(animal.global_position.x-other.global_position.x,animal.global_position.z-other.global_position.z).length()
+		if d<20.0 and d<nearest_distance:
+			nearest=other
+			nearest_distance=d
+	if nearest==null: return Vector3.ZERO
+	var left=Vector3(-move_dir.z,0.0,move_dir.x)
+	var right=-left
+	var left_pos=animal.position+left*14.0
+	var right_pos=animal.position+right*14.0
+	left_pos.y=height_at(left_pos.x,left_pos.z)
+	right_pos.y=height_at(right_pos.x,right_pos.z)
+	var left_gap=Vector2(left_pos.x-nearest.global_position.x,left_pos.z-nearest.global_position.z).length()
+	var right_gap=Vector2(right_pos.x-nearest.global_position.x,right_pos.z-nearest.global_position.z).length()
+	if not _bear_point_blocked(left_pos,2.2) and left_gap>=right_gap: return left
+	if not _bear_point_blocked(right_pos,2.2): return right
+	if not _bear_point_blocked(left_pos,2.2): return left
+	return -move_dir
+
+func _update_wildlife(delta:float) -> void:
+	for animal in wildlife:
+		if not is_instance_valid(animal): continue
+		if bool(animal.get_meta("avoiding",false)):
+			var avoid_target=animal.get_meta("avoid_target",animal.position) as Vector3
+			var ad=avoid_target-animal.position
+			ad.y=0.0
+			if ad.length()<1.2:
+				animal.set_meta("avoiding",false)
+				_wildlife_choose_target(animal)
+				continue
+			ad=ad.normalized()
+			var ap=animal.position+ad*float(animal.get_meta("speed",3.0))*delta
+			ap.y=height_at(ap.x,ap.z)
+			if _bear_point_blocked(ap,2.2):
+				animal.set_meta("avoiding",false)
+				continue
+			animal.rotation.y=atan2(-ad.x,-ad.z)
+			animal.position=ap
+			continue
+		var target_pos=animal.get_meta("target_pos",animal.position) as Vector3
+		var dir=target_pos-animal.position
+		dir.y=0.0
+		if dir.length()<2.3:
+			_wildlife_choose_target(animal)
+			continue
+		dir=dir.normalized()
+		var avoid=_all_animal_avoidance(animal,dir)
+		if avoid.length_squared()>0.01:
+			var avoid_target=animal.position+avoid.normalized()*randf_range(12.0,18.0)
+			avoid_target.x=clampf(avoid_target.x,-MAP_HALF+10.0,MAP_HALF-10.0)
+			avoid_target.z=clampf(avoid_target.z,-MAP_HALF+10.0,MAP_HALF-10.0)
+			avoid_target.y=height_at(avoid_target.x,avoid_target.z)
+			animal.set_meta("avoiding",true)
+			animal.set_meta("avoid_target",avoid_target)
+			continue
+		var next_pos=animal.position+dir*float(animal.get_meta("speed",3.0))*delta
+		next_pos.y=height_at(next_pos.x,next_pos.z)
+		if _bear_point_blocked(next_pos,2.2):
+			var side=Vector3(-dir.z,0.0,dir.x)
+			var side_pos=animal.position+side*3.0
+			side_pos.y=height_at(side_pos.x,side_pos.z)
+			if _bear_point_blocked(side_pos,2.2):
+				side=-side
+			dir=side
+		animal.rotation.y=atan2(-dir.x,-dir.z)
+		animal.position+=dir*float(animal.get_meta("speed",3.0))*delta
+		animal.position.y=height_at(animal.position.x,animal.position.z)
+		var visual=animal.get_node_or_null("AnimalVisual")
+		if visual:
+			var body=visual.get_node_or_null("Body")
+			if body: body.position.y=1.45+sin(Time.get_ticks_msec()*0.012)*0.05
+
 func _build_trees_staged() -> void:
 	for i in (80 if OS.has_feature("mobile") else 330):
 		var p = _rand_map_point(MAP_HALF - 12)
@@ -1092,6 +1305,7 @@ func _physics_process(delta):
 	if player == null or camera == null or hud == null or zone_label == null:
 		return
 	_update_bears(delta)
+	_update_wildlife(delta)
 	if _panel_open():
 		move_touch=Vector2.ZERO
 		player.velocity.x=0.0
