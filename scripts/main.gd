@@ -1385,9 +1385,9 @@ func _physics_process(delta):
 		right=camera.global_transform.basis.x; right.y=0.0; right=right.normalized()
 	var dir = right*v.x + forward*(-v.y)
 	if dir.length() > 1.0: dir = dir.normalized()
-	var speed = player_move_speed * (.70 if in_pit else 1.0)
+	var speed = player_move_speed * 2.0 * (.70 if in_pit else 1.0)
 	if hunger<20.0 or thirst<20.0: speed*=.78
-	if fly_mode: speed*=2.2
+	if fly_mode: speed*=1.5
 	# FPS view direction is controlled by right-side look drag, not movement stick.
 	player.velocity.x=dir.x*speed; player.velocity.z=dir.z*speed
 	if fly_mode:
