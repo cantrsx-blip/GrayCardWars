@@ -509,6 +509,7 @@ func _make_bear_visual(parent:Node3D) -> void:
 	if scene is PackedScene:
 		var model=scene.instantiate()
 		model.name="Body"
+		model.rotation_degrees.y=180.0
 		model.scale=Vector3.ONE*1.35
 		visual.add_child(model)
 		return
@@ -828,6 +829,7 @@ func _make_wild_animal_visual(parent:Node3D,kind:String,visual_scale:float) -> v
 	if scene is PackedScene:
 		var model=scene.instantiate()
 		model.name="Body"
+		model.rotation_degrees.y=180.0
 		model.scale=Vector3.ONE*visual_scale
 		visual.add_child(model)
 		return
