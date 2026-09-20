@@ -484,7 +484,7 @@ func _spawn_bears() -> void:
 		bear.collision_layer=0
 		bear.collision_mask=0
 		bear.set_meta("job","METEOR")
-		bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,-1))
+		bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,-1,bear))
 		bear.set_meta("moving",true)
 		add_child(bear)
 		var cs=CollisionShape3D.new()
@@ -642,11 +642,17 @@ func _bear_too_close_to_other(bear:Node3D,pos:Vector3,min_distance:float) -> boo
 			return true
 	return false
 
-func _bear_nearest_safe_meteor_index(from_pos:Vector3,skip_index:int) -> int:
+func _bear_nearest_safe_meteor_index(from_pos:Vector3,skip_index:int,requesting_bear:Node3D=null) -> int:
+	var reserved:Dictionary={}
+	for other in bears:
+		if not is_instance_valid(other) or other==requesting_bear: continue
+		var reserved_index=int(other.get_meta("meteor_index",-1))
+		if reserved_index>=0:
+			reserved[reserved_index]=true
 	var best=-1
 	var best_distance=INF
 	for i in meteor_nodes.size():
-		if i==skip_index: continue
+		if i==skip_index or reserved.has(i): continue
 		var meteor=meteor_nodes[i]
 		if not is_instance_valid(meteor): continue
 		if _bear_point_blocked(meteor.global_position,4.0): continue
@@ -655,14 +661,13 @@ func _bear_nearest_safe_meteor_index(from_pos:Vector3,skip_index:int) -> int:
 			best_distance=d
 			best=i
 	return best
-
 func _update_bears(delta:float) -> void:
 	if bears.is_empty() or meteor_nodes.is_empty(): return
 	for bear in bears:
 		if not is_instance_valid(bear): continue
 		var index=int(bear.get_meta("meteor_index",-1))
 		if index<0 or index>=meteor_nodes.size() or not is_instance_valid(meteor_nodes[index]):
-			index=_bear_nearest_safe_meteor_index(bear.global_position,-1)
+			index=_bear_nearest_safe_meteor_index(bear.global_position,-1,bear)
 			if index<0: continue
 			bear.set_meta("meteor_index",index)
 		var target=meteor_nodes[index]
@@ -670,7 +675,7 @@ func _update_bears(delta:float) -> void:
 		var dir=target_pos-bear.position
 		dir.y=0.0
 		if dir.length()<2.5:
-			var next_index=_bear_nearest_safe_meteor_index(bear.global_position,index)
+			var next_index=_bear_nearest_safe_meteor_index(bear.global_position,index,bear)
 			if next_index>=0: bear.set_meta("meteor_index",next_index)
 			continue
 		dir=dir.normalized()
@@ -693,7 +698,7 @@ func _update_bears(delta:float) -> void:
 			elif not _bear_point_blocked(right_pos,2.6) and not _bear_too_close_to_other(bear,right_pos,18.0):
 				dir=right
 			else:
-				bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,index))
+				bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,index,bear))
 				continue
 		bear.set_meta("moving",true)
 		bear.rotation.y=atan2(-dir.x,-dir.z)
