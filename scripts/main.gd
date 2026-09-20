@@ -645,24 +645,44 @@ func _bear_too_close_to_other(bear:Node3D,pos:Vector3,min_distance:float) -> boo
 			return true
 	return false
 
+func _animal_remember_target(animal:Node3D,target_id:int) -> void:
+	var history:Array=animal.get_meta("target_history",[])
+	if target_id>=0 and not history.has(target_id):
+		history.append(target_id)
+	while history.size()>5:
+		history.pop_front()
+	animal.set_meta("target_history",history)
+
+func _animal_target_recent(animal:Node3D,target_id:int) -> bool:
+	var history:Array=animal.get_meta("target_history",[])
+	return history.has(target_id)
+
 func _bear_nearest_safe_meteor_index(from_pos:Vector3,skip_index:int,requesting_bear:Node3D=null) -> int:
 	var reserved:Dictionary={}
 	for other in bears:
 		if not is_instance_valid(other) or other==requesting_bear: continue
 		var reserved_index=int(other.get_meta("meteor_index",-1))
-		if reserved_index>=0:
-			reserved[reserved_index]=true
+		if reserved_index>=0: reserved[reserved_index]=true
 	var best=-1
 	var best_distance=INF
 	for i in meteor_nodes.size():
 		if i==skip_index or reserved.has(i): continue
 		var meteor=meteor_nodes[i]
 		if not is_instance_valid(meteor): continue
+		if requesting_bear!=null and _animal_target_recent(requesting_bear,meteor.get_instance_id()): continue
 		if _bear_point_blocked(meteor.global_position,4.0): continue
-		var d=Vector2(from_pos.x-meteor.global_position.x,from_pos.z-meteor.global_position.z).length_squared()
+		var linear=Vector2(from_pos.x-meteor.global_position.x,from_pos.z-meteor.global_position.z).length()
+		if linear<15.0: continue
+		var d=linear*linear
 		if d<best_distance:
 			best_distance=d
 			best=i
+	if best<0 and requesting_bear!=null:
+		var history:Array=requesting_bear.get_meta("target_history",[])
+		if not history.is_empty():
+			history.pop_front()
+			requesting_bear.set_meta("target_history",history)
+			return _bear_nearest_safe_meteor_index(from_pos,skip_index,requesting_bear)
 	return best
 func _bear_avoidance_direction(bear:Node3D,move_dir:Vector3) -> Vector3:
 	var nearest:Node3D=null
@@ -742,6 +762,7 @@ func _update_bears(delta:float) -> void:
 		var dir=target_pos-bear.position
 		dir.y=0.0
 		if dir.length()<2.5:
+			_animal_remember_target(bear,target.get_instance_id())
 			var next_index=_bear_nearest_safe_meteor_index(bear.global_position,index,bear)
 			if next_index>=0: bear.set_meta("meteor_index",next_index)
 			continue
@@ -903,14 +924,23 @@ func _wildlife_choose_target(animal:Node3D) -> void:
 		if str(child.get_meta("loot",""))!=wanted: continue
 		var node=child as Node3D
 		if _wildlife_target_reserved(node,animal): continue
-		var d=Vector2(animal.global_position.x-node.global_position.x,animal.global_position.z-node.global_position.z).length_squared()
+		if _animal_target_recent(animal,node.get_instance_id()): continue
+		var linear=Vector2(animal.global_position.x-node.global_position.x,animal.global_position.z-node.global_position.z).length()
+		if linear<15.0: continue
+		var d=linear*linear
 		if d<best_distance:
 			best_distance=d
 			best=node
+	if best==null:
+		var history:Array=animal.get_meta("target_history",[])
+		if not history.is_empty():
+			history.pop_front()
+			animal.set_meta("target_history",history)
+			_wildlife_choose_target(animal)
+			return
 	if best:
 		animal.set_meta("target_id",best.get_instance_id())
 		animal.set_meta("target_pos",best.global_position)
-
 func _all_animal_avoidance(animal:Node3D,move_dir:Vector3) -> Vector3:
 	var nearest:Node3D=null
 	var nearest_distance=INF
@@ -958,6 +988,7 @@ func _update_wildlife(delta:float) -> void:
 		var dir=target_pos-animal.position
 		dir.y=0.0
 		if dir.length()<2.3:
+			_animal_remember_target(animal,int(animal.get_meta("target_id",-1)))
 			_wildlife_choose_target(animal)
 			continue
 		dir=dir.normalized()
