@@ -461,19 +461,30 @@ func _nearest_meteor_index(from_pos:Vector3) -> int:
 	return best_index
 
 func _spawn_bears() -> void:
+	var spawn_points:Array[Vector3]=[]
 	for i in 5:
-		var angle=randf_range(0.0,TAU)
-		var distance=randf_range(25.0,45.0)
-		var spawn_pos=player.global_position+Vector3(cos(angle)*distance,0.0,sin(angle)*distance)
-		spawn_pos.x=clampf(spawn_pos.x,-MAP_HALF+12.0,MAP_HALF-12.0)
-		spawn_pos.z=clampf(spawn_pos.z,-MAP_HALF+12.0,MAP_HALF-12.0)
+		var chosen=Vector3.ZERO
+		var best_gap=-1.0
+		for attempt in 80:
+			var p=_rand_map_point(MAP_HALF-20)
+			var candidate=Vector3(p.x,height_at(p.x,p.z),p.z)
+			if _bear_point_blocked(candidate,6.0): continue
+			var gap=INF
+			for used in spawn_points:
+				gap=minf(gap,Vector2(candidate.x-used.x,candidate.z-used.z).length())
+			if spawn_points.is_empty(): gap=9999.0
+			if gap>best_gap:
+				best_gap=gap
+				chosen=candidate
+			if gap>=55.0: break
+		spawn_points.append(chosen)
 		var bear=CharacterBody3D.new()
 		bear.name="Bear_%d" % i
-		bear.position=Vector3(spawn_pos.x,height_at(spawn_pos.x,spawn_pos.z),spawn_pos.z)
+		bear.position=chosen
 		bear.collision_layer=0
 		bear.collision_mask=0
 		bear.set_meta("job","METEOR")
-		bear.set_meta("meteor_index",_nearest_meteor_index(bear.global_position))
+		bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,-1))
 		bear.set_meta("moving",true)
 		add_child(bear)
 		var cs=CollisionShape3D.new()
@@ -605,13 +616,53 @@ func _bear_set_body_height(bear:Node3D,moving:bool,feeding:bool=false) -> void:
 	else:
 		body.position.y=1.8
 
+func _bear_point_blocked(pos:Vector3,radius:float) -> bool:
+	if _near_poi(pos.x,pos.z): return true
+	for child in get_children():
+		if not child is Node3D: continue
+		if child==player: continue
+		var n=child as Node3D
+		var loot=str(n.get_meta("loot",""))
+		if loot=="meteor": continue
+		if loot=="wood" or loot=="stone":
+			if Vector2(pos.x-n.global_position.x,pos.z-n.global_position.z).length()<radius:
+				return true
+	for wall in built_walls:
+		if is_instance_valid(wall) and Vector2(pos.x-wall.global_position.x,pos.z-wall.global_position.z).length()<radius: return true
+	for floor in built_floors:
+		if is_instance_valid(floor) and Vector2(pos.x-floor.global_position.x,pos.z-floor.global_position.z).length()<radius: return true
+	for stair in built_stairs:
+		if is_instance_valid(stair) and Vector2(pos.x-stair.global_position.x,pos.z-stair.global_position.z).length()<radius: return true
+	return false
+
+func _bear_too_close_to_other(bear:Node3D,pos:Vector3,min_distance:float) -> bool:
+	for other in bears:
+		if other==bear or not is_instance_valid(other): continue
+		if Vector2(pos.x-other.global_position.x,pos.z-other.global_position.z).length()<min_distance:
+			return true
+	return false
+
+func _bear_nearest_safe_meteor_index(from_pos:Vector3,skip_index:int) -> int:
+	var best=-1
+	var best_distance=INF
+	for i in meteor_nodes.size():
+		if i==skip_index: continue
+		var meteor=meteor_nodes[i]
+		if not is_instance_valid(meteor): continue
+		if _bear_point_blocked(meteor.global_position,4.0): continue
+		var d=Vector2(from_pos.x-meteor.global_position.x,from_pos.z-meteor.global_position.z).length_squared()
+		if d<best_distance:
+			best_distance=d
+			best=i
+	return best
+
 func _update_bears(delta:float) -> void:
 	if bears.is_empty() or meteor_nodes.is_empty(): return
 	for bear in bears:
 		if not is_instance_valid(bear): continue
 		var index=int(bear.get_meta("meteor_index",-1))
 		if index<0 or index>=meteor_nodes.size() or not is_instance_valid(meteor_nodes[index]):
-			index=_nearest_meteor_index(bear.global_position)
+			index=_bear_nearest_safe_meteor_index(bear.global_position,-1)
 			if index<0: continue
 			bear.set_meta("meteor_index",index)
 		var target=meteor_nodes[index]
@@ -619,19 +670,31 @@ func _update_bears(delta:float) -> void:
 		var dir=target_pos-bear.position
 		dir.y=0.0
 		if dir.length()<2.5:
-			var next_index=index+1
-			var found=false
-			for step in meteor_nodes.size():
-				var candidate=(next_index+step)%meteor_nodes.size()
-				if is_instance_valid(meteor_nodes[candidate]):
-					bear.set_meta("meteor_index",candidate)
-					found=true
-					break
-			if not found:
-				bear.set_meta("moving",false)
-				_bear_set_body_height(bear,false)
+			var next_index=_bear_nearest_safe_meteor_index(bear.global_position,index)
+			if next_index>=0: bear.set_meta("meteor_index",next_index)
 			continue
 		dir=dir.normalized()
+		var step=Vector3(dir.x,0.0,dir.z)*3.4*delta
+		var next_pos=bear.position+step
+		next_pos.y=height_at(next_pos.x,next_pos.z)
+		if _bear_too_close_to_other(bear,next_pos,18.0):
+			bear.set_meta("moving",false)
+			_bear_set_body_height(bear,false)
+			continue
+		if _bear_point_blocked(next_pos,2.6):
+			var left=Vector3(-dir.z,0.0,dir.x)
+			var right=-left
+			var left_pos=bear.position+left*3.0
+			var right_pos=bear.position+right*3.0
+			left_pos.y=height_at(left_pos.x,left_pos.z)
+			right_pos.y=height_at(right_pos.x,right_pos.z)
+			if not _bear_point_blocked(left_pos,2.6) and not _bear_too_close_to_other(bear,left_pos,18.0):
+				dir=left
+			elif not _bear_point_blocked(right_pos,2.6) and not _bear_too_close_to_other(bear,right_pos,18.0):
+				dir=right
+			else:
+				bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,index))
+				continue
 		bear.set_meta("moving",true)
 		bear.rotation.y=atan2(-dir.x,-dir.z)
 		bear.position+=Vector3(dir.x,0.0,dir.z)*3.4*delta
