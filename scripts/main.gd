@@ -118,6 +118,8 @@ var cheat_label: Label
 var cheat_button: Button
 var bears: Array[Node3D] = []
 var wildlife: Array[Node3D] = []
+var animal_ai_timer := 0.0
+const ANIMAL_AI_INTERVAL := 0.20
 var meteor_nodes: Array[Node3D] = []
 var creative_panel: Control
 var cheat_mode := false
@@ -748,7 +750,7 @@ func _update_bears(delta:float) -> void:
 				if new_index>=0: bear.set_meta("meteor_index",new_index)
 				continue
 			avoid_dir=avoid_dir.normalized()
-			var avoid_next=bear.position+avoid_dir*3.4*delta
+			var avoid_next=bear.position+avoid_dir*1.7*delta
 			avoid_next.y=height_at(avoid_next.x,avoid_next.z)
 			if _bear_point_blocked(avoid_next,2.6):
 				bear.set_meta("avoiding",false)
@@ -776,7 +778,7 @@ func _update_bears(delta:float) -> void:
 			bear.set_meta("avoiding",true)
 			bear.set_meta("avoid_target",avoid_target)
 			continue
-		var next_pos=bear.position+Vector3(dir.x,0.0,dir.z)*3.4*delta
+		var next_pos=bear.position+Vector3(dir.x,0.0,dir.z)*1.7*delta
 		next_pos.y=height_at(next_pos.x,next_pos.z)
 		if _bear_point_blocked(next_pos,2.6):
 			var left=Vector3(-dir.z,0.0,dir.x)
@@ -795,16 +797,16 @@ func _update_bears(delta:float) -> void:
 				continue
 		bear.set_meta("moving",true)
 		bear.rotation.y=atan2(-dir.x,-dir.z)
-		bear.position+=Vector3(dir.x,0.0,dir.z)*3.4*delta
+		bear.position+=Vector3(dir.x,0.0,dir.z)*1.7*delta
 		bear.position.y=height_at(bear.position.x,bear.position.z)
 		_bear_set_body_height(bear,true)
 func _spawn_wildlife() -> void:
 	for i in 10:
-		_spawn_wild_animal("KURT","stone",0.58,3.8)
+		_spawn_wild_animal("KURT","stone",0.58,1.9)
 	for i in 10:
-		_spawn_wild_animal("DOMUZ","wood",0.58,3.0)
+		_spawn_wild_animal("DOMUZ","wood",0.58,1.5)
 	for i in 15:
-		_spawn_wild_animal("GEYIK","wood",0.675,4.0)
+		_spawn_wild_animal("GEYIK","wood",0.675,2.0)
 
 func _spawn_wild_animal(kind:String,target_loot:String,visual_scale:float,speed:float) -> void:
 	var pos=Vector3.ZERO
@@ -1335,8 +1337,12 @@ func _update_cheat_button_style():
 func _physics_process(delta):
 	if player == null or camera == null or hud == null or zone_label == null:
 		return
-	_update_bears(delta)
-	_update_wildlife(delta)
+	animal_ai_timer+=delta
+	if animal_ai_timer>=ANIMAL_AI_INTERVAL:
+		var animal_step=animal_ai_timer
+		animal_ai_timer=0.0
+		_update_bears(animal_step)
+		_update_wildlife(animal_step)
 	if _panel_open():
 		move_touch=Vector2.ZERO
 		player.velocity.x=0.0
