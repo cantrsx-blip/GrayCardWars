@@ -1446,7 +1446,7 @@ func _refresh_crafting()->void:
 				icon.texture=_load_item_texture(icon_path)
 			row.add_child(icon)
 			var info=Label.new()
-			info.text="%s %s\n%s" % [_store_rarity_name(rarity),name,_craft_requirements_text(name,rarity)]
+			info.text="%s %s  •  %s" % [_store_rarity_name(rarity),name,_craft_requirements_text(name,rarity)]
 			info.custom_minimum_size=Vector2(470,82)
 			info.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
 			info.add_theme_font_size_override("font_size",14)
