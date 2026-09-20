@@ -661,6 +661,51 @@ func _bear_nearest_safe_meteor_index(from_pos:Vector3,skip_index:int,requesting_
 			best_distance=d
 			best=i
 	return best
+func _bear_avoidance_direction(bear:Node3D,move_dir:Vector3) -> Vector3:
+	var nearest:Node3D=null
+	var nearest_distance=INF
+	for other in bears:
+		if other==bear or not is_instance_valid(other): continue
+		var offset=other.global_position-bear.global_position
+		var distance=Vector2(offset.x,offset.z).length()
+		if distance<20.0 and distance<nearest_distance:
+			nearest=other
+			nearest_distance=distance
+	if nearest==null:
+		return Vector3.ZERO
+	var my_index=int(bear.get_meta("meteor_index",-1))
+	var other_index=int(nearest.get_meta("meteor_index",-1))
+	var my_remaining=INF
+	var other_remaining=INF
+	if my_index>=0 and my_index<meteor_nodes.size() and is_instance_valid(meteor_nodes[my_index]):
+		my_remaining=Vector2(bear.global_position.x-meteor_nodes[my_index].global_position.x,bear.global_position.z-meteor_nodes[my_index].global_position.z).length()
+	if other_index>=0 and other_index<meteor_nodes.size() and is_instance_valid(meteor_nodes[other_index]):
+		other_remaining=Vector2(nearest.global_position.x-meteor_nodes[other_index].global_position.x,nearest.global_position.z-meteor_nodes[other_index].global_position.z).length()
+	if my_remaining<=other_remaining:
+		return Vector3.ZERO
+	var left=Vector3(-move_dir.z,0.0,move_dir.x)
+	var right=-left
+	var left_probe=bear.position+left*14.0
+	var right_probe=bear.position+right*14.0
+	left_probe.y=height_at(left_probe.x,left_probe.z)
+	right_probe.y=height_at(right_probe.x,right_probe.z)
+	var left_ok=not _bear_point_blocked(left_probe,2.6) and not _bear_too_close_to_other(bear,left_probe,12.0)
+	var right_ok=not _bear_point_blocked(right_probe,2.6) and not _bear_too_close_to_other(bear,right_probe,12.0)
+	if left_ok and right_ok:
+		var left_gap=Vector2(left_probe.x-nearest.global_position.x,left_probe.z-nearest.global_position.z).length()
+		var right_gap=Vector2(right_probe.x-nearest.global_position.x,right_probe.z-nearest.global_position.z).length()
+		return left if left_gap>=right_gap else right
+	if left_ok: return left
+	if right_ok: return right
+	return -move_dir
+
+func _bear_clear_of_others(bear:Node3D,min_distance:float) -> bool:
+	for other in bears:
+		if other==bear or not is_instance_valid(other): continue
+		if Vector2(bear.global_position.x-other.global_position.x,bear.global_position.z-other.global_position.z).length()<min_distance:
+			return false
+	return true
+
 func _update_bears(delta:float) -> void:
 	if bears.is_empty() or meteor_nodes.is_empty(): return
 	for bear in bears:
@@ -670,6 +715,25 @@ func _update_bears(delta:float) -> void:
 			index=_bear_nearest_safe_meteor_index(bear.global_position,-1,bear)
 			if index<0: continue
 			bear.set_meta("meteor_index",index)
+		if bool(bear.get_meta("avoiding",false)):
+			var avoid_target=bear.get_meta("avoid_target",bear.position) as Vector3
+			var avoid_dir=avoid_target-bear.position
+			avoid_dir.y=0.0
+			if avoid_dir.length()<1.5 or _bear_clear_of_others(bear,25.0):
+				bear.set_meta("avoiding",false)
+				var new_index=_bear_nearest_safe_meteor_index(bear.global_position,index,bear)
+				if new_index>=0: bear.set_meta("meteor_index",new_index)
+				continue
+			avoid_dir=avoid_dir.normalized()
+			var avoid_next=bear.position+avoid_dir*3.4*delta
+			avoid_next.y=height_at(avoid_next.x,avoid_next.z)
+			if _bear_point_blocked(avoid_next,2.6):
+				bear.set_meta("avoiding",false)
+				continue
+			bear.rotation.y=atan2(-avoid_dir.x,-avoid_dir.z)
+			bear.position=avoid_next
+			_bear_set_body_height(bear,true)
+			continue
 		var target=meteor_nodes[index]
 		var target_pos=Vector3(target.global_position.x,height_at(target.global_position.x,target.global_position.z),target.global_position.z)
 		var dir=target_pos-bear.position
@@ -679,13 +743,17 @@ func _update_bears(delta:float) -> void:
 			if next_index>=0: bear.set_meta("meteor_index",next_index)
 			continue
 		dir=dir.normalized()
-		var step=Vector3(dir.x,0.0,dir.z)*3.4*delta
-		var next_pos=bear.position+step
-		next_pos.y=height_at(next_pos.x,next_pos.z)
-		if _bear_too_close_to_other(bear,next_pos,18.0):
-			bear.set_meta("moving",false)
-			_bear_set_body_height(bear,false)
+		var avoid_dir=_bear_avoidance_direction(bear,dir)
+		if avoid_dir.length_squared()>0.01:
+			var avoid_target=bear.position+avoid_dir.normalized()*randf_range(12.0,18.0)
+			avoid_target.x=clampf(avoid_target.x,-MAP_HALF+10.0,MAP_HALF-10.0)
+			avoid_target.z=clampf(avoid_target.z,-MAP_HALF+10.0,MAP_HALF-10.0)
+			avoid_target.y=height_at(avoid_target.x,avoid_target.z)
+			bear.set_meta("avoiding",true)
+			bear.set_meta("avoid_target",avoid_target)
 			continue
+		var next_pos=bear.position+Vector3(dir.x,0.0,dir.z)*3.4*delta
+		next_pos.y=height_at(next_pos.x,next_pos.z)
 		if _bear_point_blocked(next_pos,2.6):
 			var left=Vector3(-dir.z,0.0,dir.x)
 			var right=-left
@@ -693,12 +761,13 @@ func _update_bears(delta:float) -> void:
 			var right_pos=bear.position+right*3.0
 			left_pos.y=height_at(left_pos.x,left_pos.z)
 			right_pos.y=height_at(right_pos.x,right_pos.z)
-			if not _bear_point_blocked(left_pos,2.6) and not _bear_too_close_to_other(bear,left_pos,18.0):
+			if not _bear_point_blocked(left_pos,2.6):
 				dir=left
-			elif not _bear_point_blocked(right_pos,2.6) and not _bear_too_close_to_other(bear,right_pos,18.0):
+			elif not _bear_point_blocked(right_pos,2.6):
 				dir=right
 			else:
-				bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,index,bear))
+				var new_index=_bear_nearest_safe_meteor_index(bear.global_position,index,bear)
+				if new_index>=0: bear.set_meta("meteor_index",new_index)
 				continue
 		bear.set_meta("moving",true)
 		bear.rotation.y=atan2(-dir.x,-dir.z)
