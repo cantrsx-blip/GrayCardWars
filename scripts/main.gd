@@ -179,6 +179,13 @@ var weather_duration := 0.0
 var weather_state := "clear"
 const RESOURCE_RESPAWN := 90.0
 var respawn_nodes: Array = []
+# Full weapon/ammo/armor crafting inventory. Crafted entries use the same 128px shop icons.
+var crafted_inventory: Dictionary = {}
+var craft_resources: Dictionary = {
+	"demir":0,"ip":0,"deri":0,"kulce_demir":0,"metal_boru":0,"celik":0,"celik_boru":0,"barut":0,
+	"green_card":0,"blue_card":0,"orange_card":0,"red_card":0
+}
+var craft_category := "SİLAHLAR"
 
 var pois := [
 	{"id":"unfinished_house","name":"Tamamlanmamis Ev","pos":Vector3(-130,0,130),"color":Color(.34,.28,.20)},
@@ -1236,19 +1243,34 @@ func _toggle_inventory():
 	if inventory_panel.visible: _refresh_inventory()
 
 func _create_inventory():
-	inventory_panel=Control.new(); inventory_panel.set_anchors_preset(Control.PRESET_CENTER); inventory_panel.position=Vector2(-260,-210); inventory_panel.size=Vector2(520,420)
-	var bg=ColorRect.new(); bg.size=inventory_panel.size; bg.color=Color(.035,.045,.04,.96); inventory_panel.add_child(bg)
-	var title=Label.new(); title.text="ENVANTER"; title.position=Vector2(24,18); title.add_theme_font_size_override("font_size",26); inventory_panel.add_child(title)
-	var grid=GridContainer.new(); grid.name="Grid"; grid.columns=4; grid.position=Vector2(24,68); grid.size=Vector2(472,310); inventory_panel.add_child(grid)
+	inventory_panel=Panel.new(); inventory_panel.set_anchors_preset(Control.PRESET_CENTER); inventory_panel.position=Vector2(-360,-260); inventory_panel.size=Vector2(720,520)
+	var title=Label.new(); title.text="ENVANTER"; title.position=Vector2(24,14); title.add_theme_font_size_override("font_size",26); inventory_panel.add_child(title)
+	var scroll=ScrollContainer.new(); scroll.name="InvScroll"; scroll.position=Vector2(20,58); scroll.size=Vector2(680,440); inventory_panel.add_child(scroll)
+	var grid=GridContainer.new(); grid.name="Grid"; grid.columns=5; grid.custom_minimum_size=Vector2(650,0); scroll.add_child(grid)
 	var layers=get_children().filter(func(n): return n is CanvasLayer); if layers.size()>0: layers[-1].add_child(inventory_panel)
 	inventory_panel.visible=false
 
+func _inventory_text_cell(text:String)->Control:
+	var cell=Label.new(); cell.text=text; cell.custom_minimum_size=Vector2(124,88); cell.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cell.vertical_alignment=VERTICAL_ALIGNMENT_CENTER; cell.add_theme_font_size_override("font_size",15); return cell
+
+func _inventory_crafted_cell(key:String,count:int)->Control:
+	var parts=key.split("|"); var name=str(parts[0]); var rarity=str(parts[1])
+	var box=VBoxContainer.new(); box.custom_minimum_size=Vector2(124,128)
+	var tex=TextureRect.new(); tex.custom_minimum_size=Vector2(92,82); tex.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; tex.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; tex.texture=_load_item_texture(_craft_icon_path(name,rarity)); box.add_child(tex)
+	var label=Label.new(); label.text="%s %s\n×%d" % [_store_rarity_name(rarity),name,count]; label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; label.add_theme_font_size_override("font_size",12); box.add_child(label)
+	return box
+
 func _refresh_inventory():
 	if inventory_panel==null: return
-	var grid=inventory_panel.get_node("Grid"); for c in grid.get_children(): c.queue_free()
-	var items=[["ODUN",wood],["TAS",stone],["CIM",grass_n],["BUGDAY",wheat_n],["MANTAR",mushroom_n],["GRAY KART",gray_cards],["MERMI",ammo],["BALTA",axe_count],["KAZMA",pickaxe_count],["CAN",health],["ACLIK",int(hunger)],["SU",int(thirst)]]
-	for item in items:
-		var cell=Label.new(); cell.text="%s\n%d" % [item[0],item[1]]; cell.custom_minimum_size=Vector2(112,72); cell.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cell.vertical_alignment=VERTICAL_ALIGNMENT_CENTER; cell.add_theme_font_size_override("font_size",18); grid.add_child(cell)
+	var grid=inventory_panel.get_node("InvScroll/Grid"); for c in grid.get_children(): c.queue_free()
+	var items=[["ODUN",wood],["TAŞ",stone],["DEMİR",metal_parts],["GRİ KART",gray_cards],["MERMI",ammo],["BALTA",axe_count],["KAZMA",pickaxe_count]]
+	for item in items: grid.add_child(_inventory_text_cell("%s\n%d" % [item[0],item[1]]))
+	for k in craft_resources:
+		if int(craft_resources[k])>0: grid.add_child(_inventory_text_cell("%s\n%d" % [_craft_material_name(k),int(craft_resources[k])]))
+	for key in crafted_inventory:
+		var count=int(crafted_inventory[key])
+		if count>0: grid.add_child(_inventory_crafted_cell(key,count))
+
 
 func _schedule_resource_respawn(n:Node3D,kind:String):
 	respawn_nodes.append({"kind":kind,"pos":n.global_position,"time":RESOURCE_RESPAWN})
@@ -1290,35 +1312,167 @@ func _toggle_crafting():
 	if craft_panel==null: _create_crafting()
 	craft_panel.visible=not craft_panel.visible
 	if inventory_panel: inventory_panel.visible=false
+	if craft_panel.visible: _refresh_crafting()
+
+func _rarity_list() -> Array:
+	return ["gray","green","blue","orange","red"]
+
+func _craft_base_recipes() -> Dictionary:
+	return {
+		"Mızrak":{"cat":"SİLAHLAR","base":"spear","mat":{"wood":1,"stone":1,"demir":1}},
+		"Meşale":{"cat":"SİLAHLAR","base":"torch","mat":{"wood":1,"stone":1,"demir":1}},
+		"Yay":{"cat":"SİLAHLAR","base":"bow","mat":{"wood":2,"ip":2,"deri":2}},
+		"Arbalet":{"cat":"SİLAHLAR","base":"crossbow","mat":{"wood":3,"ip":3,"deri":3,"demir":3}},
+		"Tabanca":{"cat":"SİLAHLAR","base":"pistol","mat":{"demir":4,"kulce_demir":1,"wood":2,"deri":2}},
+		"Pompalı":{"cat":"SİLAHLAR","base":"shotgun","mat":{"demir":4,"kulce_demir":2,"metal_boru":1,"wood":2,"deri":2}},
+		"Tüfek":{"cat":"SİLAHLAR","base":"rifle","mat":{"demir":4,"kulce_demir":2,"celik_boru":1,"wood":2,"deri":2}},
+		"Patlayıcı":{"cat":"SİLAHLAR","base":"explosive","mat":{"celik_boru":2,"demir":3,"ip":2,"barut":4}},
+		"Mızrak Ucu":{"cat":"MERMİLER","base":"spearhead","mat":{"stone":2,"demir":1},"special_barut":true},
+		"Ok":{"cat":"MERMİLER","base":"arrow","mat":{"stone":2,"demir":1},"special_barut":true},
+		"Tabanca Mermisi":{"cat":"MERMİLER","base":"pistol_ammo","mat":{"kulce_demir":2,"barut":2,"demir":4}},
+		"Pompalı Mermisi":{"cat":"MERMİLER","base":"shotgun_shell","mat":{"celik":2,"barut":3,"demir":6}},
+		"Tüfek Mermisi":{"cat":"MERMİLER","base":"rifle_ammo","mat":{"celik":3,"barut":4,"demir":8}}
+	}
+
+func _armor_recipe(name:String) -> Dictionary:
+	if name.begins_with("Ahşap"):
+		return {"cat":"ZIRHLAR","mat":{"wood":2,"deri":2,"ip":1}}
+	if name.begins_with("Taş"):
+		return {"cat":"ZIRHLAR","mat":{"stone":3,"deri":2,"ip":1}}
+	return {"cat":"ZIRHLAR","mat":{"demir":4,"kulce_demir":2,"deri":2,"ip":1}}
+
+func _craft_recipe(name:String, rarity:String) -> Dictionary:
+	var data:Dictionary
+	var base_recipes=_craft_base_recipes()
+	if base_recipes.has(name):
+		data=base_recipes[name].duplicate(true)
+	else:
+		data=_armor_recipe(name)
+	var idx=_rarity_list().find(rarity)
+	var mult=1 << idx
+	var req:Dictionary={}
+	for k in data.mat: req[k]=int(data.mat[k])*mult
+	if bool(data.get("special_barut",false)):
+		if rarity=="orange": req["barut"]=1
+		elif rarity=="red": req["barut"]=2
+	var card_keys=["gray_card","green_card","blue_card","orange_card","red_card"]
+	req[card_keys[idx]]=1
+	if idx>0: req["item:"+_craft_key(name,_rarity_list()[idx-1])]=1
+	data["requirements"]=req
+	return data
+
+func _craft_key(name:String,rarity:String)->String:
+	return name+"|"+rarity
+
+func _resource_amount(key:String)->int:
+	match key:
+		"wood": return wood
+		"stone": return stone
+		"demir": return metal_parts
+		"gray_card": return gray_cards
+		_:
+			if key.begins_with("item:"): return int(crafted_inventory.get(key.trim_prefix("item:"),0))
+			return int(craft_resources.get(key,0))
+
+func _take_resource(key:String,amount:int)->void:
+	if cheat_mode: return
+	match key:
+		"wood": wood-=amount
+		"stone": stone-=amount
+		"demir": metal_parts-=amount
+		"gray_card": gray_cards-=amount
+		_:
+			if key.begins_with("item:"):
+				var item_key=key.trim_prefix("item:")
+				crafted_inventory[item_key]=maxi(0,int(crafted_inventory.get(item_key,0))-amount)
+			else: craft_resources[key]=maxi(0,int(craft_resources.get(key,0))-amount)
+
+func _craft_material_name(key:String)->String:
+	var names={"wood":"Odun","stone":"Taş","demir":"Demir","ip":"İp","deri":"Deri","kulce_demir":"Külçe Demir","metal_boru":"Metal Boru","celik":"Çelik","celik_boru":"Çelik Boru","barut":"Barut","gray_card":"Gri Kart","green_card":"Yeşil Kart","blue_card":"Mavi Kart","orange_card":"Turuncu Kart","red_card":"Kırmızı Kart"}
+	if key.begins_with("item:"):
+		var p=key.trim_prefix("item:").split("|")
+		return "%s %s" % [_store_rarity_name(str(p[1])),str(p[0])]
+	return str(names.get(key,key))
+
+func _craft_requirements_text(name:String,rarity:String)->String:
+	var req:Dictionary=_craft_recipe(name,rarity).requirements
+	var out:Array[String]=[]
+	for k in req: out.append("%s ×%d" % [_craft_material_name(k),int(req[k])])
+	return " + ".join(out)
+
+func _craft_icon_path(name:String,rarity:String)->String:
+	for cat in ["SİLAHLAR","MERMİLER","ZIRHLAR"]:
+		for item in _store_items(cat):
+			if str(item.name)==name and str(item.rarity)==rarity: return str(item.path)
+	return ""
+
+func _craft_names(category:String)->Array:
+	var names:Array=[]
+	for item in _store_items(category):
+		if not names.has(item.name): names.append(item.name)
+	return names
 
 func _create_crafting():
-	craft_panel=Control.new(); craft_panel.set_anchors_preset(Control.PRESET_CENTER); craft_panel.position=Vector2(-245,-180); craft_panel.size=Vector2(490,360)
-	var bg=ColorRect.new(); bg.size=craft_panel.size; bg.color=Color(.04,.05,.045,.96); craft_panel.add_child(bg)
-	var title=Label.new(); title.text="URETIM"; title.position=Vector2(22,18); title.add_theme_font_size_override("font_size",26); craft_panel.add_child(title)
-	var recipes=[["TAS BALTA  •  20 ODUN + 10 TAS",0],["TAS KAZMA  •  15 ODUN + 15 TAS",1],["5 MERMI  •  5 TAS",2]]
-	for i in recipes.size():
-		var b=Button.new(); b.text=recipes[i][0]; b.position=Vector2(45,75+i*70); b.size=Vector2(400,55); b.add_theme_font_size_override("font_size",18); crafting_flash_button=b
-		b.pressed.connect(_craft.bind(recipes[i][1])); craft_panel.add_child(b)
+	craft_panel=Panel.new(); craft_panel.set_anchors_preset(Control.PRESET_CENTER); craft_panel.position=Vector2(-390,-290); craft_panel.size=Vector2(780,580)
+	var title=Label.new(); title.text="ÜRETİM"; title.position=Vector2(22,14); title.size=Vector2(500,38); title.add_theme_font_size_override("font_size",26); craft_panel.add_child(title)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(710,10); close.size=Vector2(50,38); close.pressed.connect(_toggle_crafting); craft_panel.add_child(close)
+	for i in 3:
+		var cat=["SİLAHLAR","MERMİLER","ZIRHLAR"][i]
+		var b=Button.new(); b.text=cat; b.position=Vector2(20+i*245,58); b.size=Vector2(230,42); b.pressed.connect(_set_craft_category.bind(cat)); craft_panel.add_child(b)
+	var scroll=ScrollContainer.new(); scroll.name="CraftScroll"; scroll.position=Vector2(20,112); scroll.size=Vector2(740,445); scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED; craft_panel.add_child(scroll)
+	var list=VBoxContainer.new(); list.name="CraftList"; list.custom_minimum_size=Vector2(715,0); scroll.add_child(list)
 	var layers=get_children().filter(func(n): return n is CanvasLayer); if layers.size()>0: layers[-1].add_child(craft_panel)
 	craft_panel.visible=false
+	_refresh_crafting()
+
+func _set_craft_category(category:String)->void:
+	craft_category=category
+	_refresh_crafting()
+
+func _refresh_crafting()->void:
+	if craft_panel==null: return
+	var list=craft_panel.get_node_or_null("CraftScroll/CraftList")
+	if list==null: return
+	for c in list.get_children(): c.queue_free()
+	for name in _craft_names(craft_category):
+		for rarity in _rarity_list():
+			var row=HBoxContainer.new(); row.custom_minimum_size=Vector2(700,64)
+			var info=Label.new(); info.text="%s %s\n%s" % [_store_rarity_name(rarity),name,_craft_requirements_text(name,rarity)]; info.custom_minimum_size=Vector2(570,60); info.add_theme_font_size_override("font_size",14); row.add_child(info)
+			var b=Button.new(); b.text="ÜRET"; b.custom_minimum_size=Vector2(115,52); b.pressed.connect(_craft_catalog_item.bind(name,rarity)); row.add_child(b)
+			list.add_child(row)
+
+func _craft_catalog_item(name:String,rarity:String)->void:
+	var recipe=_craft_recipe(name,rarity)
+	var req:Dictionary=recipe.requirements
+	if not cheat_mode:
+		for k in req:
+			if _resource_amount(k)<int(req[k]):
+				_flash_message("MALZEME YETERSİZ: "+_craft_material_name(k))
+				return
+		for k in req: _take_resource(k,int(req[k]))
+	var key=_craft_key(name,rarity)
+	crafted_inventory[key]=int(crafted_inventory.get(key,0))+1
+	_craft_success_feedback(); _play_sfx("craft")
+	_flash_message("%s %s ENVANTERE EKLENDİ" % [_store_rarity_name(rarity),name])
+	_refresh_inventory()
+	_refresh_crafting()
 
 func _craft(kind:int):
+	# Legacy quick recipes stay available for old button bindings.
 	if cheat_mode:
-		wood=max(wood,9999); stone=max(stone,9999); grass_n=max(grass_n,9999); wheat_n=max(wheat_n,9999); mushroom_n=max(mushroom_n,9999); reserve_ammo=max(reserve_ammo,9999)
+		wood=max(wood,9999); stone=max(stone,9999)
 	var crafted := false
-	if kind==0 and axe_count==0 and wood>=20 and stone>=10:
-		wood-=20; stone-=10; axe_count=1; selected_tool="TAS BALTA"; crafted=true
-	elif kind==1 and pickaxe_count==0 and wood>=15 and stone>=15:
-		wood-=15; stone-=15; pickaxe_count=1; selected_tool="TAS KAZMA"; crafted=true
-	elif kind==2 and stone>=5:
-		stone-=5; ammo+=5; crafted=true
-	if not crafted:
-		if gather_label: gather_label.text="MALZEME YETERSIZ"; gather_label.visible=true; message_time=1.2
-		return
-	_craft_success_feedback()
-	_play_sfx("craft")
-	if gather_label: gather_label.text="URETILDI"; gather_label.visible=true; message_time=1.2
-	_refresh_inventory()
+	if kind==0 and axe_count==0 and (cheat_mode or (wood>=20 and stone>=10)):
+		if not cheat_mode: wood-=20; stone-=10
+		axe_count=1; selected_tool="TAS BALTA"; crafted=true
+	elif kind==1 and pickaxe_count==0 and (cheat_mode or (wood>=15 and stone>=15)):
+		if not cheat_mode: wood-=15; stone-=15
+		pickaxe_count=1; selected_tool="TAS KAZMA"; crafted=true
+	elif kind==2 and (cheat_mode or stone>=5):
+		if not cheat_mode: stone-=5
+		ammo+=5; crafted=true
+	if not crafted: _flash_message("MALZEME YETERSİZ"); return
+	_craft_success_feedback(); _play_sfx("craft"); _refresh_inventory()
 
 
 func _create_hotbar(layer:CanvasLayer):
@@ -1855,14 +2009,11 @@ func _toggle_cheat_mode():
 	if cheat_label: cheat_label.text=("HILE MODU ACIK" if cheat_mode else "")
 	if creative_panel: creative_panel.visible=cheat_mode
 	if cheat_mode:
-		wood=9999; stone=9999; grass_n=9999; wheat_n=9999; mushroom_n=9999; reserve_ammo=9999
+		wood=9999; stone=9999; grass_n=9999; wheat_n=9999; mushroom_n=9999; reserve_ammo=9999; metal_parts=9999; gray_cards=9999\n\t\tfor k in craft_resources: craft_resources[k]=9999
 		axe_count=max(axe_count,1); pickaxe_count=max(pickaxe_count,1)
 		_flash_message("HILE MODU: SINIRSIZ URETIM")
 	else: _flash_message("HILE MODU KAPALI")
-	_update_ammo_ui()
-
-
-func _create_creative_menu(layer:CanvasLayer):
+	_update_ammo_ui()\n\t_refresh_inventory()\n\tif craft_panel: _refresh_crafting()\n\n\nfunc _create_creative_menu(layer:CanvasLayer):
 	creative_panel=Panel.new(); creative_panel.position=Vector2(360,85); creative_panel.size=Vector2(560,430); creative_panel.visible=false; layer.add_child(creative_panel)
 	var title=Label.new(); title.text="CREATIVE / HILE ENVANTERI"; title.position=Vector2(18,12); title.size=Vector2(520,35); title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; creative_panel.add_child(title)
 	var items=["BALTA","KAZMA","SILAH","MERMİ +100","ODUN +500","TAS +500","OT +500","BUGDAY +200","MANTAR +100","KAMP ATESI","EV PARCALARI","BOT"]
