@@ -116,6 +116,8 @@ var magazine := 30
 var reserve_ammo := 120
 var cheat_label: Label
 var cheat_button: Button
+var bears: Array[Node3D] = []
+var meteor_nodes: Array[Node3D] = []
 var creative_panel: Control
 var cheat_mode := false
 var fx_root: Node3D
@@ -229,6 +231,8 @@ func _build_world_staged() -> void:
 	_build_rocks_staged()
 	await get_tree().process_frame
 	_build_meteors_staged()
+	await get_tree().process_frame
+	_spawn_bears()
 	await get_tree().process_frame
 	_build_trees_staged()
 	await get_tree().process_frame
@@ -440,8 +444,122 @@ func _build_meteors_staged() -> void:
 			_make_meteor(meteor_body)
 			var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
 			meteor_body.set_meta("loot","meteor")
+			meteor_nodes.append(meteor_body)
 		if i > 0 and i % 16 == 0:
 			await get_tree().process_frame
+
+func _spawn_bears() -> void:
+	for i in 5:
+		var p=_rand_map_point(MAP_HALF-18)
+		var bear=CharacterBody3D.new()
+		bear.name="Bear_%d" % i
+		bear.position=Vector3(p.x,height_at(p.x,p.z)+2.0,p.z)
+		bear.set_meta("meteor_index",_nearest_meteor_index(bear.global_position))
+		bear.set_meta("meteor_direction",1)
+		add_child(bear)
+		_make_bear_visual(bear)
+		var cs=CollisionShape3D.new()
+		var shape=CapsuleShape3D.new()
+		shape.radius=1.25
+		shape.height=4.0
+		cs.shape=shape
+		bear.add_child(cs)
+		bears.append(bear)
+
+func _make_bear_visual(parent:Node3D) -> void:
+	var brown=_simple_mat(Color(.30,.16,.07))
+	var dark_brown=_simple_mat(Color(.20,.10,.04))
+	var body=MeshInstance3D.new()
+	var body_mesh=SphereMesh.new()
+	body_mesh.radius=1.55
+	body_mesh.height=3.0
+	body.mesh=body_mesh
+	body.scale=Vector3(1.15,.9,1.45)
+	body.position=Vector3(0,1.8,0)
+	body.material_override=brown
+	parent.add_child(body)
+	var head=MeshInstance3D.new()
+	var head_mesh=SphereMesh.new()
+	head_mesh.radius=.95
+	head_mesh.height=1.8
+	head.mesh=head_mesh
+	head.position=Vector3(0,2.65,-1.65)
+	head.material_override=brown
+	parent.add_child(head)
+	var snout=MeshInstance3D.new()
+	var snout_mesh=SphereMesh.new()
+	snout_mesh.radius=.48
+	snout_mesh.height=.72
+	snout.mesh=snout_mesh
+	snout.scale=Vector3(1.0,.7,1.1)
+	snout.position=Vector3(0,2.45,-2.42)
+	snout.material_override=dark_brown
+	parent.add_child(snout)
+	for x in [-.62,.62]:
+		var ear=MeshInstance3D.new()
+		var ear_mesh=SphereMesh.new()
+		ear_mesh.radius=.32
+		ear_mesh.height=.55
+		ear.mesh=ear_mesh
+		ear.position=Vector3(x,3.45,-1.72)
+		ear.material_override=brown
+		parent.add_child(ear)
+	for x in [-.92,.92]:
+		for z in [-.72,.82]:
+			var leg=MeshInstance3D.new()
+			var leg_mesh=CylinderMesh.new()
+			leg_mesh.top_radius=.34
+			leg_mesh.bottom_radius=.42
+			leg_mesh.height=1.65
+			leg.mesh=leg_mesh
+			leg.position=Vector3(x,.78,z)
+			leg.material_override=dark_brown
+			parent.add_child(leg)
+	parent.scale=Vector3(1.35,1.35,1.35)
+
+func _nearest_meteor_index(from_pos:Vector3) -> int:
+	var best_index=-1
+	var best_distance=INF
+	for i in meteor_nodes.size():
+		var meteor=meteor_nodes[i]
+		if not is_instance_valid(meteor): continue
+		var d=from_pos.distance_squared_to(meteor.global_position)
+		if d<best_distance:
+			best_distance=d
+			best_index=i
+	return best_index
+
+func _update_bears(delta:float) -> void:
+	if meteor_nodes.is_empty(): return
+	for bear in bears:
+		if not is_instance_valid(bear): continue
+		var index=int(bear.get_meta("meteor_index",-1))
+		var direction=int(bear.get_meta("meteor_direction",1))
+		if index<0 or index>=meteor_nodes.size() or not is_instance_valid(meteor_nodes[index]):
+			index=_nearest_meteor_index(bear.global_position)
+			if index<0: continue
+			bear.set_meta("meteor_index",index)
+		var target=meteor_nodes[index]
+		var flat_target=Vector3(target.global_position.x,bear.global_position.y,target.global_position.z)
+		var distance=bear.global_position.distance_to(flat_target)
+		if distance<2.8:
+			var next_index=index+direction
+			if next_index>=meteor_nodes.size():
+				direction=-1
+				next_index=maxi(0,index-1)
+			elif next_index<0:
+				direction=1
+				next_index=mini(meteor_nodes.size()-1,index+1)
+			bear.set_meta("meteor_direction",direction)
+			bear.set_meta("meteor_index",next_index)
+			continue
+		var dir=(flat_target-bear.global_position).normalized()
+		bear.velocity.x=dir.x*2.1
+		bear.velocity.z=dir.z*2.1
+		bear.velocity.y=0.0
+		bear.look_at(Vector3(flat_target.x,bear.global_position.y,flat_target.z),Vector3.UP)
+		bear.move_and_slide()
+		bear.position.y=height_at(bear.position.x,bear.position.z)+2.0
 
 func _build_trees_staged() -> void:
 	for i in (80 if OS.has_feature("mobile") else 330):
@@ -838,6 +956,7 @@ func _physics_process(delta):
 	in_dry = _near_poi(player.position.x, player.position.z)
 	var flat = Vector2(player.position.x, player.position.z)
 	_update_combat(delta)
+	_update_bears(delta)
 	_update_resource_respawns(delta)
 	_update_build_preview()
 	_update_map_dot()
