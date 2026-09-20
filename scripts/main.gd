@@ -2005,15 +2005,33 @@ func _create_cheat_ui(layer:CanvasLayer):
 	cheat_label=Label.new(); cheat_label.position=Vector2(510,10); cheat_label.size=Vector2(260,34); cheat_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cheat_label.text=""; layer.add_child(cheat_label)
 
 func _toggle_cheat_mode():
-	cheat_mode=!cheat_mode
-	if cheat_label: cheat_label.text=("HILE MODU ACIK" if cheat_mode else "")
-	if creative_panel: creative_panel.visible=cheat_mode
+	cheat_mode = !cheat_mode
+	if cheat_label:
+		cheat_label.text = ("HILE MODU ACIK" if cheat_mode else "")
+	if creative_panel:
+		creative_panel.visible = cheat_mode
 	if cheat_mode:
-		wood=9999; stone=9999; grass_n=9999; wheat_n=9999; mushroom_n=9999; reserve_ammo=9999; metal_parts=9999; gray_cards=9999\n\t\tfor k in craft_resources: craft_resources[k]=9999
-		axe_count=max(axe_count,1); pickaxe_count=max(pickaxe_count,1)
+		wood = 9999
+		stone = 9999
+		grass_n = 9999
+		wheat_n = 9999
+		mushroom_n = 9999
+		reserve_ammo = 9999
+		metal_parts = 9999
+		gray_cards = 9999
+		for k in craft_resources:
+			craft_resources[k] = 9999
+		axe_count = max(axe_count, 1)
+		pickaxe_count = max(pickaxe_count, 1)
 		_flash_message("HILE MODU: SINIRSIZ URETIM")
-	else: _flash_message("HILE MODU KAPALI")
-	_update_ammo_ui()\n\t_refresh_inventory()\n\tif craft_panel: _refresh_crafting()\n\n\nfunc _create_creative_menu(layer:CanvasLayer):
+	else:
+		_flash_message("HILE MODU KAPALI")
+	_update_ammo_ui()
+	_refresh_inventory()
+	if craft_panel:
+		_refresh_crafting()
+
+func _create_creative_menu(layer:CanvasLayer):
 	creative_panel=Panel.new(); creative_panel.position=Vector2(360,85); creative_panel.size=Vector2(560,430); creative_panel.visible=false; layer.add_child(creative_panel)
 	var title=Label.new(); title.text="CREATIVE / HILE ENVANTERI"; title.position=Vector2(18,12); title.size=Vector2(520,35); title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; creative_panel.add_child(title)
 	var items=["BALTA","KAZMA","SILAH","MERMİ +100","ODUN +500","TAS +500","OT +500","BUGDAY +200","MANTAR +100","KAMP ATESI","EV PARCALARI","BOT"]
