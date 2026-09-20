@@ -147,7 +147,7 @@ var sfx: Dictionary = {}
 var step_timer := 0.0
 var hotbar_label: Label
 var player_facing := Vector3(0,0,-1)
-var player_move_speed := 3.4
+var player_move_speed := 6.8
 var fly_mode := false
 var fly_height := 0.0
 var waypoint_active := false
@@ -1385,7 +1385,7 @@ func _physics_process(delta):
 		right=camera.global_transform.basis.x; right.y=0.0; right=right.normalized()
 	var dir = right*v.x + forward*(-v.y)
 	if dir.length() > 1.0: dir = dir.normalized()
-	var speed = player_move_speed * 2.0 * (.70 if in_pit else 1.0)
+	var speed = player_move_speed * (.70 if in_pit else 1.0)
 	if hunger<20.0 or thirst<20.0: speed*=.78
 	if fly_mode: speed*=1.5
 	# FPS view direction is controlled by right-side look drag, not movement stick.
@@ -1499,7 +1499,7 @@ func _toggle_crouch():
 	if player==null or camera==null: return
 	crouched=not crouched
 	camera.position.y=.34 if crouched else .72
-	player_move_speed=2.4 if crouched else 3.4
+	player_move_speed=4.8 if crouched else 6.8
 	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
 
 func _look_pad_input(event):
