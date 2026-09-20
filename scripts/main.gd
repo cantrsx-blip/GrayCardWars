@@ -517,7 +517,7 @@ func _build_hud():
 	_create_survival_clock(layer); _create_damage_effect(layer); _create_ammo_ui(layer); _create_cheat_ui(layer)
 	facing_label=Label.new(); facing_label.set_anchors_preset(Control.PRESET_TOP_WIDE); facing_label.position=Vector2(0,48); facing_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; facing_label.add_theme_font_size_override("font_size",22); layer.add_child(facing_label)
 	waypoint_label=Label.new(); waypoint_label.set_anchors_preset(Control.PRESET_TOP_WIDE); waypoint_label.position=Vector2(0,76); waypoint_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; waypoint_label.add_theme_font_size_override("font_size",20); layer.add_child(waypoint_label)
-	_create_creative_menu(layer); _setup_sfx(); fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
+	_setup_sfx(); fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
 func _open_store():
 	if store_panel==null:
@@ -2027,186 +2027,23 @@ func _create_cheat_ui(layer:CanvasLayer):
 func _toggle_cheat_mode():
 	cheat_mode = !cheat_mode
 	if cheat_label:
-		cheat_label.text = ("HILE MODU ACIK" if cheat_mode else "")
+		cheat_label.text = ("HILE ACIK" if cheat_mode else "HILE KAPALI")
 	if creative_panel:
-		creative_panel.visible = cheat_mode
+		creative_panel.visible = false
 	if cheat_mode:
-		_flash_message("HILE MODU: SINIRSIZ URETIM")
+		_flash_message("HILE ACIK")
 	else:
-		_flash_message("HILE MODU KAPALI")
-	_update_ammo_ui()
+		_flash_message("HILE KAPALI")
 	_refresh_inventory()
 	if craft_panel:
 		_refresh_crafting()
+
 func _create_creative_menu(layer:CanvasLayer):
-	creative_panel=Panel.new(); creative_panel.position=Vector2(360,85); creative_panel.size=Vector2(560,430); creative_panel.visible=false; layer.add_child(creative_panel)
-	var title=Label.new(); title.text="CREATIVE / HILE ENVANTERI"; title.position=Vector2(18,12); title.size=Vector2(520,35); title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; creative_panel.add_child(title)
-	var items=["BALTA","KAZMA","SILAH","MERMİ +100","ODUN +500","TAS +500","OT +500","BUGDAY +200","MANTAR +100","KAMP ATESI","EV PARCALARI","BOT"]
-	for i in items.size():
-		var b=Button.new(); b.text=items[i]; b.position=Vector2(24+(i%3)*174,60+(i/3)*78); b.size=Vector2(158,58); creative_panel.add_child(b); b.pressed.connect(_creative_give.bind(items[i]))
+	if creative_panel:
+		creative_panel.visible = false
 
 func _creative_give(item:String):
-	if not cheat_mode: return
-	match item:
-		"BALTA": axe_count=max(axe_count,1); _select_hotbar(1)
-		"KAZMA": pickaxe_count=max(pickaxe_count,1); _select_hotbar(2)
-		"SILAH": _select_hotbar(3)
-		"MERMİ +100": reserve_ammo+=100; _update_ammo_ui()
-		"ODUN +500": wood+=500
-		"TAS +500": stone+=500
-		"OT +500": grass_n+=500
-		"BUGDAY +200": wheat_n+=200
-		"MANTAR +100": mushroom_n+=100
-		"KAMP ATESI": _build_fire()
-		"EV PARCALARI": build_mode=true; _select_hotbar(4); _ensure_build_preview()
-		"BOT": _build_boat()
-	_flash_message(item+" HAZIR")
-
-
-func _fell_tree(tree:Node3D):
-	# Tree tips away from the player, then disappears. Respawn scheduling stays unchanged.
-	if tree==null or not is_instance_valid(tree): return
-	var away=tree.global_position-player.global_position; away.y=0.0
-	var axis=Vector3(away.z,0.0,-away.x).normalized()
-	if axis.length()<.1: axis=Vector3.RIGHT
-	var tw=create_tween(); tw.set_trans(Tween.TRANS_QUAD); tw.set_ease(Tween.EASE_IN)
-	tw.tween_property(tree,"rotation",tree.rotation+axis*deg_to_rad(82.0),1.05)
-	tw.parallel().tween_property(tree,"position:y",tree.position.y-.35,1.05)
-	tw.tween_interval(.35); tw.tween_callback(tree.queue_free)
-
-
-func _break_rock(rock:Node3D):
-	if rock==null or not is_instance_valid(rock): return
-	rock.set_process(false)
-	for child in rock.get_children():
-		if child is VisualInstance3D: child.visible=false
-	for i in 8:
-		var chunk=MeshInstance3D.new(); var mesh=BoxMesh.new(); mesh.size=Vector3(randf_range(.18,.42),randf_range(.14,.34),randf_range(.18,.42)); chunk.mesh=mesh
-		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.34,.33,.31); chunk.material_override=mat
-		chunk.global_position=rock.global_position+Vector3(randf_range(-.35,.35),randf_range(.25,.8),randf_range(-.35,.35)); fx_root.add_child(chunk)
-		var target=chunk.position+Vector3(randf_range(-1.4,1.4),randf_range(.25,.8),randf_range(-1.4,1.4))
-		var tw=create_tween(); tw.set_parallel(true); tw.tween_property(chunk,"position",target,.42); tw.tween_property(chunk,"rotation",Vector3(randf()*4.0,randf()*4.0,randf()*4.0),.42)
-		var timer=get_tree().create_timer(.55); timer.timeout.connect(chunk.queue_free)
-	var t=get_tree().create_timer(.1); t.timeout.connect(rock.queue_free)
-
-
-func _damage_structure(part:Node3D, damage:=35):
-	if part==null or not is_instance_valid(part): return
-	var kind=str(part.get_meta("build_piece",""))
-	if kind not in ["DUVAR","PENCERE","KAPI"]: return
-	var hp=int(part.get_meta("structure_hp",structure_hp_default))-damage
-	part.set_meta("structure_hp",hp); _structure_hit_fx(part)
-	if hp<=0: _shatter_structure(part,kind)
-
-func _structure_hit_fx(part:Node3D):
-	if fx_root==null: return
-	for i in 5:
-		var c=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(.06,.06,.06); c.mesh=bm; c.global_position=part.global_position+Vector3(randf_range(-.5,.5),randf_range(.3,1.6),randf_range(-.3,.3)); fx_root.add_child(c)
-		var tw=create_tween(); tw.tween_property(c,"position",c.position+Vector3(randf_range(-.5,.5),-.45,randf_range(-.5,.5)),.3); tw.tween_callback(c.queue_free)
-
-func _shatter_structure(part:Node3D,kind:String):
-	_play_break_sound(part,kind)
-	for child in part.get_children():
-		if child is VisualInstance3D: child.visible=false
-	var count=12 if kind=="DUVAR" else 8
-	for i in count:
-		var c=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(randf_range(.12,.35),randf_range(.1,.28),randf_range(.08,.22)); c.mesh=bm; c.global_position=part.global_position+Vector3(randf_range(-1.0,1.0),randf_range(.25,1.8),randf_range(-.25,.25)); fx_root.add_child(c)
-		var tw=create_tween(); tw.set_parallel(true); tw.tween_property(c,"position",c.position+Vector3(randf_range(-1.3,1.3),randf_range(-.7,.2),randf_range(-1.0,1.0)),.5); tw.tween_property(c,"rotation",Vector3(randf()*4.0,randf()*4.0,randf()*4.0),.5)
-		var timer=get_tree().create_timer(.65); timer.timeout.connect(c.queue_free)
-	var t=get_tree().create_timer(.12); t.timeout.connect(part.queue_free)
-
-
-func _play_break_sound(part:Node3D,kind:String):
-	var material_kind=str(part.get_meta("material",""))
-	var sound="break_wood"
-	if material_kind=="metal": sound="break_metal"
-	elif material_kind=="stone": sound="break_stone"
-	elif material_kind=="glass" or kind=="PENCERE": sound="break_glass"
-	elif kind in ["DUVAR","KAPI"]: sound="break_wood"
-	_play_sfx(sound)
-
-
-func _add_human_limb(size:Vector3,pos:Vector3,mat:Material):
-	var limb=MeshInstance3D.new(); var mesh=CapsuleMesh.new()
-	mesh.radius=min(size.x,size.z)*.5; mesh.height=size.y
-	limb.mesh=mesh; limb.position=pos; limb.material_override=mat; player.add_child(limb)
-
-
-func _boss_visual() -> Node3D:
-	var root=_enemy_visual(Color(.10,.11,.13),Vector3(2.15,2.15,2.15))
-	var armor=StandardMaterial3D.new(); armor.albedo_color=Color(.20,.22,.24); armor.metallic=.75; armor.roughness=.32
-	var dark=StandardMaterial3D.new(); dark.albedo_color=Color(.055,.06,.07); dark.metallic=.55
-	_boss_armor_part(root,Vector3(.88,.42,.48),Vector3(0,1.28,0),armor)
-	_boss_armor_part(root,Vector3(.34,.26,.42),Vector3(-.58,1.30,0),armor)
-	_boss_armor_part(root,Vector3(.34,.26,.42),Vector3(.58,1.30,0),armor)
-	_boss_armor_part(root,Vector3(.58,.22,.42),Vector3(0,.82,0),dark)
-	_boss_armor_part(root,Vector3(.27,.46,.30),Vector3(-.20,.42,0),armor)
-	_boss_armor_part(root,Vector3(.27,.46,.30),Vector3(.20,.42,0),armor)
-	var helmet=MeshInstance3D.new(); var hm=SphereMesh.new(); hm.radius=.34; hm.height=.55; helmet.mesh=hm; helmet.position=Vector3(0,1.68,0); helmet.material_override=armor; root.add_child(helmet)
-	return root
-
-func _boss_armor_part(root:Node3D,size:Vector3,pos:Vector3,mat:Material):
-	var m=MeshInstance3D.new(); var bx=BoxMesh.new(); bx.size=size; m.mesh=bx; m.position=pos; m.material_override=mat; root.add_child(m)
-
-
-func _boss_can_fire(boss:Node) -> bool:
-	return boss!=null and boss.has_meta("boss_weapon") and bool(boss.get_meta("boss_infinite_ammo",false))
-
-func _is_player_loot_allowed(item:Node) -> bool:
-	# Boss-only weapons/ammo are internal combat equipment and never enter loot/inventory UI.
-	return item==null or not bool(item.get_meta("no_loot_weapon",false))
-
-
-func _ammo_stock(ammo_type:String) -> int:
-	match ammo_type:
-		"7.62": return ammo_762
-		"9MM": return ammo_9mm
-		"12GA": return ammo_12ga
-		"ROCKET": return ammo_rocket
-	return 0
-
-func _craft_explosive(kind:String):
-	# Abstract game-only crafting costs, intentionally not a real-world recipe.
-	if kind=="EL_BOMBASI":
-		if not cheat_mode and (stone<12 or metal_scrap()<8): _flash_message("MALZEME YETERSIZ"); return
-		if not cheat_mode: stone-=12
-		grenade_count+=1; _craft_success_feedback()
-	elif kind=="TNT":
-		if not cheat_mode and (stone<20 or wood<10): _flash_message("MALZEME YETERSIZ"); return
-		if not cheat_mode: stone-=20; wood-=10
-		tnt_count+=1; _craft_success_feedback()
-
-func metal_scrap() -> int:
-	# Placeholder resource hook until scrap loot is added.
-	return 9999 if cheat_mode else metal_parts
-
-
-func _throw_grenade():
-	if grenade_count<=0 and not cheat_mode: _flash_message("EL BOMBASI YOK"); return
-	if not cheat_mode: grenade_count-=1
-	var p=player.global_position+Vector3(0,1.2,0)-player.global_transform.basis.z*4.5
-	var timer=get_tree().create_timer(1.2); timer.timeout.connect(_game_explosion.bind(p,5.5,55))
-
-func _place_tnt():
-	if tnt_count<=0 and not cheat_mode: _flash_message("TNT YOK"); return
-	if not cheat_mode: tnt_count-=1
-	var p=player.global_position-player.global_transform.basis.z*2.2
-	_flash_message("TNT YERLESTIRILDI")
-	var timer=get_tree().create_timer(2.5); timer.timeout.connect(_game_explosion.bind(p,7.5,90))
-
-func _game_explosion(pos:Vector3,radius:float,damage:int):
-	_play_sfx("explosion")
-	if fx_root:
-		var light=OmniLight3D.new(); light.light_color=Color(1,.38,.08); light.light_energy=9; light.omni_range=radius*1.4; light.global_position=pos; fx_root.add_child(light)
-		var timer=get_tree().create_timer(.14); timer.timeout.connect(light.queue_free)
-	for e in enemies.duplicate():
-		if is_instance_valid(e) and e.global_position.distance_to(pos)<=radius:
-			e.set_meta("hp",int(e.get_meta("hp",60))-damage)
-	for n in get_children():
-		if n is Node3D and n.global_position.distance_to(pos)<=radius and n.has_meta("build_piece"): _damage_structure(n,damage)
-	if player and player.global_position.distance_to(pos)<=radius:
-		health=max(0,health-int(damage*.55)); _flash_damage(.65)
-
+	return
 
 func _toggle_fly_mode():
 	if player==null: return
