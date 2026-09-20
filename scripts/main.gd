@@ -602,26 +602,72 @@ func _load_item_texture(path:String) -> Texture2D:
 	push_warning("MISSING ICON: " + path)
 	return null
 
+func _store_detail_path(item:Dictionary) -> String:
+	return str(item.path).replace("_128.png","_512.png")
+
+func _store_item_details(item:Dictionary) -> String:
+	var rarity_index=["gray","green","blue","orange","red"].find(str(item.rarity))
+	var name=str(item.name)
+	if name in ["Mızrak","Meşale","Yay","Arbalet","Tabanca","Pompalı","Tüfek","Patlayıcı"]:
+		var weapon_damage={"Mızrak":18,"Meşale":12,"Yay":22,"Arbalet":28,"Tabanca":24,"Pompalı":36,"Tüfek":30,"Patlayıcı":40}
+		var ammo_name={"Mızrak":"Mızrak Ucu","Meşale":"Yok","Yay":"Ok","Arbalet":"Ok","Tabanca":"Tabanca Mermisi","Pompalı":"Pompalı Mermisi","Tüfek":"Tüfek Mermisi","Patlayıcı":"Patlayıcı"}
+		return "HASAR  %d\nMÜHİMMAT  %s\nKALİTE  %s" % [int(weapon_damage[name])+rarity_index*10,ammo_name[name],_store_rarity_name(item.rarity)]
+	if "Mermisi" in name or name in ["Ok","Mızrak Ucu"]:
+		var effects=["Normal","Keskin","Delici","Yanıcı","Patlayıcı"]
+		var weapons={"Tabanca Mermisi":"Tabanca","Pompalı Mermisi":"Pompalı","Tüfek Mermisi":"Tüfek","Ok":"Yay / Arbalet","Mızrak Ucu":"Mızrak"}
+		return "TÜR  %s\nETKİ  %s\nKULLANIM  %s\nKALİTE  %s" % [name,effects[rarity_index],weapons[name],_store_rarity_name(item.rarity)]
+	var protection=25
+	if name.begins_with("Taş"): protection=30
+	elif name.begins_with("Metal"): protection=35
+	protection+=rarity_index*5
+	var part="Zırh"
+	if "Kask" in name: part="Baş"
+	elif "Göğüslük" in name: part="Gövde"
+	elif "Pantolon" in name: part="Bacak"
+	elif "Bot" in name: part="Ayak"
+	return "KORUMA  %d\nPARÇA  %s\nKALİTE  %s" % [protection,part,_store_rarity_name(item.rarity)]
+
+func _close_store_detail() -> void:
+	if store_panel==null: return
+	var detail=store_panel.get_node_or_null("ItemDetail")
+	if detail: detail.queue_free()
+
+func _open_store_detail(item:Dictionary) -> void:
+	if store_panel==null: return
+	_close_store_detail()
+	var detail=Panel.new()
+	detail.name="ItemDetail"
+	detail.position=Vector2(90,72)
+	detail.size=Vector2(600,470)
+	detail.z_index=20
+	store_panel.add_child(detail)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(536,12); close.size=Vector2(48,38); close.pressed.connect(_close_store_detail); detail.add_child(close)
+	var title=Label.new(); title.text="%s  •  %s" % [item.name,_store_rarity_name(item.rarity)]; title.position=Vector2(22,14); title.size=Vector2(500,38); title.add_theme_font_size_override("font_size",24); detail.add_child(title)
+	var preview=TextureRect.new(); preview.position=Vector2(24,70); preview.size=Vector2(300,300); preview.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; preview.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; detail.add_child(preview)
+	var detail_path=_store_detail_path(item)
+	var detail_tex=_load_item_texture(detail_path)
+	if detail_tex==null: detail_tex=_load_item_texture(item.path)
+	preview.texture=detail_tex
+	var info=Label.new(); info.position=Vector2(346,92); info.size=Vector2(225,250); info.text=_store_item_details(item); info.add_theme_font_size_override("font_size",18); detail.add_child(info)
+	var hint=Label.new(); hint.text="512px detay görseli"; hint.position=Vector2(24,392); hint.size=Vector2(300,30); hint.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; detail.add_child(hint)
+
 func _make_store_slot(item:Dictionary) -> Control:
-	var panel=Panel.new()
-	panel.custom_minimum_size=Vector2(136,104)
-	panel.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
+	var button=TextureButton.new()
+	button.custom_minimum_size=Vector2(136,104)
+	button.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
+	button.ignore_texture_size=true
+	button.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	var tex=_load_item_texture(item.path)
 	if tex!=null:
-		var rect=TextureRect.new()
-		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		rect.texture=tex
-		rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
-		rect.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		rect.mouse_filter=Control.MOUSE_FILTER_IGNORE
-		panel.add_child(rect)
+		button.texture_normal=tex
 	else:
 		var missing_style=StyleBoxFlat.new()
 		missing_style.bg_color=Color(0,0,0,0)
 		missing_style.border_color=Color(1,0,0,1)
 		missing_style.set_border_width_all(2)
-		panel.add_theme_stylebox_override("panel",missing_style)
-	return panel
+		var frame=Panel.new(); frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); frame.mouse_filter=Control.MOUSE_FILTER_IGNORE; frame.add_theme_stylebox_override("panel",missing_style); button.add_child(frame)
+	button.pressed.connect(_open_store_detail.bind(item))
+	return button
 
 func _validate_shop_icons() -> void:
 	var missing=0
