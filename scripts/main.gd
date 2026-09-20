@@ -453,7 +453,7 @@ func _spawn_bears() -> void:
 		var p=_rand_map_point(MAP_HALF-18)
 		var bear=CharacterBody3D.new()
 		bear.name="Bear_%d" % i
-		bear.position=Vector3(p.x,height_at(p.x,p.z)+2.0,p.z)
+		bear.position=Vector3(p.x,height_at(p.x,p.z),p.z)
 		bear.set_meta("meteor_index",_nearest_meteor_index(bear.global_position))
 		bear.set_meta("meteor_direction",1)
 		add_child(bear)
@@ -540,8 +540,9 @@ func _update_bears(delta:float) -> void:
 			if index<0: continue
 			bear.set_meta("meteor_index",index)
 		var target=meteor_nodes[index]
-		var flat_target=Vector3(target.global_position.x,bear.global_position.y,target.global_position.z)
-		var distance=bear.global_position.distance_to(flat_target)
+		var target_ground=Vector3(target.global_position.x,height_at(target.global_position.x,target.global_position.z),target.global_position.z)
+		var flat_target=Vector3(target_ground.x,bear.global_position.y,target_ground.z)
+		var distance=Vector2(bear.global_position.x-target_ground.x,bear.global_position.z-target_ground.z).length()
 		if distance<2.8:
 			var next_index=index+direction
 			if next_index>=meteor_nodes.size():
@@ -559,7 +560,7 @@ func _update_bears(delta:float) -> void:
 		bear.velocity.y=0.0
 		bear.look_at(Vector3(flat_target.x,bear.global_position.y,flat_target.z),Vector3.UP)
 		bear.move_and_slide()
-		bear.position.y=height_at(bear.position.x,bear.position.z)+2.0
+		bear.position.y=height_at(bear.position.x,bear.position.z)
 
 func _build_trees_staged() -> void:
 	for i in (80 if OS.has_feature("mobile") else 330):
