@@ -497,8 +497,7 @@ func _build_hud():
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(64,64); joystick_knob.size=Vector2(72,72); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
 	for item in [["↑",Vector2(88,4)],["↓",Vector2(88,168)],["←",Vector2(8,86)],["→",Vector2(168,86)]]:
 		var jl=Label.new(); jl.text=item[0]; jl.position=item[1]; jl.size=Vector2(28,28); jl.add_theme_font_size_override("font_size",22); jl.mouse_filter=Control.MOUSE_FILTER_IGNORE; joystick_base.add_child(jl)
-	# URET, DOLDUR, BOMBA and TNT are intentionally removed from the gameplay HUD.
-	var actions=[["KULLAN",_use_nearest_interior],["ENVANTER",_toggle_inventory],["PARCA",_cycle_build_piece],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down],["MAĞAZA",_open_store]]
+	var actions=[["KULLAN",_use_nearest_interior],["ENVANTER",_toggle_inventory],["ÜRET",_toggle_crafting],["PARCA",_cycle_build_piece],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down],["MAĞAZA",_open_store]]
 	for i in actions.size():
 		var b=Button.new(); b.text=actions[i][0]; b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15); b.pressed.connect(actions[i][1]); layer.add_child(b)
@@ -1436,9 +1435,27 @@ func _refresh_crafting()->void:
 	for c in list.get_children(): c.queue_free()
 	for name in _craft_names(craft_category):
 		for rarity in _rarity_list():
-			var row=HBoxContainer.new(); row.custom_minimum_size=Vector2(700,64)
-			var info=Label.new(); info.text="%s %s\n%s" % [_store_rarity_name(rarity),name,_craft_requirements_text(name,rarity)]; info.custom_minimum_size=Vector2(570,60); info.add_theme_font_size_override("font_size",14); row.add_child(info)
-			var b=Button.new(); b.text="ÜRET"; b.custom_minimum_size=Vector2(115,52); b.pressed.connect(_craft_catalog_item.bind(name,rarity)); row.add_child(b)
+			var row=HBoxContainer.new()
+			row.custom_minimum_size=Vector2(700,96)
+			var icon=TextureRect.new()
+			icon.custom_minimum_size=Vector2(92,82)
+			icon.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			var icon_path=_craft_icon_path(name,rarity)
+			if not icon_path.is_empty():
+				icon.texture=_load_item_texture(icon_path)
+			row.add_child(icon)
+			var info=Label.new()
+			info.text="%s %s\n%s" % [_store_rarity_name(rarity),name,_craft_requirements_text(name,rarity)]
+			info.custom_minimum_size=Vector2(470,82)
+			info.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+			info.add_theme_font_size_override("font_size",14)
+			row.add_child(info)
+			var b=Button.new()
+			b.text="ÜRET"
+			b.custom_minimum_size=Vector2(115,60)
+			b.pressed.connect(_craft_catalog_item.bind(name,rarity))
+			row.add_child(b)
 			list.add_child(row)
 
 func _craft_catalog_item(name:String,rarity:String)->void:
@@ -1449,12 +1466,17 @@ func _craft_catalog_item(name:String,rarity:String)->void:
 			if _resource_amount(k)<int(req[k]):
 				_flash_message("MALZEME YETERSİZ: "+_craft_material_name(k))
 				return
-		for k in req: _take_resource(k,int(req[k]))
+		for k in req:
+			_take_resource(k,int(req[k]))
 	var key=_craft_key(name,rarity)
 	crafted_inventory[key]=int(crafted_inventory.get(key,0))+1
-	_craft_success_feedback(); _play_sfx("craft")
+	_craft_success_feedback()
+	_play_sfx("craft")
 	_flash_message("%s %s ENVANTERE EKLENDİ" % [_store_rarity_name(rarity),name])
+	if inventory_panel==null:
+		_create_inventory()
 	_refresh_inventory()
+	inventory_panel.visible=true
 	_refresh_crafting()
 
 func _craft(kind:int):
