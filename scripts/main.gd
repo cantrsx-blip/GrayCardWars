@@ -1481,8 +1481,6 @@ func _craft_catalog_item(name:String,rarity:String)->void:
 
 func _craft(kind:int):
 	# Legacy quick recipes stay available for old button bindings.
-	if cheat_mode:
-		wood=max(wood,9999); stone=max(stone,9999)
 	var crafted := false
 	if kind==0 and axe_count==0 and (cheat_mode or (wood>=20 and stone>=10)):
 		if not cheat_mode: wood-=20; stone-=10
@@ -2033,18 +2031,6 @@ func _toggle_cheat_mode():
 	if creative_panel:
 		creative_panel.visible = cheat_mode
 	if cheat_mode:
-		wood = 9999
-		stone = 9999
-		grass_n = 9999
-		wheat_n = 9999
-		mushroom_n = 9999
-		reserve_ammo = 9999
-		metal_parts = 9999
-		gray_cards = 9999
-		for k in craft_resources:
-			craft_resources[k] = 9999
-		axe_count = max(axe_count, 1)
-		pickaxe_count = max(pickaxe_count, 1)
 		_flash_message("HILE MODU: SINIRSIZ URETIM")
 	else:
 		_flash_message("HILE MODU KAPALI")
@@ -2052,7 +2038,6 @@ func _toggle_cheat_mode():
 	_refresh_inventory()
 	if craft_panel:
 		_refresh_crafting()
-
 func _create_creative_menu(layer:CanvasLayer):
 	creative_panel=Panel.new(); creative_panel.position=Vector2(360,85); creative_panel.size=Vector2(560,430); creative_panel.visible=false; layer.add_child(creative_panel)
 	var title=Label.new(); title.text="CREATIVE / HILE ENVANTERI"; title.position=Vector2(18,12); title.size=Vector2(520,35); title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; creative_panel.add_child(title)
