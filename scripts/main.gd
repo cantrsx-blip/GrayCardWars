@@ -115,6 +115,7 @@ var magazine_size := 30
 var magazine := 30
 var reserve_ammo := 120
 var cheat_label: Label
+var cheat_button: Button
 var creative_panel: Control
 var cheat_mode := false
 var fx_root: Node3D
@@ -500,6 +501,9 @@ func _build_hud():
 	var actions=[["KULLAN",_use_nearest_interior],["ENVANTER",_toggle_inventory],["ÜRET",_toggle_crafting],["PARCA",_cycle_build_piece],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down],["MAĞAZA",_open_store]]
 	for i in actions.size():
 		var b=Button.new(); b.text=actions[i][0]; b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		if actions[i][0]=="HILE":
+			cheat_button=b
+			cheat_button.text="HILE KAPALI"
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15); b.pressed.connect(actions[i][1]); layer.add_child(b)
 	_create_hotbar(layer); _create_minimap(layer); _create_weapon_aim_ui(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
@@ -517,12 +521,18 @@ func _build_hud():
 	_create_survival_clock(layer); _create_damage_effect(layer); _create_ammo_ui(layer); _create_cheat_ui(layer)
 	facing_label=Label.new(); facing_label.set_anchors_preset(Control.PRESET_TOP_WIDE); facing_label.position=Vector2(0,48); facing_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; facing_label.add_theme_font_size_override("font_size",22); layer.add_child(facing_label)
 	waypoint_label=Label.new(); waypoint_label.set_anchors_preset(Control.PRESET_TOP_WIDE); waypoint_label.position=Vector2(0,76); waypoint_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; waypoint_label.add_theme_font_size_override("font_size",20); layer.add_child(waypoint_label)
+	_update_cheat_button_style()
 	_setup_sfx(); fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
 func _open_store():
 	if store_panel==null:
 		_create_store_panel()
-	store_panel.visible=not store_panel.visible
+	var opening=not store_panel.visible
+	if inventory_panel: inventory_panel.visible=false
+	if craft_panel: craft_panel.visible=false
+	if map_panel: map_panel.visible=false
+	store_panel.visible=opening
+	_set_modal_lock(_panel_open())
 
 func _create_store_panel():
 	var layers=get_children().filter(func(n): return n is CanvasLayer)
@@ -716,8 +726,51 @@ func _nearest_poi() -> String:
 			best = "%s (%.0f m)" % [b.name, d]
 	return best
 
+func _panel_open() -> bool:
+	return (inventory_panel != null and inventory_panel.visible) or (craft_panel != null and craft_panel.visible) or (store_panel != null and store_panel.visible) or (map_panel != null and map_panel.visible)
+
+func _is_inside_open_panel(node:Node) -> bool:
+	var current=node.get_parent()
+	while current:
+		if current==inventory_panel or current==craft_panel or current==store_panel or current==map_panel:
+			return current.visible
+		current=current.get_parent()
+	return false
+
+func _set_modal_lock(locked:bool):
+	var layers=get_children().filter(func(n): return n is CanvasLayer)
+	for layer in layers:
+		for node in layer.find_children("*","Button",true,false):
+			var button=node as Button
+			button.disabled=locked and not _is_inside_open_panel(button)
+
+func _update_cheat_button_style():
+	if cheat_button==null: return
+	cheat_button.text="HILE ACIK" if cheat_mode else "HILE KAPALI"
+	var normal=StyleBoxFlat.new()
+	normal.bg_color=Color(.12,.58,.20,.92) if cheat_mode else Color(.72,.10,.10,.92)
+	normal.corner_radius_top_left=6
+	normal.corner_radius_top_right=6
+	normal.corner_radius_bottom_left=6
+	normal.corner_radius_bottom_right=6
+	cheat_button.add_theme_stylebox_override("normal",normal)
+	cheat_button.add_theme_stylebox_override("hover",normal)
+	cheat_button.add_theme_stylebox_override("pressed",normal)
+
 func _physics_process(delta):
 	if player == null or camera == null or hud == null or zone_label == null:
+		return
+	if _panel_open():
+		move_touch=Vector2.ZERO
+		player.velocity.x=0.0
+		player.velocity.z=0.0
+		_update_day_cycle(delta)
+		_update_weather(delta)
+		_update_map_dot()
+		_update_navigation_ui()
+		_update_minimap()
+		zone_label.text="%s  •  %s" % [("CUKUR" if in_pit else ("TERK EDILMIS BOLGE" if in_dry else "VAHSI")),_nearest_poi()]
+		hud.text = "HP %d  Ac %d  Su %d  Kart %d  Mermi %d" % [health,int(hunger),int(thirst),gray_cards,ammo]
 		return
 	if message_time>0.0:
 		message_time-=delta
@@ -858,6 +911,7 @@ func _update_weather(delta:float):
 		if weather_duration<=0.0: _set_weather("clear")
 
 func _toggle_crouch():
+	if _panel_open(): return
 	if player==null or camera==null: return
 	crouched=not crouched
 	camera.position.y=.34 if crouched else .72
@@ -875,6 +929,7 @@ func _look_pad_input(event):
 		player_facing=-player.global_transform.basis.z
 
 func _input(event):
+	if _panel_open(): return
 	if event is InputEventScreenTouch:
 		var vw=get_viewport().get_visible_rect().size.x
 		if event.pressed:
@@ -969,6 +1024,7 @@ func _apply_damage(amount:float):
 		damage_buffer-=whole
 
 func _primary_action():
+	if _panel_open(): return
 	if player==null or camera==null: return
 	if build_mode:
 		_update_build_preview()
@@ -999,6 +1055,7 @@ func _primary_action():
 			_break_rock(obj)
 
 func _shoot():
+	if _panel_open(): return
 	if ammo <= 0: return
 	ammo -= 1
 	var target: CharacterBody3D; var best := 18.0
@@ -1039,6 +1096,7 @@ func _add_house_light(roof_pos:Vector3):
 	var light=OmniLight3D.new(); light.position=roof_pos+Vector3(0,-1.35,0); light.light_color=Color(1.0,.88,.68); light.light_energy=.85; light.omni_range=7.0; light.shadow_enabled=false; add_child(light)
 
 func _build_house():
+	if _panel_open(): return
 	if not build_mode:
 		build_mode=true; _ensure_build_preview(); return
 	_update_build_preview()
@@ -1067,6 +1125,7 @@ func _build_house():
 	if gather_label: gather_label.text=build_piece_names[build_piece]+" KURULDU"; gather_label.visible=true; message_time=1.0
 
 func _cycle_build_piece():
+	if _panel_open(): return
 	build_piece=(build_piece+1)%build_piece_names.size()
 	if hotbar_label: hotbar_label.text="YAPI: "+build_piece_names[build_piece]
 	if build_mode: _update_preview_shape()
@@ -1118,7 +1177,12 @@ func _minimap_input(event):
 
 func _toggle_map():
 	if map_panel == null: _create_map()
-	map_panel.visible = not map_panel.visible
+	var opening=not map_panel.visible
+	if inventory_panel: inventory_panel.visible=false
+	if craft_panel: craft_panel.visible=false
+	if store_panel: store_panel.visible=false
+	map_panel.visible=opening
+	_set_modal_lock(_panel_open())
 
 func _create_map():
 	map_panel=Control.new(); map_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1238,8 +1302,13 @@ func _simple_mat(c:Color)->StandardMaterial3D:
 
 func _toggle_inventory():
 	if inventory_panel==null: _create_inventory()
-	inventory_panel.visible=not inventory_panel.visible
+	var opening=not inventory_panel.visible
+	if craft_panel: craft_panel.visible=false
+	if store_panel: store_panel.visible=false
+	if map_panel: map_panel.visible=false
+	inventory_panel.visible=opening
 	if inventory_panel.visible: _refresh_inventory()
+	_set_modal_lock(_panel_open())
 
 func _create_inventory():
 	inventory_panel=Panel.new(); inventory_panel.set_anchors_preset(Control.PRESET_CENTER); inventory_panel.position=Vector2(-360,-260); inventory_panel.size=Vector2(720,520)
@@ -1309,9 +1378,13 @@ func _spawn_resource_at(kind:String,p:Vector3):
 
 func _toggle_crafting():
 	if craft_panel==null: _create_crafting()
-	craft_panel.visible=not craft_panel.visible
+	var opening=not craft_panel.visible
 	if inventory_panel: inventory_panel.visible=false
+	if store_panel: store_panel.visible=false
+	if map_panel: map_panel.visible=false
+	craft_panel.visible=opening
 	if craft_panel.visible: _refresh_crafting()
+	_set_modal_lock(_panel_open())
 
 func _rarity_list() -> Array:
 	return ["gray","green","blue","orange","red"]
@@ -1476,7 +1549,6 @@ func _craft_catalog_item(name:String,rarity:String)->void:
 	if inventory_panel==null:
 		_create_inventory()
 	_refresh_inventory()
-	inventory_panel.visible=true
 	_refresh_crafting()
 
 func _craft(kind:int):
@@ -1772,6 +1844,7 @@ func _build_interior_prop(p:Vector3,kind:int,yaw:=0.0):
 	if obj!=null: obj.add_to_group("interior_interactable")
 
 func _use_nearest_interior():
+	if _panel_open(): return
 	var best: Node3D; var dist=3.0
 	for n in get_tree().get_nodes_in_group("interior_interactable"):
 		var d=player.global_position.distance_to(n.global_position)
@@ -1828,6 +1901,7 @@ func _create_weapon_aim_ui(layer:CanvasLayer):
 	hit_marker=Label.new(); hit_marker.text="×"; hit_marker.add_theme_font_size_override("font_size",38); hit_marker.set_anchors_preset(Control.PRESET_CENTER); hit_marker.position=Vector2(-12,-24); hit_marker.visible=false; hit_marker.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(hit_marker)
 
 func _toggle_scope():
+	if _panel_open(): return
 	if not has_scope: return
 	scope_stage=(scope_stage+1)%3
 	scoped=scope_stage>0
@@ -1955,6 +2029,7 @@ func _update_footsteps(delta:float):
 
 
 func _jump():
+	if _panel_open(): return
 	if player==null or fly_mode: return
 	# Terrain is procedural rather than a physics floor, so allow jump when standing at
 	# terrain height as well as on foundation/roof/stair collisions.
@@ -2025,16 +2100,14 @@ func _create_cheat_ui(layer:CanvasLayer):
 	cheat_label=Label.new(); cheat_label.position=Vector2(510,10); cheat_label.size=Vector2(260,34); cheat_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cheat_label.text=""; layer.add_child(cheat_label)
 
 func _toggle_cheat_mode():
+	if _panel_open(): return
 	cheat_mode = !cheat_mode
 	if cheat_label:
 		cheat_label.text = ("HILE ACIK" if cheat_mode else "HILE KAPALI")
 	if creative_panel:
 		creative_panel.visible = false
-	if cheat_mode:
-		_flash_message("HILE ACIK")
-	else:
-		_flash_message("HILE KAPALI")
-	_refresh_inventory()
+	_update_cheat_button_style()
+	_flash_message("HILE ACIK" if cheat_mode else "HILE KAPALI")
 	if craft_panel:
 		_refresh_crafting()
 
@@ -2046,6 +2119,7 @@ func _creative_give(item:String):
 	return
 
 func _toggle_fly_mode():
+	if _panel_open(): return
 	if player==null: return
 	var ground=height_at(player.position.x,player.position.z)+PLAYER_HEIGHT
 	if not fly_mode:
@@ -2057,6 +2131,7 @@ func _toggle_fly_mode():
 	_flash_message("UCUS: 1 KADEME YUKSELDI")
 
 func _fly_down():
+	if _panel_open(): return
 	if not fly_mode or player==null: return
 	var ground=height_at(player.position.x,player.position.z)+PLAYER_HEIGHT
 	player.position.y=maxf(ground,player.position.y-3.0)
