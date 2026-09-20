@@ -504,58 +504,25 @@ func _spawn_bears() -> void:
 func _make_bear_visual(parent:Node3D) -> void:
 	var visual=Node3D.new()
 	visual.name="BearVisual"
-	visual.scale=Vector3(1.35,1.35,1.35)
 	parent.add_child(visual)
-	var brown=_simple_mat(Color(.30,.16,.07))
-	var dark_brown=_simple_mat(Color(.20,.10,.04))
+	var scene=load("res://assets/animals/bear.glb")
+	if scene is PackedScene:
+		var model=scene.instantiate()
+		model.name="Body"
+		model.scale=Vector3.ONE*1.35
+		visual.add_child(model)
+		return
+	# Fallback keeps the animal visible if the external model cannot be imported.
 	var body=MeshInstance3D.new()
 	body.name="Body"
 	var body_mesh=SphereMesh.new()
 	body_mesh.radius=1.55
 	body_mesh.height=3.0
 	body.mesh=body_mesh
-	body.scale=Vector3(1.15,.9,1.45)
+	body.scale=Vector3(1.55,1.2,1.95)
 	body.position=Vector3(0,1.8,0)
-	body.material_override=brown
+	body.material_override=_simple_mat(Color(.30,.16,.07))
 	visual.add_child(body)
-	var head=MeshInstance3D.new()
-	head.name="Head"
-	var head_mesh=SphereMesh.new()
-	head_mesh.radius=.95
-	head_mesh.height=1.8
-	head.mesh=head_mesh
-	head.position=Vector3(0,2.65,-1.65)
-	head.material_override=brown
-	visual.add_child(head)
-	var snout=MeshInstance3D.new()
-	var snout_mesh=SphereMesh.new()
-	snout_mesh.radius=.48
-	snout_mesh.height=.72
-	snout.mesh=snout_mesh
-	snout.scale=Vector3(1.0,.7,1.1)
-	snout.position=Vector3(0,2.45,-2.42)
-	snout.material_override=dark_brown
-	visual.add_child(snout)
-	for x in [-.62,.62]:
-		var ear=MeshInstance3D.new()
-		var ear_mesh=SphereMesh.new()
-		ear_mesh.radius=.32
-		ear_mesh.height=.55
-		ear.mesh=ear_mesh
-		ear.position=Vector3(x,3.45,-1.72)
-		ear.material_override=brown
-		visual.add_child(ear)
-	for x in [-.92,.92]:
-		for z in [-.72,.82]:
-			var leg=MeshInstance3D.new()
-			var leg_mesh=CylinderMesh.new()
-			leg_mesh.top_radius=.34
-			leg_mesh.bottom_radius=.42
-			leg_mesh.height=1.65
-			leg.mesh=leg_mesh
-			leg.position=Vector3(x,.78,z)
-			leg.material_override=dark_brown
-			visual.add_child(leg)
 
 func _bear_random_target(bear:Node3D,min_distance:float,max_distance:float) -> Vector3:
 	var angle=randf_range(0.0,TAU)
@@ -849,66 +816,32 @@ func _spawn_wild_animal(kind:String,target_loot:String,visual_scale:float,speed:
 func _make_wild_animal_visual(parent:Node3D,kind:String,visual_scale:float) -> void:
 	var visual=Node3D.new()
 	visual.name="AnimalVisual"
-	visual.scale=Vector3.ONE*visual_scale
 	parent.add_child(visual)
-	var main_color=Color(.42,.38,.32)
-	var dark_color=Color(.18,.16,.14)
-	if kind=="DOMUZ":
-		main_color=Color(.30,.20,.16)
+	var model_path=""
+	if kind=="KURT":
+		model_path="res://assets/animals/wolf.glb"
+	elif kind=="DOMUZ":
+		model_path="res://assets/animals/boar.glb"
 	elif kind=="GEYIK":
-		main_color=Color(.48,.30,.14)
-	var mat=_simple_mat(main_color)
-	var dark=_simple_mat(dark_color)
+		model_path="res://assets/animals/deer.glb"
+	var scene=load(model_path) if not model_path.is_empty() else null
+	if scene is PackedScene:
+		var model=scene.instantiate()
+		model.name="Body"
+		model.scale=Vector3.ONE*visual_scale
+		visual.add_child(model)
+		return
+	# Fallback keeps the animal visible if its GLB cannot be imported.
 	var body=MeshInstance3D.new()
 	body.name="Body"
 	var bm=SphereMesh.new()
 	bm.radius=1.45
 	bm.height=2.6
 	body.mesh=bm
-	body.scale=Vector3(1.0,.72,1.45)
-	body.position=Vector3(0,1.45,0)
-	body.material_override=mat
+	body.scale=Vector3(1.0,.72,1.45)*visual_scale
+	body.position=Vector3(0,1.45*visual_scale,0)
+	body.material_override=_simple_mat(Color(.42,.38,.32))
 	visual.add_child(body)
-	var head=MeshInstance3D.new()
-	var hm=SphereMesh.new()
-	hm.radius=.68
-	hm.height=1.2
-	head.mesh=hm
-	head.position=Vector3(0,1.95,-1.55)
-	head.material_override=mat
-	visual.add_child(head)
-	var snout=MeshInstance3D.new()
-	var sm=SphereMesh.new()
-	sm.radius=.34
-	sm.height=.58
-	snout.mesh=sm
-	snout.scale=Vector3(1.0,.7,1.25)
-	snout.position=Vector3(0,1.78,-2.12)
-	snout.material_override=dark
-	visual.add_child(snout)
-	for x in [-.62,.62]:
-		for z in [-.68,.72]:
-			var leg=MeshInstance3D.new()
-			var lm=CylinderMesh.new()
-			lm.top_radius=.20
-			lm.bottom_radius=.23
-			lm.height=1.25
-			leg.mesh=lm
-			leg.position=Vector3(x,.62,z)
-			leg.material_override=dark
-			visual.add_child(leg)
-	if kind=="GEYIK":
-		for x in [-.32,.32]:
-			var antler=MeshInstance3D.new()
-			var am=CylinderMesh.new()
-			am.top_radius=.05
-			am.bottom_radius=.08
-			am.height=.85
-			antler.mesh=am
-			antler.position=Vector3(x,2.72,-1.55)
-			antler.rotation_degrees.z=18.0 if x<0 else -18.0
-			antler.material_override=dark
-			visual.add_child(antler)
 
 func _wildlife_target_reserved(node:Node3D,requesting:Node3D) -> bool:
 	var id=node.get_instance_id()
