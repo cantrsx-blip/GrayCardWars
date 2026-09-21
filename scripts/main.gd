@@ -455,7 +455,6 @@ func _add_settlement_concrete_tile(p:Vector3) -> void:
 	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(5.0,.20,5.0); cs.shape=sh; body.add_child(cs)
 	add_child(body)
 
-ride=wmat; add_child(water)
 
 
 func _build_map_edge_mountains() -> void:
