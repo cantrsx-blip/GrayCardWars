@@ -118,6 +118,7 @@ var cheat_label: Label
 var cheat_button: Button
 var bears: Array[Node3D] = []
 var wildlife: Array[Node3D] = []
+var human_npcs: Array[Node3D] = []
 var animal_ai_timer := 0.0
 const ANIMAL_AI_INTERVAL := 0.20
 var meteor_nodes: Array[Node3D] = []
@@ -240,6 +241,8 @@ func _build_world_staged() -> void:
 	_build_trees_staged()
 	await get_tree().process_frame
 	_spawn_wildlife()
+	await get_tree().process_frame
+	_spawn_humans()
 	await get_tree().process_frame
 	_build_hills_and_pits()
 	_build_pois()
@@ -768,6 +771,81 @@ func _update_bears(delta:float) -> void:
 		bear.position+=Vector3(dir.x,0.0,dir.z)*1.7*delta
 		bear.position.y=height_at(bear.position.x,bear.position.z)
 		_bear_set_body_height(bear,true)
+func _spawn_humans() -> void:
+	# Five neutral human NPCs use the same target selection, spacing, obstacle
+	# avoidance and movement loop as wildlife. Their only job is meteor seeking.
+	for i in 5:
+		var pos=Vector3.ZERO
+		var best_gap=-1.0
+		for attempt in 70:
+			var p=_rand_map_point(MAP_HALF-16)
+			var candidate=Vector3(p.x,height_at(p.x,p.z),p.z)
+			if _bear_point_blocked(candidate,4.0): continue
+			var gap=INF
+			for other in bears+wildlife:
+				if not is_instance_valid(other): continue
+				gap=minf(gap,Vector2(candidate.x-other.global_position.x,candidate.z-other.global_position.z).length())
+			if bears.is_empty() and wildlife.is_empty(): gap=9999.0
+			if gap>best_gap:
+				best_gap=gap
+				pos=candidate
+			if gap>=18.0: break
+		var human=CharacterBody3D.new()
+		human.name="INSAN_%d" % i
+		human.position=pos
+		human.collision_layer=0
+		human.collision_mask=0
+		human.set_meta("animal_kind","INSAN")
+		human.set_meta("target_loot","meteor")
+		human.set_meta("speed",1.9)
+		human.set_meta("target_id",-1)
+		human.set_meta("avoiding",false)
+		add_child(human)
+		var cs=CollisionShape3D.new()
+		var shape=CapsuleShape3D.new()
+		shape.radius=0.34
+		shape.height=1.75
+		cs.shape=shape
+		cs.position.y=0.875
+		human.add_child(cs)
+		_make_human_visual(human)
+		human_npcs.append(human)
+		wildlife.append(human)
+		_wildlife_choose_target(human)
+
+func _make_human_visual(parent:Node3D) -> void:
+	var visual=Node3D.new()
+	visual.name="AnimalVisual"
+	parent.add_child(visual)
+	var scene=load("res://assets/characters/enemies/raider.glb")
+	if scene is PackedScene:
+		var model=scene.instantiate()
+		model.name="Body"
+		model.rotation_degrees.y=180.0
+		model.scale=Vector3.ONE
+		visual.add_child(model)
+		return
+	# Lightweight human fallback if the character GLB is unavailable.
+	var skin=_simple_mat(Color(.58,.43,.32))
+	var cloth=_simple_mat(Color(.16,.18,.20))
+	var body=MeshInstance3D.new()
+	body.name="Body"
+	var torso=CapsuleMesh.new()
+	torso.radius=.28
+	torso.height=1.05
+	body.mesh=torso
+	body.position=Vector3(0,1.05,0)
+	body.material_override=cloth
+	visual.add_child(body)
+	var head=MeshInstance3D.new()
+	var hm=SphereMesh.new()
+	hm.radius=.22
+	hm.height=.44
+	head.mesh=hm
+	head.position=Vector3(0,1.72,0)
+	head.material_override=skin
+	visual.add_child(head)
+
 func _spawn_wildlife() -> void:
 	for i in 10:
 		_spawn_wild_animal("KURT","stone",0.58,1.9)
