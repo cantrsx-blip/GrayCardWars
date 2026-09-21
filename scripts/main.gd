@@ -2231,7 +2231,7 @@ func _select_hotbar(slot:int):
 
 func _set_drag_preview(preview:Control) -> void:
 	# Drag forwarding callbacks run on Main, so attach preview through the viewport.
-	get_viewport().gui_set_drag_preview(preview)
+	get_viewport().set_drag_preview(preview)
 
 func _hotbar_get_drag_data(_at_position:Vector2,slot:int):
 	if slot<0 or slot>=hotbar_items.size() or str(hotbar_items[slot]).is_empty(): return null
