@@ -444,6 +444,8 @@ func _build_corner_settlements() -> void:
 			continue
 		_build_settlement_pad(center+Vector3(10,0,10),-1.0,-1.0)
 		placed.append(center)
+	# 20th settlement: fixed at the marked central empty area. Existing 19 positions stay unchanged.
+	_build_settlement_pad(Vector3(10,0,10),-1.0,-1.0)
 
 func _settlement_position_safe(center:Vector3,placed:Array[Vector3]) -> bool:
 	# A 25x25 pad needs margin from mountains and named POI/boss areas.
