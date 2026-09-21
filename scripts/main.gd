@@ -245,11 +245,12 @@ func _build_world_staged() -> void:
 	await get_tree().process_frame
 	_build_weather_system()
 	await get_tree().process_frame
-	# Rocks removed.
-	# Meteors removed.
-	# Animals removed.
-	# Trees temporarily hidden: keep tree code/assets for easy re-enable later.
-	# _build_trees_staged()
+	await _build_rocks_staged()
+	await get_tree().process_frame
+	await _build_meteors_staged()
+	await get_tree().process_frame
+	# Animals remain removed.
+	await _build_trees_staged()
 	# Humans/NPCs removed from world spawning.
 	_build_hills_and_pits()
 	_build_pois()
@@ -563,10 +564,25 @@ func _build_storey_allowed(p:Vector3) -> bool:
 	return p.y-ground < float(MAX_BUILD_STOREYS)*3.0+.75
 
 
+func _resource_spawn_safe(x:float,z:float) -> bool:
+	# Resources may be very close, but never overlap named POIs or 5x5 settlement pads.
+	for poi in pois:
+		if Vector2(x-poi.pos.x,z-poi.pos.z).length()<15.0: return false
+	var settlement_centers_local=[
+		Vector3(-105,0,-165),Vector3(-55,0,-165),Vector3(55,0,-165),Vector3(105,0,-165),
+		Vector3(-105,0,-100),Vector3(-50,0,-100),Vector3(20,0,-105),Vector3(75,0,-100),
+		Vector3(-100,0,-35),Vector3(-45,0,-35),Vector3(20,0,-40),Vector3(80,0,-35),
+		Vector3(-100,0,35),Vector3(-45,0,35),Vector3(20,0,35),Vector3(80,0,35),
+		Vector3(-95,0,95),Vector3(-35,0,100),Vector3(35,0,95),Vector3(95,0,95),Vector3(0,0,0)
+	]
+	for sc in settlement_centers_local:
+		if absf(x-sc.x)<13.5 and absf(z-sc.z)<13.5: return false
+	return true
+
 func _build_rocks_staged() -> void:
-	for i in (40 if OS.has_feature("mobile") else 156):
+	for i in (60 if OS.has_feature("mobile") else 234):
 		var p = _rand_map_point(MAP_HALF - 12)
-		if not _near_poi(p.x, p.z):
+		if _resource_spawn_safe(p.x,p.z):
 			var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); add_child(rock_body)
 			_make_kara_rock(rock_body)
 			var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
@@ -575,9 +591,9 @@ func _build_rocks_staged() -> void:
 			await get_tree().process_frame
 
 func _build_meteors_staged() -> void:
-	for i in (40 if OS.has_feature("mobile") else 156):
+	for i in (60 if OS.has_feature("mobile") else 234):
 		var mp = _rand_map_point(MAP_HALF - 12)
-		if not _near_poi(mp.x, mp.z):
+		if _resource_spawn_safe(mp.x,mp.z):
 			var meteor_body=StaticBody3D.new(); meteor_body.position=Vector3(mp.x,height_at(mp.x,mp.z),mp.z); add_child(meteor_body)
 			_make_meteor(meteor_body)
 			var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
@@ -1165,9 +1181,9 @@ func _update_wildlife(delta:float) -> void:
 			if body: body.position.y=1.45+sin(Time.get_ticks_msec()*0.012)*0.05
 
 func _build_trees_staged() -> void:
-	for i in (80 if OS.has_feature("mobile") else 330):
+	for i in (120 if OS.has_feature("mobile") else 495):
 		var p = _rand_map_point(MAP_HALF - 12)
-		if not _near_poi(p.x, p.z):
+		if _resource_spawn_safe(p.x,p.z):
 			var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
 			_make_kara_tree(tree_body)
 			var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.34; trunk_shape.height=5.2; trunk_col.shape=trunk_shape; trunk_col.position.y=2.6; tree_body.add_child(trunk_col)
