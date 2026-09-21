@@ -1690,10 +1690,10 @@ func _build_house():
 		build_mode=true; _ensure_build_preview(); return
 	_update_build_preview()
 	if not preview_valid: _flash_message("BU PARCA BURAYA KURULAMAZ"); return
-	if wood<20: return
+	if wood<20 and not cheat_mode: return
 	var p=build_preview.global_position
 	var yaw=build_preview.rotation_degrees.y
-	wood-=20
+	if not cheat_mode: wood-=20
 	var made: Node3D
 	match build_piece:
 		0:
@@ -2336,7 +2336,9 @@ func _spawn_dropped_item(key:String,amount:int) -> void:
 	var parts=key.split("|")
 	if parts.size()<2: return
 	var root=Node3D.new(); root.name="Dropped_"+str(parts[0])
-	root.position=player.position+player_facing.normalized()*2.0+Vector3(0,1.0,0)
+	var drop_pos=player.position+player_facing.normalized()*2.0
+	drop_pos.y=height_at(drop_pos.x,drop_pos.z)+0.38
+	root.position=drop_pos
 	add_child(root)
 	var sprite=Sprite3D.new()
 	sprite.texture=_load_item_texture(_craft_icon_path(str(parts[0]),str(parts[1])))
