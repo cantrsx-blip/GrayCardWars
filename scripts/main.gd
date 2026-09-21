@@ -429,9 +429,55 @@ func _build_world_base():
 	_build_world_light()
 	_build_terrain_mesh()
 	_build_settlement_areas()
+	_build_map_edge_mountains()
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
+
+
+func _build_map_edge_mountains() -> void:
+	# #301 flat interior stays untouched. Mountains form only the four X/Z +/-198 borders.
+	var edge:=198.0
+	var gate_half:=5.0 # 10m / two-foundation-wide visual gate opening.
+	var step:=8.0
+	for side in [-1.0,1.0]:
+		var x:=-198.0
+		while x<=198.0:
+			if absf(x)>gate_half:
+				_add_edge_mountain(Vector3(x,0,side*edge),x,side*edge)
+			x+=step
+		var z:=-198.0
+		while z<=198.0:
+			if absf(z)>gate_half:
+				_add_edge_mountain(Vector3(side*edge,0,z),side*edge,z)
+			z+=step
+	# Closed, collidable gates at the exact midpoint of each edge.
+	_add_edge_gate(Vector3(0,0, edge),0.0)
+	_add_edge_gate(Vector3(0,0,-edge),0.0)
+	_add_edge_gate(Vector3( edge,0,0),90.0)
+	_add_edge_gate(Vector3(-edge,0,0),90.0)
+
+func _add_edge_mountain(p:Vector3,sx:float,sz:float) -> void:
+	var body=StaticBody3D.new(); body.position=p
+	var mesh_i=MeshInstance3D.new(); var cyl=CylinderMesh.new()
+	var variation=absf(sin(sx*.071+sz*.113))
+	cyl.top_radius=2.0+variation*1.8; cyl.bottom_radius=6.0+variation*2.2; cyl.height=11.0+variation*6.0
+	mesh_i.mesh=cyl; mesh_i.position.y=cyl.height*.5
+	mesh_i.material_override=_simple_mat(Color(.27,.26,.22)); body.add_child(mesh_i)
+	var cs=CollisionShape3D.new(); var sh=CylinderShape3D.new()
+	sh.radius=cyl.bottom_radius; sh.height=cyl.height; cs.shape=sh; cs.position.y=cyl.height*.5; body.add_child(cs)
+	add_child(body)
+
+func _add_edge_gate(p:Vector3,yaw:float) -> void:
+	var gate=StaticBody3D.new(); gate.position=p+Vector3(0,2.0,0); gate.rotation_degrees.y=yaw
+	var mi=MeshInstance3D.new(); var box=BoxMesh.new(); box.size=Vector3(9.6,4.0,.55); mi.mesh=box
+	mi.material_override=_simple_mat(Color(.24,.12,.045)); gate.add_child(mi)
+	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(9.6,4.0,.55); cs.shape=sh; gate.add_child(cs)
+	# Simple old-plank relief makes the sealed exit read as a wooden door from a distance.
+	for i in 5:
+		var plank=MeshInstance3D.new(); var pb=BoxMesh.new(); pb.size=Vector3(1.65,3.65,.16); plank.mesh=pb
+		plank.position=Vector3(-3.4+i*1.7,0,.34); plank.material_override=_simple_mat(Color(.31,.17,.07)); gate.add_child(plank)
+	add_child(gate)
 
 
 func _build_settlement_areas() -> void:
