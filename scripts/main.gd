@@ -1906,12 +1906,12 @@ func _create_inventory():
 	inventory_panel.visible=false
 
 func _inventory_item_cell(key:String,title:String,count:int,texture:Texture2D=null)->Control:
-	var button=Button.new(); button.custom_minimum_size=Vector2(124,112); button.text="%s\n×%d" % [title,count]
-	button.icon=texture
-	button.expand_icon=true
-	button.icon_max_width=64
-	button.pressed.connect(_open_inventory_item_actions.bind(key,title))
-	return button
+	var cell=VBoxContainer.new(); cell.custom_minimum_size=Vector2(134,94)
+	var image_button=Button.new(); image_button.custom_minimum_size=Vector2(134,58); image_button.text="×%d" % count; image_button.icon=texture; image_button.expand_icon=true; image_button.icon_max_width=48
+	image_button.pressed.connect(_open_inventory_item_actions.bind(key,title)); cell.add_child(image_button)
+	var name_button=Button.new(); name_button.custom_minimum_size=Vector2(134,32); name_button.text=title; name_button.add_theme_font_size_override("font_size",12)
+	name_button.pressed.connect(_open_inventory_item_actions.bind(key,title)); cell.add_child(name_button)
+	return cell
 
 func _close_inventory_item_actions() -> void:
 	if inventory_panel==null: return
@@ -1921,9 +1921,11 @@ func _close_inventory_item_actions() -> void:
 func _open_inventory_item_actions(key:String,title:String) -> void:
 	if inventory_panel==null: return
 	_close_inventory_item_actions()
-	var actions=Panel.new(); actions.name="ItemActions"; actions.position=Vector2(210,185); actions.size=Vector2(300,150); actions.z_index=30; inventory_panel.add_child(actions)
+	var actions=Panel.new(); actions.name="ItemActions"; actions.position=Vector2(210,185); actions.size=Vector2(300,150); actions.z_index=30
+	var panel_style=StyleBoxFlat.new(); panel_style.bg_color=Color(.20,.21,.22,.96); panel_style.border_width_left=1; panel_style.border_width_top=1; panel_style.border_width_right=1; panel_style.border_width_bottom=1; panel_style.border_color=Color(.55,.55,.55,.8); panel_style.corner_radius_top_left=8; panel_style.corner_radius_top_right=8; panel_style.corner_radius_bottom_left=8; panel_style.corner_radius_bottom_right=8
+	actions.add_theme_stylebox_override("panel",panel_style); inventory_panel.add_child(actions)
 	var name_label=Label.new(); name_label.text=title; name_label.position=Vector2(18,15); name_label.size=Vector2(210,34); name_label.add_theme_font_size_override("font_size",18); actions.add_child(name_label)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(238,8); close.size=Vector2(52,48); close.mouse_filter=Control.MOUSE_FILTER_STOP; actions.add_child(close); close.pressed.connect(_close_inventory_item_actions)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(238,8); close.size=Vector2(52,48); close.mouse_filter=Control.MOUSE_FILTER_STOP; close.z_index=31; actions.add_child(close); close.pressed.connect(_close_inventory_item_actions)
 	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(45,72); equip.size=Vector2(210,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
 
 func _refresh_inventory():
@@ -2177,59 +2179,52 @@ func _craft(kind:int):
 
 
 func _create_hotbar(layer:CanvasLayer):
-	hotbar=HBoxContainer.new(); hotbar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM); hotbar.position=Vector2(-490,-88); hotbar.size=Vector2(980,78); hotbar.alignment=BoxContainer.ALIGNMENT_CENTER
+	hotbar=HBoxContainer.new(); hotbar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM); hotbar.position=Vector2(-490,-82); hotbar.size=Vector2(980,68); hotbar.alignment=BoxContainer.ALIGNMENT_CENTER
 	for i in 7:
-		var b=Button.new(); b.name="HotbarSlot_%d" % i; b.text=""; b.custom_minimum_size=Vector2(138,75); b.add_theme_font_size_override("font_size",16)
+		var b=Button.new(); b.name="HotbarSlot_%d" % i; b.text=""; b.custom_minimum_size=Vector2(134,58); b.add_theme_font_size_override("font_size",14)
 		var st=StyleBoxFlat.new(); st.bg_color=Color(.08,.08,.08,.30); st.border_width_left=1; st.border_width_top=1; st.border_width_right=1; st.border_width_bottom=1; st.border_color=Color(.8,.8,.8,.35)
-		b.add_theme_stylebox_override("normal",st); b.add_theme_stylebox_override("pressed",st)
-		b.pressed.connect(_select_hotbar.bind(i))
-		hotbar.add_child(b)
-	layer.add_child(hotbar)
-	hotbar_label=null
+		var sel=st.duplicate(); sel.bg_color=Color(.12,.72,.28,.42); sel.border_color=Color(.35,1.0,.5,.75)
+		b.add_theme_stylebox_override("normal",st); b.add_theme_stylebox_override("pressed",sel)
+		b.pressed.connect(_select_hotbar.bind(i)); hotbar.add_child(b)
+	layer.add_child(hotbar); hotbar_label=null
 
 func _hotbar_item_title(key:String) -> String:
 	if key.is_empty(): return ""
 	if "|" in key:
-		var parts=key.split("|")
-		return "%s %s" % [_store_rarity_name(str(parts[1])),str(parts[0])]
+		var parts=key.split("|"); return "%s %s" % [_store_rarity_name(str(parts[1])),str(parts[0])]
 	return key
 
 func _refresh_hotbar() -> void:
 	if hotbar==null: return
-	for i in mini(7,hotbar.get_child_count()):
+	for i in range(mini(7,hotbar.get_child_count())):
 		var b=hotbar.get_child(i) as Button
 		if b:
-			var key=str(hotbar_items[i]); b.text=_hotbar_item_title(key); b.icon=null
+			var key=str(hotbar_items[i]); b.text=""; b.icon=null; b.button_pressed=(not key.is_empty() and _hotbar_item_title(key)==selected_tool)
 			if "|" in key:
-				var parts=key.split("|"); b.icon=_load_item_texture(_craft_icon_path(str(parts[0]),str(parts[1]))); b.expand_icon=true
+				var parts=key.split("|"); b.icon=_load_item_texture(_craft_icon_path(str(parts[0]),str(parts[1]))); b.expand_icon=true; b.icon_max_width=48
+			elif not key.is_empty(): b.text=_hotbar_item_title(key)
 
 func _equip_inventory_item(key:String) -> void:
 	if key.is_empty(): return
 	var target=-1
-	for i in hotbar_items.size():
-		if str(hotbar_items[i]).is_empty():
-			target=i; break
+	for i in range(hotbar_items.size()):
+		if str(hotbar_items[i]).is_empty(): target=i; break
 	if target<0: target=0
-	hotbar_items[target]=key
-	_refresh_hotbar()
-	_select_hotbar(target)
-	_close_inventory_item_actions()
+	hotbar_items[target]=key; _select_hotbar(target); _refresh_hotbar(); _close_inventory_item_actions()
 
 func _select_hotbar(slot:int):
 	if slot<0 or slot>=hotbar_items.size(): return
 	var key=str(hotbar_items[slot])
 	if key.is_empty():
-		selected_tool=""
-		_update_held_item(0)
-		build_mode=false
+		selected_tool=""; _update_held_item(0); build_mode=false
 		if build_preview: build_preview.visible=false
-		return
+		_refresh_hotbar(); return
 	selected_tool=_hotbar_item_title(key)
 	var legacy={"BALTA":1,"KAZMA":2,"SILAH":3,"YAPI CEKICI":4}
-	_update_held_item(int(legacy.get(key,0)))
-	build_mode=key=="YAPI CEKICI"
+	_update_held_item(int(legacy.get(key,0))); build_mode=key=="YAPI CEKICI"
 	if build_mode: _ensure_build_preview()
 	elif build_preview: build_preview.visible=false
+	_refresh_hotbar()
 
 
 func _ensure_build_preview():
