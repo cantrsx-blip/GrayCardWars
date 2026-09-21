@@ -428,15 +428,12 @@ func _build_world_base():
 	_build_settlement_areas()
 	_build_map_edge_mountains()
 	_build_corner_settlements()
-	# Coastal water band for boat construction.
-	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
-	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
 
 func _build_corner_settlements() -> void:
 	# Four 5x5 concrete settlement pads, mirrored from the X191/Z181 reference.
 	var starts=[
-		Vector3(191,0,181), Vector3(-191,0,181),
-		Vector3(191,0,-181), Vector3(-191,0,-181)
+		Vector3(186,0,176), Vector3(-186,0,176),
+		Vector3(186,0,-176), Vector3(-186,0,-176)
 	]
 	for start in starts:
 		var x_dir=-1.0 if start.x>0.0 else 1.0
