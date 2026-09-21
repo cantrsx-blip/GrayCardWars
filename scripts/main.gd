@@ -438,10 +438,24 @@ func _build_corner_settlements() -> void:
 	for start in starts:
 		var x_dir=-1.0 if start.x>0.0 else 1.0
 		var z_dir=-1.0 if start.z>0.0 else 1.0
-		for row in 5:
-			for col in 5:
-				var p=Vector3(start.x+x_dir*float(col)*5.0,.10,start.z+z_dir*float(row)*5.0)
-				_add_settlement_concrete_tile(p)
+		_build_settlement_pad(start,x_dir,z_dir)
+
+	# 16 additional fixed-random-looking settlements. Their centers are spread across
+	# the flat interior with at least ~20m clear space between 25x25m pad edges.
+	var extra_centers=[
+		Vector3(-140,0,-140), Vector3(-70,0,-140), Vector3(15,0,-145), Vector3(105,0,-135),
+		Vector3(-145,0,-65), Vector3(-55,0,-60), Vector3(35,0,-70), Vector3(125,0,-55),
+		Vector3(-125,0,25), Vector3(-35,0,20), Vector3(55,0,15), Vector3(140,0,35),
+		Vector3(-135,0,115), Vector3(-50,0,120), Vector3(40,0,105), Vector3(125,0,120)
+	]
+	for center in extra_centers:
+		_build_settlement_pad(center+Vector3(10,0,10),-1.0,-1.0)
+
+func _build_settlement_pad(start:Vector3,x_dir:float,z_dir:float) -> void:
+	for row in 5:
+		for col in 5:
+			var p=Vector3(start.x+x_dir*float(col)*5.0,.10,start.z+z_dir*float(row)*5.0)
+			_add_settlement_concrete_tile(p)
 
 func _add_settlement_concrete_tile(p:Vector3) -> void:
 	var body=StaticBody3D.new(); body.position=p
