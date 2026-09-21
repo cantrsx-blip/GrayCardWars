@@ -1462,38 +1462,27 @@ func _physics_process(delta):
 	]
 
 func _build_weather_system():
-	weather_root=Node3D.new(); weather_root.name="LocalWeather"; add_child(weather_root)
-	# Compatibility renderer on Android can be fragile with startup GPU particles.
-	# Weather state still runs; particles are simply omitted on mobile.
-	if OS.has_feature("mobile"):
-		weather_particles=null
-		return
-	weather_particles=GPUParticles3D.new(); weather_particles.amount=420; weather_particles.lifetime=2.2; weather_particles.visibility_aabb=AABB(Vector3(-18,-14,-18),Vector3(36,28,36)); weather_particles.emitting=false; weather_root.add_child(weather_particles)
-	var pm=ParticleProcessMaterial.new(); pm.emission_shape=ParticleProcessMaterial.EMISSION_SHAPE_BOX; pm.emission_box_extents=Vector3(13,.5,13); pm.direction=Vector3(0,-1,0); pm.spread=8.0; pm.initial_velocity_min=12.0; pm.initial_velocity_max=18.0; pm.gravity=Vector3(0,-9,0); weather_particles.process_material=pm
-	var mesh=QuadMesh.new(); mesh.size=Vector2(.035,1.0); var mat=StandardMaterial3D.new(); mat.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED; mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; mat.albedo_color=Color(.72,.82,.88,.65); mesh.material=mat; weather_particles.draw_pass_1=mesh
+	# Rain, snow and fog are intentionally disabled.
+	weather_root=Node3D.new()
+	weather_root.name="LocalWeather"
+	add_child(weather_root)
+	weather_particles=null
+	_set_weather("clear")
 
-func _set_weather(kind:String):
-	weather_state=kind
-	if weather_particles==null: return
+func _set_weather(_kind:String):
+	# Weather variants are disabled. Keep one permanent clear sunny state.
+	weather_state="clear"
+	weather_duration=0.0
+	weather_timer=999999.0
+	if weather_particles: weather_particles.emitting=false
 	var env:Environment=world_env.environment if world_env else null
-	if kind=="clear":
-		weather_particles.emitting=false; weather_duration=0.0; weather_timer=randf_range(45.0,100.0)
-		if env:
-			env.background_color=Color(.48,.65,.76); env.ambient_light_color=Color(.62,.68,.72); env.ambient_light_energy=.65
-			env.fog_enabled=true; env.fog_light_color=Color(.68,.73,.75); env.fog_density=.0028
-		return
-	var pm=weather_particles.process_material as ParticleProcessMaterial; var mesh=weather_particles.draw_pass_1 as QuadMesh; var mat=mesh.material as StandardMaterial3D
-	if kind=="rain":
-		weather_particles.amount=460; weather_particles.lifetime=2.0; pm.initial_velocity_min=13.0; pm.initial_velocity_max=19.0; pm.gravity=Vector3(0,-10,0); pm.spread=8.0; mesh.size=Vector2(.035,1.15); mat.albedo_color=Color(.65,.76,.84,.62); weather_duration=randf_range(35.0,70.0)
-		if env:
-			env.background_color=Color(.18,.23,.27); env.ambient_light_color=Color(.42,.47,.50); env.ambient_light_energy=.46
-			env.fog_enabled=true; env.fog_light_color=Color(.38,.43,.46); env.fog_density=.010
-	else:
-		weather_particles.amount=260; weather_particles.lifetime=5.0; pm.initial_velocity_min=1.2; pm.initial_velocity_max=2.5; pm.gravity=Vector3(0,-.8,0); pm.spread=35.0; mesh.size=Vector2(.13,.13); mat.albedo_color=Color(.95,.97,1.0,.82); weather_duration=randf_range(30.0,60.0)
-		if env:
-			env.background_color=Color(.55,.62,.67); env.ambient_light_color=Color(.70,.76,.82); env.ambient_light_energy=.55
-			env.fog_enabled=true; env.fog_light_color=Color(.76,.82,.86); env.fog_density=.007
-	weather_particles.restart(); weather_particles.emitting=true
+	if env:
+		env.background_mode=Environment.BG_COLOR
+		env.background_color=Color(.32,.67,.94)
+		env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color=Color(.78,.86,.94)
+		env.ambient_light_energy=.78
+		env.fog_enabled=false
 
 func _update_weather(_delta:float):
 	# KARA KIYI now stays permanently sunny and clear.
