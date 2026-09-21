@@ -248,13 +248,12 @@ func _build_world_staged() -> void:
 	# Rocks removed.
 	# Meteors removed.
 	# Animals removed.
-	_build_trees_staged()
-	await get_tree().process_frame
-	_spawn_humans()
-	await get_tree().process_frame
+	# Trees temporarily hidden: keep tree code/assets for easy re-enable later.
+	# _build_trees_staged()
+	# Humans/NPCs removed from world spawning.
 	_build_hills_and_pits()
 	_build_pois()
-	# Small plants/mushrooms removed. Trees are the only vegetation for now.
+	# Grass pickups, wheat and mushrooms are removed. Tree code/assets are preserved but hidden for now.
 	# Raiders and bosses intentionally disabled for the KARA KIYI rebuild.
 	zone_label.text=""
 
