@@ -1916,47 +1916,44 @@ func _create_inventory():
 	var layers=get_children().filter(func(n): return n is CanvasLayer); if layers.size()>0: layers[-1].add_child(inventory_panel)
 	inventory_panel.visible=false
 
-func _inventory_drag_cell(key:String,title:String,count:int,texture:Texture2D=null)->Control:
+func _inventory_item_cell(key:String,title:String,count:int,texture:Texture2D=null)->Control:
 	var button=Button.new(); button.custom_minimum_size=Vector2(124,112); button.text="%s\n×%d" % [title,count]
 	if texture:
 		button.icon=texture
 		button.expand_icon=true
-	button.set_drag_forwarding(_inventory_get_drag_data.bind(key,title),_inventory_can_drop_data,_inventory_drop_data)
+	button.pressed.connect(_open_inventory_item_actions.bind(key,title))
 	return button
 
-func _inventory_get_drag_data(_at_position:Vector2,key:String,title:String):
-	var preview=Label.new(); preview.text=title; _set_drag_preview(preview)
-	return {"kind":"inventory","key":key}
+func _close_inventory_item_actions() -> void:
+	if inventory_panel==null: return
+	var old=inventory_panel.get_node_or_null("ItemActions")
+	if old: old.queue_free()
 
-func _inventory_can_drop_data(_at_position:Vector2,data) -> bool:
-	# Allows an occupied hotbar item to be dragged back to inventory.
-	return data is Dictionary and str(data.get("kind",""))=="hotbar"
-
-func _inventory_drop_data(_at_position:Vector2,data) -> void:
-	if str(data.get("kind",""))!="hotbar": return
-	var slot=int(data.get("slot",-1))
-	if slot>=0 and slot<hotbar_items.size():
-		hotbar_items[slot]=""
-		_refresh_hotbar()
-		_refresh_inventory()
+func _open_inventory_item_actions(key:String,title:String) -> void:
+	if inventory_panel==null: return
+	_close_inventory_item_actions()
+	var actions=Panel.new(); actions.name="ItemActions"; actions.position=Vector2(210,185); actions.size=Vector2(300,150); actions.z_index=30; inventory_panel.add_child(actions)
+	var name_label=Label.new(); name_label.text=title; name_label.position=Vector2(18,15); name_label.size=Vector2(210,34); name_label.add_theme_font_size_override("font_size",18); actions.add_child(name_label)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(246,10); close.size=Vector2(42,38); close.pressed.connect(_close_inventory_item_actions); actions.add_child(close)
+	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(45,72); equip.size=Vector2(210,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
 
 func _refresh_inventory():
 	if inventory_panel==null: return
+	_close_inventory_item_actions()
 	var grid=inventory_panel.get_node("InvScroll/Grid"); for child in grid.get_children(): child.queue_free()
 	var items=[["ODUN",wood],["TAŞ",stone],["DEMİR",metal_parts],["GRİ KART",gray_cards],["MERMI",ammo],["BALTA",axe_count],["KAZMA",pickaxe_count]]
 	for item in items:
-		if int(item[1])>0:
-			grid.add_child(_inventory_drag_cell(str(item[0]),str(item[0]),int(item[1])))
+		if int(item[1])>0: grid.add_child(_inventory_item_cell(str(item[0]),str(item[0]),int(item[1])))
 	for k in craft_resources:
 		if int(craft_resources[k])>0:
 			var title=_craft_material_name(k)
-			grid.add_child(_inventory_drag_cell(str(k),title,int(craft_resources[k])))
+			grid.add_child(_inventory_item_cell(str(k),title,int(craft_resources[k])))
 	for key in crafted_inventory:
 		var count=int(crafted_inventory[key])
 		if count>0:
 			var parts=key.split("|"); var name=str(parts[0]); var rarity=str(parts[1])
 			var title="%s %s" % [_store_rarity_name(rarity),name]
-			grid.add_child(_inventory_drag_cell(key,title,count,_load_item_texture(_craft_icon_path(name,rarity))))
+			grid.add_child(_inventory_item_cell(key,title,count,_load_item_texture(_craft_icon_path(name,rarity))))
 
 
 func _schedule_resource_respawn(n:Node3D,kind:String):
@@ -2193,10 +2190,8 @@ func _create_hotbar(layer:CanvasLayer):
 		var st=StyleBoxFlat.new(); st.bg_color=Color(.08,.08,.08,.30); st.border_width_left=1; st.border_width_top=1; st.border_width_right=1; st.border_width_bottom=1; st.border_color=Color(.8,.8,.8,.35)
 		b.add_theme_stylebox_override("normal",st); b.add_theme_stylebox_override("pressed",st)
 		b.pressed.connect(_select_hotbar.bind(i))
-		b.set_drag_forwarding(_hotbar_get_drag_data.bind(i),_hotbar_can_drop_data.bind(i),_hotbar_drop_data.bind(i))
 		hotbar.add_child(b)
 	layer.add_child(hotbar)
-	# No EL/tool caption under the bar. Slots stay visually empty until assigned.
 	hotbar_label=null
 
 func _hotbar_item_title(key:String) -> String:
@@ -2212,6 +2207,18 @@ func _refresh_hotbar() -> void:
 		var b=hotbar.get_child(i) as Button
 		if b: b.text=_hotbar_item_title(str(hotbar_items[i]))
 
+func _equip_inventory_item(key:String) -> void:
+	if key.is_empty(): return
+	var target=-1
+	for i in hotbar_items.size():
+		if str(hotbar_items[i]).is_empty():
+			target=i; break
+	if target<0: target=0
+	hotbar_items[target]=key
+	_refresh_hotbar()
+	_select_hotbar(target)
+	_close_inventory_item_actions()
+
 func _select_hotbar(slot:int):
 	if slot<0 or slot>=hotbar_items.size(): return
 	var key=str(hotbar_items[slot])
@@ -2222,40 +2229,11 @@ func _select_hotbar(slot:int):
 		if build_preview: build_preview.visible=false
 		return
 	selected_tool=_hotbar_item_title(key)
-	# Legacy held-item visuals remain available for basic tools.
 	var legacy={"BALTA":1,"KAZMA":2,"SILAH":3,"YAPI CEKICI":4}
 	_update_held_item(int(legacy.get(key,0)))
 	build_mode=key=="YAPI CEKICI"
 	if build_mode: _ensure_build_preview()
 	elif build_preview: build_preview.visible=false
-
-func _set_drag_preview(preview:Control) -> void:
-	# Drag forwarding callbacks run on Main, so attach preview through the viewport.
-	get_viewport().set_drag_preview(preview)
-
-func _hotbar_get_drag_data(_at_position:Vector2,slot:int):
-	if slot<0 or slot>=hotbar_items.size() or str(hotbar_items[slot]).is_empty(): return null
-	var key=str(hotbar_items[slot])
-	var preview=Label.new(); preview.text=_hotbar_item_title(key); set_drag_preview(preview)
-	return {"kind":"hotbar","slot":slot,"key":key}
-
-func _hotbar_can_drop_data(_at_position:Vector2,data,slot:int) -> bool:
-	return data is Dictionary and str(data.get("key",""))!="" and slot>=0 and slot<hotbar_items.size()
-
-func _hotbar_drop_data(_at_position:Vector2,data,slot:int) -> void:
-	var incoming=str(data.get("key",""))
-	if incoming.is_empty(): return
-	var old=str(hotbar_items[slot])
-	if str(data.get("kind",""))=="hotbar":
-		var source=int(data.get("slot",-1))
-		if source>=0 and source<hotbar_items.size() and source!=slot:
-			hotbar_items[source]=old
-			hotbar_items[slot]=incoming
-	else:
-		# Inventory item enters the chosen slot. An occupied slot is swapped out.
-		hotbar_items[slot]=incoming
-	_refresh_hotbar()
-	if inventory_panel and inventory_panel.visible: _refresh_inventory()
 
 
 func _ensure_build_preview():
