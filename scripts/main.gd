@@ -258,8 +258,29 @@ func _build_world_staged() -> void:
 	zone_label.text=""
 
 func height_at(x: float, z: float) -> float:
-	# Ana arazi tamamen düz: bütün zemin Y=0.
-	return 0.0
+	# Bowl-shaped terrain: lower near the center, rising gradually toward the mountain border.
+	# Natural deterministic undulation breaks long sight lines without changing between launches.
+	var radial=clampf(Vector2(x,z).length()/190.0,0.0,1.0)
+	var h=-3.2+(radial*radial)*10.5
+	h+=sin(x*0.045)*1.7+cos(z*0.052)*1.45+sin((x+z)*0.027)*1.15
+	h+=sin((x-z)*0.081)*0.65
+	# Keep every existing settlement footprint perfectly flat, with a soft transition ring.
+	var settlement_centers_local=[
+		Vector3(-105,0,-165),Vector3(-55,0,-165),Vector3(55,0,-165),Vector3(105,0,-165),
+		Vector3(-105,0,-100),Vector3(-50,0,-100),Vector3(20,0,-105),Vector3(75,0,-100),
+		Vector3(-100,0,-35),Vector3(-45,0,-35),Vector3(20,0,-40),Vector3(80,0,-35),
+		Vector3(-100,0,35),Vector3(-45,0,35),Vector3(20,0,35),Vector3(80,0,35),
+		Vector3(-95,0,95),Vector3(-35,0,100),Vector3(35,0,95),Vector3(95,0,95),
+		Vector3(0,0,0)
+	]
+	for sc in settlement_centers_local:
+		var dx=absf(x-sc.x); var dz=absf(z-sc.z)
+		if dx<=13.5 and dz<=13.5: return 0.0
+		var edge=maxf(dx,dz)
+		if edge<22.0:
+			var blend=smoothstep(13.5,22.0,edge)
+			h=lerpf(0.0,h,blend)
+	return h
 
 func _near_poi(x: float, z: float) -> bool:
 	for b in pois:
