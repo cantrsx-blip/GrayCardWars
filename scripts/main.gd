@@ -94,7 +94,7 @@ var inventory_panel: Control
 var store_panel: Control
 var craft_panel: Control
 var hotbar: Control
-var selected_tool := "ELLER"
+var selected_tool := ""
 var axe_count := 0
 var pickaxe_count := 0
 var build_mode := false
@@ -404,11 +404,11 @@ func _build_world_environment() -> void:
 	world_env=WorldEnvironment.new()
 	var env=Environment.new()
 	env.background_mode=Environment.BG_COLOR
-	env.background_color=Color(.32,.67,.94)
+	env.background_color=Color(.25,.66,.96)
 	env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color=Color(.78,.86,.94)
-	env.ambient_light_energy=.78
-	env.tonemap_mode=Environment.TONE_MAPPER_FILMIC
+	env.ambient_light_color=Color(.92,.95,1.0)
+	env.ambient_light_energy=1.0
+	env.tonemap_mode=Environment.TONE_MAPPER_LINEAR
 	env.fog_enabled=false
 	world_env.environment=env
 	add_child(world_env)
@@ -1481,7 +1481,7 @@ func _set_weather(_kind:String):
 		env.background_color=Color(.32,.67,.94)
 		env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
 		env.ambient_light_color=Color(.78,.86,.94)
-		env.ambient_light_energy=.78
+		env.ambient_light_energy=1.0
 		env.fog_enabled=false
 
 func _update_weather(_delta:float):
@@ -1493,7 +1493,7 @@ func _update_weather(_delta:float):
 	if env:
 		env.background_color=Color(.32,.67,.94)
 		env.ambient_light_color=Color(.78,.86,.94)
-		env.ambient_light_energy=.78
+		env.ambient_light_energy=1.0
 		env.fog_enabled=false
 
 func _toggle_crouch():
@@ -1901,15 +1901,15 @@ func _create_inventory():
 	var title=Label.new(); title.text="ENVANTER"; title.position=Vector2(24,14); title.add_theme_font_size_override("font_size",26); inventory_panel.add_child(title)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(650,12); close.size=Vector2(48,42); close.pressed.connect(_toggle_inventory); inventory_panel.add_child(close)
 	var scroll=ScrollContainer.new(); scroll.name="InvScroll"; scroll.position=Vector2(20,58); scroll.size=Vector2(680,440); inventory_panel.add_child(scroll)
-	var grid=GridContainer.new(); grid.name="Grid"; grid.columns=5; grid.custom_minimum_size=Vector2(650,0); scroll.add_child(grid)
+	var grid=GridContainer.new(); grid.name="Grid"; grid.columns=5; grid.custom_minimum_size=Vector2(650,0); grid.add_theme_constant_override("h_separation",2); grid.add_theme_constant_override("v_separation",4); scroll.add_child(grid)
 	var layers=get_children().filter(func(n): return n is CanvasLayer); if layers.size()>0: layers[-1].add_child(inventory_panel)
 	inventory_panel.visible=false
 
 func _inventory_item_cell(key:String,title:String,count:int,texture:Texture2D=null)->Control:
 	var cell=VBoxContainer.new()
-	cell.custom_minimum_size=Vector2(136,136)
+	cell.custom_minimum_size=Vector2(128,136)
 	var image_button=TextureButton.new()
-	image_button.custom_minimum_size=Vector2(136,104)
+	image_button.custom_minimum_size=Vector2(128,104)
 	image_button.ignore_texture_size=true
 	image_button.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	image_button.texture_normal=texture
@@ -1917,7 +1917,7 @@ func _inventory_item_cell(key:String,title:String,count:int,texture:Texture2D=nu
 	image_button.pressed.connect(_open_inventory_item_actions.bind(key,title))
 	cell.add_child(image_button)
 	var name_label=Label.new()
-	name_label.custom_minimum_size=Vector2(136,28)
+	name_label.custom_minimum_size=Vector2(128,28)
 	name_label.text=title
 	name_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 	name_label.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -2188,13 +2188,13 @@ func _craft(kind:int):
 func _create_hotbar(layer:CanvasLayer):
 	hotbar=HBoxContainer.new()
 	hotbar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	hotbar.position=Vector2(-490,-120)
-	hotbar.size=Vector2(980,110)
+	hotbar.position=Vector2(-476,-116)
+	hotbar.size=Vector2(952,106)
 	hotbar.alignment=BoxContainer.ALIGNMENT_CENTER
 	for i in 7:
 		var b=TextureButton.new()
 		b.name="HotbarSlot_%d" % i
-		b.custom_minimum_size=Vector2(136,104)
+		b.custom_minimum_size=Vector2(132,100)
 		b.ignore_texture_size=true
 		b.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 		b.tooltip_text=""
@@ -2203,7 +2203,7 @@ func _create_hotbar(layer:CanvasLayer):
 	layer.add_child(hotbar)
 	hotbar_label=Label.new()
 	hotbar_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	hotbar_label.position=Vector2(-220,-150)
+	hotbar_label.position=Vector2(-220,-148)
 	hotbar_label.size=Vector2(440,30)
 	hotbar_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 	hotbar_label.add_theme_font_size_override("font_size",16)
