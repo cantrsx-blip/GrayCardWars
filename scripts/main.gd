@@ -444,21 +444,8 @@ func _build_world_base():
 
 
 func _build_settlement_areas() -> void:
-	if not settlement_centers.is_empty(): return
-	var candidates=[
-		Vector3(-145,0,-145),Vector3(-95,0,-145),Vector3(-45,0,-145),Vector3(45,0,-145),Vector3(95,0,-145),
-		Vector3(145,0,-145),Vector3(-145,0,-85),Vector3(-85,0,-85),Vector3(85,0,-85),Vector3(145,0,-85),
-		Vector3(-145,0,85),Vector3(-85,0,85),Vector3(85,0,85),Vector3(145,0,85),Vector3(-145,0,145),
-		Vector3(-95,0,145),Vector3(-45,0,145),Vector3(45,0,145),Vector3(95,0,145),Vector3(145,0,145)
-	]
-	for i in candidates.size():
-		var p:Vector3=candidates[i]
-		p.y=height_at(p.x,p.z)+.04
-		settlement_centers.append(p)
-		var pad=MeshInstance3D.new(); pad.name="SettlementArea_%d" % (i+1)
-		var mesh=BoxMesh.new(); mesh.size=Vector3(SETTLEMENT_SIZE,.08,SETTLEMENT_SIZE); pad.mesh=mesh; pad.position=p
-		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.48,.49,.50); mat.roughness=.94; pad.material_override=mat; add_child(pad)
-		var label=Label3D.new(); label.text="Yerleşim Alanı %d" % (i+1); label.position=p+Vector3(0,.12,0); label.rotation_degrees=Vector3(-90,0,0); label.font_size=64; label.modulate=Color(.10,.10,.10); add_child(label)
+	# Yerleşim alanı görselleri kaldırıldı. #295'in diğer sistemleri korunuyor.
+	return
 
 func _settlement_index_at(p:Vector3) -> int:
 	for i in settlement_centers.size():
