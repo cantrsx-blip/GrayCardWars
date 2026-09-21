@@ -148,6 +148,7 @@ var sfx: Dictionary = {}
 var step_timer := 0.0
 var hotbar_label: Label
 var hotbar_items: Array = ["","","","","","",""]
+var hotbar_feedback_token := 0
 var player_facing := Vector3(0,0,-1)
 var player_move_speed := 6.8
 var fly_mode := false
@@ -1945,7 +1946,7 @@ func _open_inventory_item_actions(key:String,title:String) -> void:
 	var panel_style=StyleBoxFlat.new(); panel_style.bg_color=Color(.20,.21,.22,.96); panel_style.border_width_left=1; panel_style.border_width_top=1; panel_style.border_width_right=1; panel_style.border_width_bottom=1; panel_style.border_color=Color(.55,.55,.55,.8); panel_style.corner_radius_top_left=8; panel_style.corner_radius_top_right=8; panel_style.corner_radius_bottom_left=8; panel_style.corner_radius_bottom_right=8
 	actions.add_theme_stylebox_override("panel",panel_style); inventory_panel.add_child(actions)
 	var name_label=Label.new(); name_label.text=title; name_label.position=Vector2(18,15); name_label.size=Vector2(210,34); name_label.add_theme_font_size_override("font_size",18); actions.add_child(name_label)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(238,8); close.size=Vector2(52,48); close.mouse_filter=Control.MOUSE_FILTER_STOP; close.z_index=31; actions.add_child(close); close.pressed.connect(_close_inventory_item_actions)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(238,8); close.size=Vector2(52,48); close.mouse_filter=Control.MOUSE_FILTER_STOP; close.z_index=31; actions.add_child(close); close.button_down.connect(_close_inventory_item_actions)
 	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(45,72); equip.size=Vector2(210,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
 
 func _refresh_inventory():
@@ -2267,12 +2268,24 @@ func _select_hotbar(slot:int):
 	selected_tool=_hotbar_item_title(key)
 	if hotbar_label:
 		hotbar_label.text=selected_tool
+	hotbar_feedback_token+=1
+	var token=hotbar_feedback_token
+	_hide_hotbar_feedback_later(token)
 	var legacy={"BALTA":1,"KAZMA":2,"SILAH":3,"YAPI CEKICI":4}
 	_update_held_item(int(legacy.get(key,0)))
 	build_mode=key=="YAPI CEKICI"
 	if build_mode: _ensure_build_preview()
 	elif build_preview: build_preview.visible=false
 	_refresh_hotbar()
+
+
+func _hide_hotbar_feedback_later(token:int) -> void:
+	await get_tree().create_timer(4.0).timeout
+	if token!=hotbar_feedback_token: return
+	if hotbar_label: hotbar_label.text=""
+	selected_tool=""
+	_refresh_hotbar()
+
 
 func _ensure_build_preview():
 	if build_preview==null:
