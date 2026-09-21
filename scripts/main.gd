@@ -445,20 +445,44 @@ func _build_world_base():
 
 func _build_settlement_areas() -> void:
 	if not settlement_centers.is_empty(): return
+	# Keep settlements well away from POI/boss compounds and prefer flatter ground.
 	var candidates=[
-		Vector3(-145,0,-145),Vector3(-95,0,-145),Vector3(-45,0,-145),Vector3(45,0,-145),Vector3(95,0,-145),
-		Vector3(145,0,-145),Vector3(-145,0,-85),Vector3(-85,0,-85),Vector3(85,0,-85),Vector3(145,0,-85),
-		Vector3(-145,0,85),Vector3(-85,0,85),Vector3(85,0,85),Vector3(145,0,85),Vector3(-145,0,145),
-		Vector3(-95,0,145),Vector3(-45,0,145),Vector3(45,0,145),Vector3(95,0,145),Vector3(145,0,145)
+		Vector3(-105,0,-105),Vector3(-55,0,-105),Vector3(55,0,-105),Vector3(105,0,-105),
+		Vector3(-105,0,-55),Vector3(-55,0,-55),Vector3(55,0,-55),Vector3(105,0,-55),
+		Vector3(-105,0,55),Vector3(-55,0,55),Vector3(55,0,55),Vector3(105,0,55),
+		Vector3(-105,0,105),Vector3(-55,0,105),Vector3(55,0,105),Vector3(105,0,105),
+		Vector3(-25,0,-115),Vector3(25,0,-115),Vector3(-25,0,115),Vector3(25,0,115)
 	]
 	for i in candidates.size():
 		var p:Vector3=candidates[i]
-		p.y=height_at(p.x,p.z)+.04
+		# Flat platform top is set to the highest terrain sample under the 25x25 square.
+		var top_y=-INF
+		for sx in [-12.5,-6.25,0.0,6.25,12.5]:
+			for sz in [-12.5,-6.25,0.0,6.25,12.5]:
+				top_y=maxf(top_y,height_at(p.x+sx,p.z+sz))
+		p.y=top_y+.08
 		settlement_centers.append(p)
+		# Thick concrete foundation fills uneven terrain instead of floating as a thin sheet.
+		var lowest=INF
+		for sx in [-12.5,0.0,12.5]:
+			for sz in [-12.5,0.0,12.5]:
+				lowest=minf(lowest,height_at(p.x+sx,p.z+sz))
+		var depth=maxf(1.0,p.y-lowest+.35)
 		var pad=MeshInstance3D.new(); pad.name="SettlementArea_%d" % (i+1)
-		var mesh=BoxMesh.new(); mesh.size=Vector3(SETTLEMENT_SIZE,.08,SETTLEMENT_SIZE); pad.mesh=mesh; pad.position=p
+		var mesh=BoxMesh.new(); mesh.size=Vector3(SETTLEMENT_SIZE,depth,SETTLEMENT_SIZE); pad.mesh=mesh
+		pad.position=Vector3(p.x,p.y-depth*.5,p.z)
 		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.48,.49,.50); mat.roughness=.94; pad.material_override=mat; add_child(pad)
-		var label=Label3D.new(); label.text="Yerleşim Alanı %d" % (i+1); label.position=p+Vector3(0,.12,0); label.rotation_degrees=Vector3(-90,0,0); label.font_size=64; label.modulate=Color(.10,.10,.10); add_child(label)
+		var label=Label3D.new()
+		label.text="YERLEŞİM ALANI %d" % (i+1)
+		label.position=Vector3(p.x,p.y+.055,p.z)
+		label.rotation_degrees=Vector3(-90,0,0)
+		label.font_size=96
+		label.outline_size=8
+		label.modulate=Color(.08,.08,.08)
+		label.width=900
+		label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+		label.no_depth_test=true
+		add_child(label)
 
 func _settlement_index_at(p:Vector3) -> int:
 	for i in settlement_centers.size():
