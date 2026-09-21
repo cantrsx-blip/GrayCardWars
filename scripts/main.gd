@@ -586,9 +586,10 @@ func _spawn_bears() -> void:
 		bear.collision_layer=0
 		bear.collision_mask=0
 		bear.set_meta("job","METEOR")
-		bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,-1,bear))
 		bear.set_meta("moving",true)
 		add_child(bear)
+		# global_position is valid only after the bear enters the SceneTree.
+		bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,-1,bear))
 		var cs=CollisionShape3D.new()
 		var shape=CapsuleShape3D.new()
 		shape.radius=0.45
