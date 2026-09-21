@@ -1181,8 +1181,24 @@ func _update_wildlife(delta:float) -> void:
 			if body: body.position.y=1.45+sin(Time.get_ticks_msec()*0.012)*0.05
 
 func _build_trees_staged() -> void:
-	for i in (120 if OS.has_feature("mobile") else 495):
-		var p = _rand_map_point(MAP_HALF - 12)
+	var tree_target=360 if OS.has_feature("mobile") else 1485
+	var settlement_centers_local=[
+		Vector3(-105,0,-165),Vector3(-55,0,-165),Vector3(55,0,-165),Vector3(105,0,-165),
+		Vector3(-105,0,-100),Vector3(-50,0,-100),Vector3(20,0,-105),Vector3(75,0,-100),
+		Vector3(-100,0,-35),Vector3(-45,0,-35),Vector3(20,0,-40),Vector3(80,0,-35),
+		Vector3(-100,0,35),Vector3(-45,0,35),Vector3(20,0,35),Vector3(80,0,35),
+		Vector3(-95,0,95),Vector3(-35,0,100),Vector3(35,0,95),Vector3(95,0,95),Vector3(0,0,0)
+	]
+	for i in tree_target:
+		var p:Vector3
+		# Most trees form sight-breaking belts around settlements, never on the concrete itself.
+		if i < int(tree_target*0.72):
+			var sc=settlement_centers_local[i%settlement_centers_local.size()]
+			var angle=randf()*TAU
+			var radius=randf_range(17.0,38.0)
+			p=Vector3(sc.x+cos(angle)*radius,0,sc.z+sin(angle)*radius)
+		else:
+			p=_rand_map_point(MAP_HALF-12)
 		if _resource_spawn_safe(p.x,p.z):
 			var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
 			_make_kara_tree(tree_body)
