@@ -1907,9 +1907,9 @@ func _create_inventory():
 
 func _inventory_item_cell(key:String,title:String,count:int,texture:Texture2D=null)->Control:
 	var button=Button.new(); button.custom_minimum_size=Vector2(124,112); button.text="%s\n×%d" % [title,count]
-	if texture:
-		button.icon=texture
-		button.expand_icon=true
+	button.icon=texture
+	button.expand_icon=true
+	button.icon_max_width=64
 	button.pressed.connect(_open_inventory_item_actions.bind(key,title))
 	return button
 
@@ -1923,7 +1923,7 @@ func _open_inventory_item_actions(key:String,title:String) -> void:
 	_close_inventory_item_actions()
 	var actions=Panel.new(); actions.name="ItemActions"; actions.position=Vector2(210,185); actions.size=Vector2(300,150); actions.z_index=30; inventory_panel.add_child(actions)
 	var name_label=Label.new(); name_label.text=title; name_label.position=Vector2(18,15); name_label.size=Vector2(210,34); name_label.add_theme_font_size_override("font_size",18); actions.add_child(name_label)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(246,10); close.size=Vector2(42,38); close.pressed.connect(_close_inventory_item_actions); actions.add_child(close)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(238,8); close.size=Vector2(52,48); close.mouse_filter=Control.MOUSE_FILTER_STOP; actions.add_child(close); close.pressed.connect(_close_inventory_item_actions)
 	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(45,72); equip.size=Vector2(210,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
 
 func _refresh_inventory():
@@ -1932,7 +1932,11 @@ func _refresh_inventory():
 	var grid=inventory_panel.get_node("InvScroll/Grid"); for child in grid.get_children(): child.queue_free()
 	var items=[["ODUN",wood],["TAŞ",stone],["DEMİR",metal_parts],["GRİ KART",gray_cards],["MERMI",ammo],["BALTA",axe_count],["KAZMA",pickaxe_count]]
 	for item in items:
-		if int(item[1])>0: grid.add_child(_inventory_item_cell(str(item[0]),str(item[0]),int(item[1])))
+		if int(item[1])>0:
+			var basic_key=str(item[0]); var basic_tex:Texture2D=null
+			if basic_key=="BALTA": basic_tex=_load_item_texture("res://assets/weapons-ammo-armor/axe_gray_128.png")
+			elif basic_key=="KAZMA": basic_tex=_load_item_texture("res://assets/weapons-ammo-armor/pickaxe_gray_128.png")
+			grid.add_child(_inventory_item_cell(basic_key,basic_key,int(item[1]),basic_tex))
 	for k in craft_resources:
 		if int(craft_resources[k])>0:
 			var title=_craft_material_name(k)
@@ -2194,7 +2198,10 @@ func _refresh_hotbar() -> void:
 	if hotbar==null: return
 	for i in mini(7,hotbar.get_child_count()):
 		var b=hotbar.get_child(i) as Button
-		if b: b.text=_hotbar_item_title(str(hotbar_items[i]))
+		if b:
+			var key=str(hotbar_items[i]); b.text=_hotbar_item_title(key); b.icon=null
+			if "|" in key:
+				var parts=key.split("|"); b.icon=_load_item_texture(_craft_icon_path(str(parts[0]),str(parts[1]))); b.expand_icon=true
 
 func _equip_inventory_item(key:String) -> void:
 	if key.is_empty(): return
