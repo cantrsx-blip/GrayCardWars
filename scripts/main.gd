@@ -243,10 +243,8 @@ func _build_world_staged() -> void:
 	await get_tree().process_frame
 	_build_weather_system()
 	await get_tree().process_frame
-	_build_rocks_staged()
-	await get_tree().process_frame
-	_build_meteors_staged()
-	await get_tree().process_frame
+	# Rocks removed.
+	# Meteors removed.
 	# Animals removed.
 	_build_trees_staged()
 	await get_tree().process_frame
