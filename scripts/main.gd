@@ -1897,17 +1897,18 @@ func _toggle_inventory():
 	_set_modal_lock(_panel_open())
 
 func _create_inventory():
-	inventory_panel=Panel.new(); inventory_panel.set_anchors_preset(Control.PRESET_CENTER); inventory_panel.position=Vector2(-360,-260); inventory_panel.size=Vector2(720,520)
+	inventory_panel=Panel.new(); inventory_panel.set_anchors_preset(Control.PRESET_CENTER); inventory_panel.position=Vector2(-360,-290); inventory_panel.size=Vector2(720,580)
 	var title=Label.new(); title.text="ENVANTER"; title.position=Vector2(24,14); title.add_theme_font_size_override("font_size",26); inventory_panel.add_child(title)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(650,12); close.size=Vector2(48,42); close.pressed.connect(_toggle_inventory); inventory_panel.add_child(close)
-	var scroll=ScrollContainer.new(); scroll.name="InvScroll"; scroll.position=Vector2(20,58); scroll.size=Vector2(680,440); inventory_panel.add_child(scroll)
-	var grid=GridContainer.new(); grid.name="Grid"; grid.columns=5; grid.custom_minimum_size=Vector2(650,0); grid.add_theme_constant_override("h_separation",2); grid.add_theme_constant_override("v_separation",4); scroll.add_child(grid)
+	var scroll=ScrollContainer.new(); scroll.name="InvScroll"; scroll.position=Vector2(20,58); scroll.size=Vector2(680,500); inventory_panel.add_child(scroll)
+	var grid=GridContainer.new(); grid.name="Grid"; grid.columns=5; grid.custom_minimum_size=Vector2(650,0); grid.add_theme_constant_override("h_separation",2); grid.add_theme_constant_override("v_separation",6); scroll.add_child(grid)
 	var layers=get_children().filter(func(n): return n is CanvasLayer); if layers.size()>0: layers[-1].add_child(inventory_panel)
 	inventory_panel.visible=false
 
 func _inventory_item_cell(key:String,title:String,count:int,texture:Texture2D=null)->Control:
 	var cell=VBoxContainer.new()
-	cell.custom_minimum_size=Vector2(128,136)
+	cell.custom_minimum_size=Vector2(128,142)
+	cell.add_theme_constant_override("separation",4)
 	var image_button=TextureButton.new()
 	image_button.custom_minimum_size=Vector2(128,104)
 	image_button.ignore_texture_size=true
@@ -1916,14 +1917,22 @@ func _inventory_item_cell(key:String,title:String,count:int,texture:Texture2D=nu
 	image_button.tooltip_text=title
 	image_button.pressed.connect(_open_inventory_item_actions.bind(key,title))
 	cell.add_child(image_button)
-	var name_label=Label.new()
-	name_label.custom_minimum_size=Vector2(128,28)
-	name_label.text=title
-	name_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-	name_label.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
-	name_label.add_theme_font_size_override("font_size",11)
-	cell.add_child(name_label)
+	var name_button=Button.new()
+	name_button.custom_minimum_size=Vector2(128,34)
+	name_button.text=title
+	name_button.clip_text=true
+	name_button.add_theme_font_size_override("font_size",_inventory_name_font_size(title))
+	name_button.pressed.connect(_open_inventory_item_actions.bind(key,title))
+	cell.add_child(name_button)
 	return cell
+
+func _inventory_name_font_size(title:String) -> int:
+	var n=title.length()
+	if n>=24: return 8
+	if n>=19: return 9
+	if n>=15: return 10
+	return 12
+
 func _close_inventory_item_actions() -> void:
 	if inventory_panel==null: return
 	var old=inventory_panel.get_node_or_null("ItemActions")
