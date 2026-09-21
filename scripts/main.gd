@@ -85,6 +85,7 @@ var shoot_flash_time := 0.0
 var hit_label: Label
 var world_env: WorldEnvironment
 var zone_label: Label
+var coordinate_label: Label
 var message_time := 0.0
 var respawn_label: Label
 var gather_label: Label
@@ -1108,6 +1109,7 @@ func _build_hud():
 	add_child(layer)
 	hit_label=Label.new(); hit_label.set_anchors_preset(Control.PRESET_CENTER); hit_label.position=Vector2(-20,-35); hit_label.text="+"; hit_label.visible=false; hit_label.add_theme_font_size_override("font_size",32); layer.add_child(hit_label)
 	zone_label=Label.new(); zone_label.set_anchors_preset(Control.PRESET_TOP_WIDE); zone_label.position=Vector2(0,18); zone_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; zone_label.add_theme_font_size_override("font_size",24); layer.add_child(zone_label)
+	coordinate_label=Label.new(); coordinate_label.set_anchors_preset(Control.PRESET_TOP_LEFT); coordinate_label.position=Vector2(18,54); coordinate_label.add_theme_font_size_override("font_size",18); coordinate_label.text="X: 0 | Z: 0"; layer.add_child(coordinate_label)
 	hud=Label.new(); hud.position=Vector2(176,22); hud.add_theme_font_size_override("font_size",18); layer.add_child(hud)
 	joystick_base=ColorRect.new(); joystick_base.set_anchors_preset(Control.PRESET_BOTTOM_LEFT); joystick_base.position=Vector2(24,-224); joystick_base.size=Vector2(200,200); joystick_base.color=Color(.08,.08,.08,.32); layer.add_child(joystick_base)
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(64,64); joystick_knob.size=Vector2(72,72); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
@@ -1375,6 +1377,8 @@ func _update_cheat_button_style():
 func _physics_process(delta):
 	if player == null or camera == null or hud == null or zone_label == null:
 		return
+	if coordinate_label:
+		coordinate_label.text="X: %d | Z: %d" % [roundi(player.global_position.x),roundi(player.global_position.z)]
 	animal_ai_timer+=delta
 	if animal_ai_timer>=ANIMAL_AI_INTERVAL:
 		var animal_step=animal_ai_timer
@@ -1714,7 +1718,7 @@ func _build_house():
 	_update_build_preview()
 	if not preview_valid: _flash_message("BU PARCA BURAYA KURULAMAZ"); return
 	var build_pos=build_preview.global_position
-	if not _settlement_build_allowed(build_pos): _flash_message("SADECE SECILEN YERLESIM ALANINDA INSA EDEBILIRSIN"); return
+	if not cheat_mode and not _settlement_build_allowed(build_pos): _flash_message("BU PARCA BURAYA KURULAMAZ"); return
 	if build_piece in [1,2,3] and not _build_storey_allowed(build_pos): _flash_message("MAKSIMUM 4 KAT"); return
 	if wood<20 and not cheat_mode: return
 	var p=build_preview.global_position
@@ -2555,7 +2559,7 @@ func _update_build_preview():
 			build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
 		else:
 			build_preview.global_position=probe
-	if preview_valid and not _settlement_build_allowed(build_preview.global_position): preview_valid=false
+	if preview_valid and not cheat_mode and not _settlement_build_allowed(build_preview.global_position): preview_valid=false
 	if preview_valid and build_piece in [1,2,3] and not _build_storey_allowed(build_preview.global_position): preview_valid=false
 	var mat=build_preview.material_override as StandardMaterial3D
 	if mat: mat.albedo_color=Color(.2,.9,.35,.42) if preview_valid else Color(.95,.12,.08,.40)
