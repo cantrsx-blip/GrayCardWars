@@ -247,11 +247,8 @@ func _build_world_staged() -> void:
 	await get_tree().process_frame
 	_build_meteors_staged()
 	await get_tree().process_frame
-	_spawn_bears()
-	await get_tree().process_frame
+	# Animals removed.
 	_build_trees_staged()
-	await get_tree().process_frame
-	_spawn_wildlife()
 	await get_tree().process_frame
 	_spawn_humans()
 	await get_tree().process_frame
@@ -1448,12 +1445,6 @@ func _physics_process(delta):
 		return
 	if coordinate_label:
 		coordinate_label.text="X: %d | Z: %d" % [roundi(player.global_position.x),roundi(player.global_position.z)]
-	animal_ai_timer+=delta
-	if animal_ai_timer>=ANIMAL_AI_INTERVAL:
-		var animal_step=animal_ai_timer
-		animal_ai_timer=0.0
-		_update_bears(animal_step)
-		_update_wildlife(animal_step)
 	if _panel_open():
 		move_touch=Vector2.ZERO
 		player.velocity.x=0.0
