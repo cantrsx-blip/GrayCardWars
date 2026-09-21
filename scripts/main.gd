@@ -429,53 +429,9 @@ func _build_world_base():
 	_build_world_light()
 	_build_terrain_mesh()
 	_build_settlement_areas()
-	_build_world_boundary()
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
-
-
-func _build_world_boundary() -> void:
-	# Impassable rugged-looking perimeter. Four centered 10m gate openings mark future exits.
-	var wall_h=12.0
-	var wall_t=7.0
-	var half=MAP_HALF-1.5
-	var gap=10.0
-	var segment=(MAP_HALF*2.0-gap)*.5
-	var offset=gap*.5+segment*.5
-	var rock_col=Color(.28,.27,.23)
-	for zsign in [-1.0,1.0]:
-		_add_boundary_segment(Vector3(-offset,wall_h*.5,zsign*half),Vector3(segment,wall_h,wall_t),rock_col)
-		_add_boundary_segment(Vector3(offset,wall_h*.5,zsign*half),Vector3(segment,wall_h,wall_t),rock_col)
-	for xsign in [-1.0,1.0]:
-		_add_boundary_segment(Vector3(xsign*half,wall_h*.5,-offset),Vector3(wall_t,wall_h,segment),rock_col)
-		_add_boundary_segment(Vector3(xsign*half,wall_h*.5,offset),Vector3(wall_t,wall_h,segment),rock_col)
-	_build_boundary_gate(Vector3(0,0,-half),0.0)
-	_build_boundary_gate(Vector3(0,0,half),0.0)
-	_build_boundary_gate(Vector3(-half,0,0),90.0)
-	_build_boundary_gate(Vector3(half,0,0),90.0)
-
-func _add_boundary_segment(pos:Vector3,size:Vector3,col:Color) -> void:
-	_add_static_box(pos,size,col)
-	# Irregular cap blocks keep the perimeter from reading as a clean concrete wall.
-	for i in 9:
-		var along=-size.x*.42+float(i)*(size.x*.84/8.0) if size.x>size.z else -size.z*.42+float(i)*(size.z*.84/8.0)
-		var p=pos
-		if size.x>size.z: p.x+=along
-		else: p.z+=along
-		p.y=size.y+float((i*7)%4)*.45
-		_add_static_box(p,Vector3(7,3.0+float(i%3),7),col.darkened(.08))
-
-func _build_boundary_gate(pos:Vector3,yaw:float) -> void:
-	# Two foundation-width wooden approach floor and a visibly closed old wooden door.
-	var floor_body=StaticBody3D.new(); floor_body.position=pos; floor_body.rotation_degrees.y=yaw; add_child(floor_body)
-	for side in [-1.0,1.0]:
-		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(5.0,.22,5.0); mi.mesh=bm
-		mi.position=Vector3(side*2.5,.11,0) if yaw==0.0 else Vector3(0,.11,side*2.5)
-		mi.material_override=_simple_mat(Color(.30,.17,.07)); floor_body.add_child(mi)
-	var door=StaticBody3D.new(); door.position=pos+Vector3(0,1.7,0); door.rotation_degrees.y=yaw; add_child(door)
-	var dm=MeshInstance3D.new(); var db=BoxMesh.new(); db.size=Vector3(9.4,3.4,.42); dm.mesh=db; dm.material_override=_simple_mat(Color(.25,.12,.045)); door.add_child(dm)
-	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(9.4,3.4,.42); cs.shape=sh; door.add_child(cs)
 
 
 func _build_settlement_areas() -> void:
@@ -1762,7 +1718,7 @@ func _build_house():
 	_update_build_preview()
 	if not preview_valid: _flash_message("BU PARCA BURAYA KURULAMAZ"); return
 	var build_pos=build_preview.global_position
-	if not cheat_mode and not _settlement_build_allowed(build_pos): _flash_message("BU PARCA BURAYA KURULAMAZ"); return
+	if not _settlement_build_allowed(build_pos): _flash_message("SADECE SECILEN YERLESIM ALANINDA INSA EDEBILIRSIN"); return
 	if build_piece in [1,2,3] and not _build_storey_allowed(build_pos): _flash_message("MAKSIMUM 4 KAT"); return
 	if wood<20 and not cheat_mode: return
 	var p=build_preview.global_position
@@ -2603,7 +2559,7 @@ func _update_build_preview():
 			build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
 		else:
 			build_preview.global_position=probe
-	if preview_valid and not cheat_mode and not _settlement_build_allowed(build_preview.global_position): preview_valid=false
+	if preview_valid and not _settlement_build_allowed(build_preview.global_position): preview_valid=false
 	if preview_valid and build_piece in [1,2,3] and not _build_storey_allowed(build_preview.global_position): preview_valid=false
 	var mat=build_preview.material_override as StandardMaterial3D
 	if mat: mat.albedo_color=Color(.2,.9,.35,.42) if preview_valid else Color(.95,.12,.08,.40)
