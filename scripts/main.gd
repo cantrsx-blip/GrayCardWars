@@ -261,18 +261,8 @@ func _build_world_staged() -> void:
 	zone_label.text=""
 
 func height_at(x: float, z: float) -> float:
-	if _near_poi(x, z):
-		return 0.0
-	var h := 0.0
-	h += sin(x * 0.032) * cos(z * 0.027) * 5.0
-	h += sin(x * 0.081 + 1.3) * sin(z * 0.064) * 2.4
-	h += sin((x + z) * 0.021) * 1.6
-	for p in pits:
-		var d = Vector2(x - p.x, z - p.z).length()
-		if d < 22.0:
-			var t = 1.0 - (d / 22.0)
-			h -= t * t * 7.5
-	return clampf(h, -8.0, 10.0)
+	# Ana arazi tamamen düz: bütün zemin Y=0.
+	return 0.0
 
 func _near_poi(x: float, z: float) -> bool:
 	for b in pois:
