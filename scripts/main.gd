@@ -1966,7 +1966,10 @@ func _landmark_cyl(p:Vector3, r_bot:float, r_top:float, h:float, col:Color):
 	var mi=MeshInstance3D.new(); var cyl=CylinderMesh.new(); cyl.bottom_radius=r_bot; cyl.top_radius=r_top; cyl.height=h; mi.mesh=cyl; mi.position=p; mi.material_override=_simple_mat(col); add_child(mi)
 
 func _build_survival_poi(b):
-	var c:Vector3=b.pos; var col:Color=b.color; var id:String=b.id
+	# Lift each POI onto the current terrain height so hills cannot bury it.
+	var base:Vector3=b.pos
+	var c:=Vector3(base.x,height_at(base.x,base.z),base.z)
+	var col:Color=b.color; var id:String=b.id
 	# Distinct abandoned survival silhouettes. No historical landmark or boss-fort geometry.
 	if id=="unfinished_house":
 		_landmark_box(c+Vector3(0,.25,0),Vector3(12,.5,10),Color(.32,.29,.25))
