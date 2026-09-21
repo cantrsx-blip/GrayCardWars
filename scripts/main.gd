@@ -149,6 +149,8 @@ var step_timer := 0.0
 var hotbar_label: Label
 var hotbar_items: Array = ["","","","","","",""]
 var hotbar_feedback_token := 0
+var hotbar_hidden := false
+var hotbar_hold_started: Dictionary = {}
 var player_facing := Vector3(0,0,-1)
 var player_move_speed := 6.8
 var fly_mode := false
@@ -2209,8 +2211,19 @@ func _create_hotbar(layer:CanvasLayer):
 		b.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 		b.tooltip_text=""
 		b.pressed.connect(_select_hotbar.bind(i))
+		b.button_down.connect(_hotbar_hold_start.bind(i))
+		b.button_up.connect(_hotbar_hold_cancel.bind(i))
 		hotbar.add_child(b)
 	layer.add_child(hotbar)
+	var eye=Button.new()
+	eye.name="HotbarEye"
+	eye.text="👁"
+	eye.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	eye.position=Vector2(-476,-146)
+	eye.size=Vector2(34,28)
+	eye.add_theme_font_size_override("font_size",13)
+	eye.pressed.connect(_toggle_hotbar_visibility.bind(eye))
+	layer.add_child(eye)
 	hotbar_label=Label.new()
 	hotbar_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	hotbar_label.position=Vector2(-220,-148)
@@ -2233,6 +2246,7 @@ func _refresh_hotbar() -> void:
 		var key=str(hotbar_items[i])
 		b.texture_normal=null
 		b.tooltip_text=_hotbar_item_title(key)
+		b.visible=not hotbar_hidden
 		for child in b.get_children(): child.queue_free()
 		if "|" in key:
 			var parts=key.split("|")
@@ -2260,6 +2274,77 @@ func _equip_inventory_item(key:String) -> void:
 	hotbar_items[target]=key
 	_select_hotbar(target)
 	_close_inventory_item_actions()
+
+
+func _toggle_hotbar_visibility(eye:Button) -> void:
+	hotbar_hidden=not hotbar_hidden
+	eye.text="👁" if not hotbar_hidden else "👁̸"
+	eye.add_theme_color_override("font_color",Color.WHITE if not hotbar_hidden else Color.RED)
+	if hotbar_label: hotbar_label.visible=not hotbar_hidden
+	_refresh_hotbar()
+
+func _hotbar_hold_start(slot:int) -> void:
+	if hotbar_hidden or slot<0 or slot>=hotbar_items.size(): return
+	var key=str(hotbar_items[slot])
+	if key.is_empty(): return
+	var token=Time.get_ticks_msec()
+	hotbar_hold_started[slot]=token
+	_hotbar_drop_countdown(slot,key,token)
+
+func _hotbar_hold_cancel(slot:int) -> void:
+	hotbar_hold_started.erase(slot)
+	if hotbar_label and hotbar_label.text=="Ürün bırakılıyor...": hotbar_label.text=""
+
+func _hotbar_drop_countdown(slot:int,key:String,token:int) -> void:
+	if hotbar_label: hotbar_label.text="Ürün bırakılıyor..."
+	var b=hotbar.get_child(slot) as TextureButton
+	var overlay=ProgressBar.new()
+	overlay.name="DropProgress"
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	overlay.min_value=0; overlay.max_value=3; overlay.value=0
+	overlay.show_percentage=false
+	var bg=StyleBoxFlat.new(); bg.bg_color=Color(0,0,0,0)
+	var fill=StyleBoxFlat.new(); fill.bg_color=Color(.85,.08,.08,.55)
+	overlay.add_theme_stylebox_override("background",bg); overlay.add_theme_stylebox_override("fill",fill)
+	b.add_child(overlay)
+	var elapsed:=0.0
+	while elapsed<3.0:
+		await get_tree().process_frame
+		if not hotbar_hold_started.has(slot) or int(hotbar_hold_started[slot])!=token:
+			if is_instance_valid(overlay): overlay.queue_free()
+			return
+		elapsed=(Time.get_ticks_msec()-token)/1000.0
+		overlay.value=minf(elapsed,3.0)
+	hotbar_hold_started.erase(slot)
+	if is_instance_valid(overlay): overlay.queue_free()
+	_drop_hotbar_stack(slot,key)
+
+func _drop_hotbar_stack(slot:int,key:String) -> void:
+	var amount=int(crafted_inventory.get(key,0))
+	if amount<=0: return
+	crafted_inventory.erase(key)
+	hotbar_items[slot]=""
+	selected_tool=""
+	if hotbar_label: hotbar_label.text=""
+	_spawn_dropped_item(key,amount)
+	_refresh_hotbar()
+	_refresh_inventory()
+
+func _spawn_dropped_item(key:String,amount:int) -> void:
+	if player==null: return
+	var parts=key.split("|")
+	if parts.size()<2: return
+	var root=Node3D.new(); root.name="Dropped_"+str(parts[0])
+	root.position=player.position+player_facing.normalized()*2.0+Vector3(0,1.0,0)
+	add_child(root)
+	var sprite=Sprite3D.new()
+	sprite.texture=_load_item_texture(_craft_icon_path(str(parts[0]),str(parts[1])))
+	sprite.pixel_size=.006
+	sprite.billboard=BaseMaterial3D.BILLBOARD_ENABLED
+	root.add_child(sprite)
+	var qty=Label3D.new(); qty.text=str(amount)+"x"; qty.position=Vector3(0,-.65,0); qty.font_size=48; qty.billboard=BaseMaterial3D.BILLBOARD_ENABLED; root.add_child(qty)
+
 
 func _select_hotbar(slot:int):
 	if slot<0 or slot>=hotbar_items.size(): return
