@@ -156,6 +156,8 @@ var player_facing := Vector3(0,0,-1)
 var player_move_speed := 6.8
 var fly_mode := false
 var fly_height := 0.0
+var fly_button: Button
+var fly_down_button: Button
 var waypoint_active := false
 var waypoint_pos := Vector3.ZERO
 var waypoint_label: Label
@@ -1186,7 +1188,10 @@ func _build_hud():
 		if actions[i][0]=="HILE":
 			cheat_button=b
 			cheat_button.text="HILE KAPALI"
+		elif actions[i][0]=="UC": fly_button=b
+		elif actions[i][0]=="ALCAL": fly_down_button=b
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15); b.pressed.connect(actions[i][1]); layer.add_child(b)
+	_update_fly_button_styles()
 	_create_hotbar(layer); _create_minimap(layer); _create_weapon_aim_ui(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
@@ -1488,7 +1493,7 @@ func _physics_process(delta):
 	if dir.length() > 1.0: dir = dir.normalized()
 	var speed = player_move_speed * (.70 if in_pit else 1.0)
 	if hunger<20.0 or thirst<20.0: speed*=.78
-	if fly_mode: speed*=1.5
+	if fly_mode: speed*=6.0
 	# FPS view direction is controlled by right-side look drag, not movement stick.
 	player.velocity.x=dir.x*speed; player.velocity.z=dir.z*speed
 	if fly_mode:
@@ -3013,6 +3018,7 @@ func _toggle_fly_mode():
 	else:
 		player.position.y+=3.0
 	fly_height=player.position.y
+	_update_fly_button_styles()
 	_flash_message("UCUS: 1 KADEME YUKSELDI")
 
 func _fly_down():
@@ -3022,8 +3028,18 @@ func _fly_down():
 	player.position.y=maxf(ground,player.position.y-3.0)
 	fly_height=player.position.y
 	if player.position.y<=ground+.05:
-		player.position.y=ground; fly_mode=false; _flash_message("ZEMINE INILDI")
+		player.position.y=ground; fly_mode=false; _update_fly_button_styles(); _flash_message("ZEMINE INILDI")
 	else: _flash_message("UCUS: 1 KADEME ALCALDI")
+
+func _update_fly_button_styles() -> void:
+	if fly_button:
+		var fs=StyleBoxFlat.new()
+		fs.bg_color=Color(.12,.58,.20,.92) if fly_mode else Color(.20,.20,.20,.92)
+		for k in ["normal","hover","pressed"]: fly_button.add_theme_stylebox_override(k,fs)
+	if fly_down_button:
+		var ds=StyleBoxFlat.new()
+		ds.bg_color=Color(.12,.58,.20,.92) if fly_mode else Color(.20,.20,.20,.92)
+		for k in ["normal","hover","pressed"]: fly_down_button.add_theme_stylebox_override(k,ds)
 
 func _make_waypoint_arrow()->Node3D:
 	var root=Node3D.new(); add_child(root)
