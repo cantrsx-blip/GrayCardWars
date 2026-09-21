@@ -261,7 +261,18 @@ func _build_world_staged() -> void:
 	zone_label.text=""
 
 func height_at(x: float, z: float) -> float:
-	return 0.0
+	if _near_poi(x, z):
+		return 0.0
+	var h := 0.0
+	h += sin(x * 0.032) * cos(z * 0.027) * 5.0
+	h += sin(x * 0.081 + 1.3) * sin(z * 0.064) * 2.4
+	h += sin((x + z) * 0.021) * 1.6
+	for p in pits:
+		var d = Vector2(x - p.x, z - p.z).length()
+		if d < 22.0:
+			var t = 1.0 - (d / 22.0)
+			h -= t * t * 7.5
+	return clampf(h, -8.0, 10.0)
 
 func _near_poi(x: float, z: float) -> bool:
 	for b in pois:
@@ -433,38 +444,8 @@ func _build_world_base():
 
 
 func _build_settlement_areas() -> void:
-	# Whole playable land is a transparent 5x5 build grid. Terrain itself stays visible.
-	settlement_centers.clear()
-	var cells=int((MAP_HALF*2.0)/SETTLEMENT_CELL)
-	for row in cells:
-		var letter=_grid_row_name(row)
-		for col in cells:
-			var x=-MAP_HALF+SETTLEMENT_CELL*.5+col*SETTLEMENT_CELL
-			var z=-MAP_HALF+SETTLEMENT_CELL*.5+row*SETTLEMENT_CELL
-			var p=Vector3(x,.025,z)
-			settlement_centers.append(p)
-			var tile=MeshInstance3D.new()
-			var mesh=PlaneMesh.new(); mesh.size=Vector2(SETTLEMENT_CELL,SETTLEMENT_CELL); tile.mesh=mesh; tile.position=p
-			var mat=StandardMaterial3D.new(); mat.albedo_color=Color(1,1,1,.025); mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; mat.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED; tile.material_override=mat; add_child(tile)
-			var label=Label3D.new()
-			label.text=letter+str(col+1)
-			label.position=Vector3(x,.045,z)
-			label.rotation_degrees=Vector3(-90,0,0)
-			label.font_size=128
-			label.outline_size=10
-			label.modulate=Color(1,1,1,.48)
-			label.width=500
-			label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-			label.no_depth_test=true
-			add_child(label)
-
-func _grid_row_name(index:int) -> String:
-	var n=index
-	var out=""
-	while n>=0:
-		out=char(65+(n%26))+out
-		n=int(n/26)-1
-	return out
+	# Settlement/grid visuals are intentionally disabled.
+	return
 
 func _settlement_index_at(p:Vector3) -> int:
 	if absf(p.x)>MAP_HALF or absf(p.z)>MAP_HALF: return -1
