@@ -175,6 +175,12 @@ var built_stairs: Array[Node3D] = []
 var stair_mode := "terrain"
 var stair_rise := .45
 var preview_valid := false
+var settlement_centers: Array[Vector3] = []
+var active_settlement := -1
+const SETTLEMENT_GRID := 5
+const SETTLEMENT_CELL := 5.0
+const SETTLEMENT_SIZE := 25.0
+const MAX_BUILD_STOREYS := 4
 var tree_hits: Dictionary = {}
 var rock_hits: Dictionary = {}
 var metal_parts := 0
@@ -431,9 +437,49 @@ func _build_world_base():
 	_build_world_environment()
 	_build_world_light()
 	_build_terrain_mesh()
+	_build_settlement_areas()
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
 	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
+
+
+func _build_settlement_areas() -> void:
+	if not settlement_centers.is_empty(): return
+	var candidates=[
+		Vector3(-145,0,-145),Vector3(-95,0,-145),Vector3(-45,0,-145),Vector3(45,0,-145),Vector3(95,0,-145),
+		Vector3(145,0,-145),Vector3(-145,0,-85),Vector3(-85,0,-85),Vector3(85,0,-85),Vector3(145,0,-85),
+		Vector3(-145,0,85),Vector3(-85,0,85),Vector3(85,0,85),Vector3(145,0,85),Vector3(-145,0,145),
+		Vector3(-95,0,145),Vector3(-45,0,145),Vector3(45,0,145),Vector3(95,0,145),Vector3(145,0,145)
+	]
+	for i in candidates.size():
+		var p:Vector3=candidates[i]
+		p.y=height_at(p.x,p.z)+.04
+		settlement_centers.append(p)
+		var pad=MeshInstance3D.new(); pad.name="SettlementArea_%d" % (i+1)
+		var mesh=BoxMesh.new(); mesh.size=Vector3(SETTLEMENT_SIZE,.08,SETTLEMENT_SIZE); pad.mesh=mesh; pad.position=p
+		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.48,.49,.50); mat.roughness=.94; pad.material_override=mat; add_child(pad)
+		var label=Label3D.new(); label.text="Yerleşim Alanı %d" % (i+1); label.position=p+Vector3(0,.12,0); label.rotation_degrees=Vector3(-90,0,0); label.font_size=64; label.modulate=Color(.10,.10,.10); add_child(label)
+
+func _settlement_index_at(p:Vector3) -> int:
+	for i in settlement_centers.size():
+		var c=settlement_centers[i]
+		if absf(p.x-c.x)<=SETTLEMENT_SIZE*.5 and absf(p.z-c.z)<=SETTLEMENT_SIZE*.5: return i
+	return -1
+
+func _settlement_build_allowed(p:Vector3) -> bool:
+	var idx=_settlement_index_at(p)
+	if idx<0: return false
+	return active_settlement<0 or idx==active_settlement
+
+func _claim_settlement(p:Vector3) -> void:
+	if active_settlement<0: active_settlement=_settlement_index_at(p)
+
+func _build_storey_allowed(p:Vector3) -> bool:
+	var idx=_settlement_index_at(p)
+	if idx<0: return false
+	var ground=settlement_centers[idx].y
+	return p.y-ground < float(MAX_BUILD_STOREYS)*3.0+.75
+
 
 func _build_rocks_staged() -> void:
 	for i in (40 if OS.has_feature("mobile") else 156):
@@ -1690,6 +1736,9 @@ func _build_house():
 		build_mode=true; _ensure_build_preview(); return
 	_update_build_preview()
 	if not preview_valid: _flash_message("BU PARCA BURAYA KURULAMAZ"); return
+	var build_pos=build_preview.global_position
+	if not _settlement_build_allowed(build_pos): _flash_message("SADECE SECILEN YERLESIM ALANINDA INSA EDEBILIRSIN"); return
+	if build_piece in [1,2,3] and not _build_storey_allowed(build_pos): _flash_message("MAKSIMUM 4 KAT"); return
 	if wood<20 and not cheat_mode: return
 	var p=build_preview.global_position
 	var yaw=build_preview.rotation_degrees.y
@@ -1710,6 +1759,7 @@ func _build_house():
 			made=_build_stairs(p,yaw,stair_rise); built_stairs.append(made)
 		8: _build_interior_prop(p,build_piece,yaw+180.0)
 		_: _build_interior_prop(p,build_piece,yaw)
+	_claim_settlement(p)
 	house_parts+=1
 	if gather_label: gather_label.text=build_piece_names[build_piece]+" KURULDU"; gather_label.visible=true; message_time=1.0
 
@@ -1951,6 +2001,11 @@ func _open_inventory_item_actions(key:String,title:String) -> void:
 	var close=Button.new(); close.text="✕"; close.position=Vector2(238,8); close.size=Vector2(52,48); close.mouse_filter=Control.MOUSE_FILTER_STOP; close.z_index=31; actions.add_child(close); close.button_down.connect(_close_inventory_item_actions)
 	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(45,72); equip.size=Vector2(210,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
 
+func _inventory_is_stackable(name:String,rarity:String) -> bool:
+	for item in _store_items("MERMİLER"):
+		if str(item.name)==name and str(item.rarity)==rarity: return true
+	return false
+
 func _refresh_inventory():
 	if inventory_panel==null: return
 	_close_inventory_item_actions()
@@ -1958,17 +2013,21 @@ func _refresh_inventory():
 	for child in grid.get_children(): child.queue_free()
 	var shown:=0
 	for key in crafted_inventory:
-		if shown>=25: break
 		var count=int(crafted_inventory[key])
 		if count<=0: continue
 		var parts=key.split("|")
 		if parts.size()<2: continue
 		var name=str(parts[0]); var rarity=str(parts[1])
-		var path=_craft_icon_path(name,rarity)
-		var tex=_load_item_texture(path)
+		var tex=_load_item_texture(_craft_icon_path(name,rarity))
 		var title="%s %s" % [_store_rarity_name(rarity),name]
-		grid.add_child(_inventory_item_cell(key,title,count,tex))
-		shown+=1
+		var stackable=_inventory_is_stackable(name,rarity)
+		var remaining=count
+		while remaining>0 and shown<25:
+			var amount=mini(100,remaining) if stackable else 1
+			grid.add_child(_inventory_item_cell(key,title+"  "+str(amount)+"x",amount,tex))
+			remaining-=amount
+			shown+=1
+		if shown>=25: break
 
 func _schedule_resource_respawn(n:Node3D,kind:String):
 	respawn_nodes.append({"kind":kind,"pos":n.global_position,"time":RESOURCE_RESPAWN})
@@ -2519,6 +2578,8 @@ func _update_build_preview():
 			build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
 		else:
 			build_preview.global_position=probe
+	if preview_valid and not _settlement_build_allowed(build_preview.global_position): preview_valid=false
+	if preview_valid and build_piece in [1,2,3] and not _build_storey_allowed(build_preview.global_position): preview_valid=false
 	var mat=build_preview.material_override as StandardMaterial3D
 	if mat: mat.albedo_color=Color(.2,.9,.35,.42) if preview_valid else Color(.95,.12,.08,.40)
 
