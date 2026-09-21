@@ -449,6 +449,7 @@ func _build_world_base():
 	_build_settlement_areas()
 	_build_map_edge_mountains()
 	_build_corner_settlements()
+	_build_settlement_houses()
 
 func _build_corner_settlements() -> void:
 	# All 20 settlements are distributed in the free interior. No four-corner lock.
@@ -484,6 +485,46 @@ func _build_settlement_pad(start:Vector3,x_dir:float,z_dir:float) -> void:
 		for col in 5:
 			var p=Vector3(start.x+x_dir*float(col)*5.0,.10,start.z+z_dir*float(row)*5.0)
 			_add_settlement_concrete_tile(p)
+
+func _build_settlement_houses() -> void:
+	# Ready-made houses are a removable layer. The central settlement stays empty for the player.
+	var centers=[
+		Vector3(-105,0,-165),Vector3(-55,0,-165),Vector3(55,0,-165),Vector3(105,0,-165),
+		Vector3(-105,0,-100),Vector3(-50,0,-100),Vector3(20,0,-105),Vector3(75,0,-100),
+		Vector3(-100,0,-35),Vector3(-45,0,-35),Vector3(20,0,-40),Vector3(80,0,-35),
+		Vector3(-100,0,35),Vector3(-45,0,35),Vector3(20,0,35),Vector3(80,0,35),
+		Vector3(-95,0,95),Vector3(-35,0,100),Vector3(35,0,95),Vector3(95,0,95)
+	]
+	for i in 19:
+		_add_ready_house(centers[i],1+(i%4))
+
+func _house_box(root:Node3D,p:Vector3,size:Vector3,col:Color) -> void:
+	var body=StaticBody3D.new(); body.position=p
+	var mi=MeshInstance3D.new(); var box=BoxMesh.new(); box.size=size; mi.mesh=box; mi.material_override=_simple_mat(col); body.add_child(mi)
+	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=size; cs.shape=sh; body.add_child(cs); root.add_child(body)
+
+func _add_ready_house(center:Vector3,storeys:int) -> void:
+	var root=Node3D.new(); root.name="SettlementHouse"; root.position=Vector3(center.x,0,center.z); root.set_meta("removable_settlement_house",true); add_child(root)
+	var wall_col=Color(.43,.34,.24); var floor_col=Color(.30,.25,.20)
+	for level in storeys:
+		var y=.2+float(level)*3.0
+		_house_box(root,Vector3(0,y,0),Vector3(16,.25,16),floor_col)
+		_house_box(root,Vector3(-7.8,y+1.5,0),Vector3(.35,3,16),wall_col)
+		_house_box(root,Vector3(7.8,y+1.5,0),Vector3(.35,3,16),wall_col)
+		_house_box(root,Vector3(0,y+1.5,7.8),Vector3(16,3,.35),wall_col)
+		# Front wall leaves a central doorway.
+		_house_box(root,Vector3(-5,y+1.5,-7.8),Vector3(6,3,.35),wall_col)
+		_house_box(root,Vector3(5,y+1.5,-7.8),Vector3(6,3,.35),wall_col)
+		if level<storeys-1:
+			for step in 7:
+				_house_box(root,Vector3(-3.5+float(step),y+.25+float(step)*.42,1.5),Vector3(1.2,.28,3.2),floor_col)
+	_house_box(root,Vector3(0,.2+float(storeys)*3.0,0),Vector3(16,.3,16),Color(.24,.20,.17))
+
+func remove_settlement_houses() -> void:
+	# Removes only ready-made houses; all 20 concrete settlement pads remain.
+	for child in get_children():
+		if child is Node3D and child.get_meta("removable_settlement_house",false):
+			child.queue_free()
 
 func _add_settlement_concrete_tile(p:Vector3) -> void:
 	var body=StaticBody3D.new(); body.position=p
