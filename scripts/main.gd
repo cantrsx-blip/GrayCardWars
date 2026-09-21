@@ -1925,7 +1925,7 @@ func _inventory_drag_cell(key:String,title:String,count:int,texture:Texture2D=nu
 	return button
 
 func _inventory_get_drag_data(_at_position:Vector2,key:String,title:String):
-	var preview=Label.new(); preview.text=title; set_drag_preview(preview)
+	var preview=Label.new(); preview.text=title; _set_drag_preview(preview)
 	return {"kind":"inventory","key":key}
 
 func _inventory_can_drop_data(_at_position:Vector2,data) -> bool:
@@ -2228,6 +2228,10 @@ func _select_hotbar(slot:int):
 	build_mode=key=="YAPI CEKICI"
 	if build_mode: _ensure_build_preview()
 	elif build_preview: build_preview.visible=false
+
+func _set_drag_preview(preview:Control) -> void:
+	# Drag forwarding callbacks run on Main, so attach preview through the viewport.
+	get_viewport().gui_set_drag_preview(preview)
 
 func _hotbar_get_drag_data(_at_position:Vector2,slot:int):
 	if slot<0 or slot>=hotbar_items.size() or str(hotbar_items[slot]).is_empty(): return null
