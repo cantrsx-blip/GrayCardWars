@@ -403,14 +403,12 @@ func _build_world_environment() -> void:
 	world_env=WorldEnvironment.new()
 	var env=Environment.new()
 	env.background_mode=Environment.BG_COLOR
-	env.background_color=Color(.48,.65,.76)
+	env.background_color=Color(.32,.67,.94)
 	env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color=Color(.62,.68,.72)
-	env.ambient_light_energy=.65
+	env.ambient_light_color=Color(.78,.86,.94)
+	env.ambient_light_energy=.78
 	env.tonemap_mode=Environment.TONE_MAPPER_FILMIC
-	env.fog_enabled=true
-	env.fog_light_color=Color(.68,.73,.75)
-	env.fog_density=.0028
+	env.fog_enabled=false
 	world_env.environment=env
 	add_child(world_env)
 
@@ -420,7 +418,7 @@ func _build_world_light() -> void:
 	var sun=DirectionalLight3D.new()
 	sun.name="WorldSun"
 	sun.rotation_degrees=Vector3(-52,-28,0)
-	sun.light_energy=1.15
+	sun.light_energy=1.35
 	sun.shadow_enabled=not OS.has_feature("mobile")
 	sun.directional_shadow_max_distance=95
 	add_child(sun)
@@ -1496,16 +1494,17 @@ func _set_weather(kind:String):
 			env.fog_enabled=true; env.fog_light_color=Color(.76,.82,.86); env.fog_density=.007
 	weather_particles.restart(); weather_particles.emitting=true
 
-func _update_weather(delta:float):
-	if weather_root and player: weather_root.global_position=player.global_position+Vector3(0,11,0)
-	if weather_state=="clear":
-		weather_timer-=delta
-		if weather_timer<=0.0:
-			var roll=randf()
-			_set_weather("snow" if roll<.22 else "rain")
-	else:
-		weather_duration-=delta
-		if weather_duration<=0.0: _set_weather("clear")
+func _update_weather(_delta:float):
+	# KARA KIYI now stays permanently sunny and clear.
+	weather_state="clear"
+	if weather_particles:
+		weather_particles.emitting=false
+	var env:Environment=world_env.environment if world_env else null
+	if env:
+		env.background_color=Color(.32,.67,.94)
+		env.ambient_light_color=Color(.78,.86,.94)
+		env.ambient_light_energy=.78
+		env.fog_enabled=false
 
 func _toggle_crouch():
 	if _panel_open(): return
