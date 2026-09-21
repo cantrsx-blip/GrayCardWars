@@ -430,9 +430,32 @@ func _build_world_base():
 	_build_terrain_mesh()
 	_build_settlement_areas()
 	_build_map_edge_mountains()
+	_build_corner_settlements()
 	# Coastal water band for boat construction.
 	var water=MeshInstance3D.new(); water.name="Water"; var wm=PlaneMesh.new(); wm.size=Vector2(400,28); water.mesh=wm; water.position=Vector3(0,.03,-190)
-	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_override=wmat; add_child(water)
+	var wmat=StandardMaterial3D.new(); wmat.albedo_color=Color(.04,.28,.42,.78); wmat.metallic=.08; wmat.roughness=.18; wmat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; water.material_over
+func _build_corner_settlements() -> void:
+	# Four 5x5 concrete settlement pads, mirrored from the X191/Z181 reference.
+	var starts=[
+		Vector3(191,0,181), Vector3(-191,0,181),
+		Vector3(191,0,-181), Vector3(-191,0,-181)
+	]
+	for start in starts:
+		var x_dir=-1.0 if start.x>0.0 else 1.0
+		var z_dir=-1.0 if start.z>0.0 else 1.0
+		for row in 5:
+			for col in 5:
+				var p=Vector3(start.x+x_dir*float(col)*5.0,.10,start.z+z_dir*float(row)*5.0)
+				_add_settlement_concrete_tile(p)
+
+func _add_settlement_concrete_tile(p:Vector3) -> void:
+	var body=StaticBody3D.new(); body.position=p
+	var mi=MeshInstance3D.new(); var box=BoxMesh.new(); box.size=Vector3(5.0,.20,5.0); mi.mesh=box
+	mi.material_override=_simple_mat(Color(.47,.47,.45)); body.add_child(mi)
+	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(5.0,.20,5.0); cs.shape=sh; body.add_child(cs)
+	add_child(body)
+
+ride=wmat; add_child(water)
 
 
 func _build_map_edge_mountains() -> void:
