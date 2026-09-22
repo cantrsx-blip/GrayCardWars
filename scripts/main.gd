@@ -3023,7 +3023,13 @@ func _set_viewmodel_pose(slot:int) -> void:
 
 func _fps_asset_for_selected(slot:int) -> String:
 	var item=selected_tool.to_lower()
-	if "tabanca" in item: return "res://assets/pistol.glb"
+	if "tabanca" in item:
+		if "gri" in item: return "res://assets/pistol_gray.glb"
+		if "yeşil" in item or "yesil" in item: return "res://assets/pistol_green.glb"
+		if "mavi" in item: return "res://assets/pistol_blue.glb"
+		if "turuncu" in item: return "res://assets/pistol_orange.glb"
+		if "kırmızı" in item or "kirmizi" in item: return "res://assets/pistol_red.glb"
+		return "res://assets/pistol.glb"
 	if "pompal" in item: return "res://assets/shotgun.glb"
 	if "tüfek" in item or "tufek" in item: return "res://assets/rifle.glb"
 	if "arbalet" in item: return "res://assets/crossbow.glb"
