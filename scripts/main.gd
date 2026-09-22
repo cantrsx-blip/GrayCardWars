@@ -141,6 +141,9 @@ var minimap_marks: Array = []
 var has_bed_spawn := false
 var bed_spawn := Vector3.ZERO
 var held_item: Node3D
+var viewmodel_root: Node3D
+var viewmodel_right_hand: Node3D
+var viewmodel_left_hand: Node3D
 var day_label: Label
 var day_clock := 9.0
 var crafting_flash_time := 0.0
@@ -1281,6 +1284,7 @@ func _build_player():
 	camera.fov = 72
 	camera.current = true
 	player.add_child(camera)
+	_build_first_person_viewmodel()
 
 func _build_hud():
 	var layer = CanvasLayer.new()
@@ -2956,16 +2960,50 @@ func _update_bed_minimap():
 	m.position=Vector2(5+(bed_spawn.x+MAP_HALF)/(MAP_HALF*2.0)*132.0,5+(bed_spawn.z+MAP_HALF)/(MAP_HALF*2.0)*132.0)-Vector2(5,9); minimap_panel.add_child(m)
 
 
+func _build_first_person_viewmodel() -> void:
+	viewmodel_root=Node3D.new(); viewmodel_root.name="FirstPersonViewModel"; camera.add_child(viewmodel_root)
+	viewmodel_root.position=Vector3(0,0,0)
+	viewmodel_right_hand=_make_viewmodel_arm("RightArm",Vector3(.38,-.34,-.58),false)
+	viewmodel_left_hand=_make_viewmodel_arm("LeftArm",Vector3(-.30,-.32,-.62),true)
+	viewmodel_root.add_child(viewmodel_right_hand); viewmodel_root.add_child(viewmodel_left_hand)
+	viewmodel_right_hand.visible=false; viewmodel_left_hand.visible=false
+
+func _make_viewmodel_arm(arm_name:String,pos:Vector3,mirror:bool) -> Node3D:
+	var root=Node3D.new(); root.name=arm_name; root.position=pos
+	var skin=_simple_mat(Color(.58,.40,.29))
+	var sleeve=_simple_mat(Color(.16,.18,.16))
+	var forearm=MeshInstance3D.new(); var fm=CylinderMesh.new(); fm.top_radius=.075; fm.bottom_radius=.105; fm.height=.58; forearm.mesh=fm
+	forearm.position=Vector3(0,-.18,.16); forearm.rotation_degrees.x=68; forearm.material_override=sleeve; root.add_child(forearm)
+	var hand=MeshInstance3D.new(); var hm=CapsuleMesh.new(); hm.radius=.09; hm.height=.28; hand.mesh=hm
+	hand.position=Vector3(0,.02,-.12); hand.rotation_degrees=Vector3(78,0,12 if mirror else -12); hand.material_override=skin; root.add_child(hand)
+	return root
+
+func _set_viewmodel_pose(slot:int) -> void:
+	if viewmodel_right_hand==null or viewmodel_left_hand==null: return
+	viewmodel_right_hand.visible=slot>0; viewmodel_left_hand.visible=slot==3
+	if slot==1:
+		viewmodel_right_hand.position=Vector3(.34,-.34,-.60); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-8)
+	elif slot==2:
+		viewmodel_right_hand.position=Vector3(.34,-.34,-.60); viewmodel_right_hand.rotation_degrees=Vector3(-10,0,-6)
+	elif slot==3:
+		viewmodel_right_hand.position=Vector3(.34,-.31,-.55); viewmodel_right_hand.rotation_degrees=Vector3(-4,0,-4)
+		viewmodel_left_hand.position=Vector3(-.24,-.28,-.78); viewmodel_left_hand.rotation_degrees=Vector3(-12,0,18)
+	elif slot==4:
+		viewmodel_right_hand.position=Vector3(.34,-.34,-.60); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-8)
+
 func _update_held_item(slot:int):
+	_set_viewmodel_pose(slot)
 	if held_item: held_item.queue_free()
 	held_item=Node3D.new(); held_item.name="HeldItem"; camera.add_child(held_item)
-	held_item.position=Vector3(.38,-.30,-.72)
+	held_item.position=Vector3(.30,-.27,-.72)
 	if slot==0: held_item.visible=false; return
 	var paths={1:"res://assets/items/tools/stone_axe.glb",2:"res://assets/items/tools/stone_pickaxe.glb",3:"res://assets/items/weapons/scrap_rifle.glb",4:"res://assets/items/tools/building_hammer.glb"}
 	var visual=_load_asset(str(paths.get(slot,"")))
 	if visual!=null:
 		visual.scale=Vector3(.9,.9,.9)
 		if slot in [1,4]: visual.rotation_degrees.z=180.0
+		elif slot==2: visual.rotation_degrees=Vector3(0,0,170)
+		elif slot==3: visual.rotation_degrees=Vector3(0,90,0)
 		held_item.add_child(visual); return
 	var wood_mat=StandardMaterial3D.new(); wood_mat.albedo_color=Color(.30,.16,.06)
 	var metal_mat=StandardMaterial3D.new(); metal_mat.albedo_color=Color(.30,.33,.36)
