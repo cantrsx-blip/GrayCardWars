@@ -2971,10 +2971,20 @@ func _update_bed_minimap():
 func _build_first_person_viewmodel() -> void:
 	viewmodel_root=Node3D.new(); viewmodel_root.name="FirstPersonViewModel"; camera.add_child(viewmodel_root)
 	viewmodel_root.position=Vector3(0,0,0)
-	viewmodel_right_hand=_make_viewmodel_arm("RightArm",Vector3(.38,-.34,-.58),false)
-	viewmodel_left_hand=_make_viewmodel_arm("LeftArm",Vector3(-.30,-.32,-.62),true)
-	viewmodel_root.add_child(viewmodel_right_hand); viewmodel_root.add_child(viewmodel_left_hand)
-	viewmodel_right_hand.visible=false; viewmodel_left_hand.visible=false
+	var real_hands=_load_asset("res://assets/fps_viewmodel/fps_two_hands.glb")
+	if real_hands!=null:
+		real_hands.name="RealFPSHands"
+		real_hands.position=Vector3(0,-.30,-.58)
+		real_hands.scale=Vector3.ONE
+		viewmodel_root.add_child(real_hands)
+		viewmodel_right_hand=real_hands
+		viewmodel_left_hand=real_hands
+		real_hands.visible=false
+	else:
+		viewmodel_right_hand=_make_viewmodel_arm("RightArm",Vector3(.38,-.34,-.58),false)
+		viewmodel_left_hand=_make_viewmodel_arm("LeftArm",Vector3(-.30,-.32,-.62),true)
+		viewmodel_root.add_child(viewmodel_right_hand); viewmodel_root.add_child(viewmodel_left_hand)
+		viewmodel_right_hand.visible=false; viewmodel_left_hand.visible=false
 
 func _make_viewmodel_arm(arm_name:String,pos:Vector3,mirror:bool) -> Node3D:
 	var root=Node3D.new(); root.name=arm_name; root.position=pos
@@ -2987,8 +2997,15 @@ func _make_viewmodel_arm(arm_name:String,pos:Vector3,mirror:bool) -> Node3D:
 	return root
 
 func _set_viewmodel_pose(slot:int) -> void:
-	if viewmodel_right_hand==null or viewmodel_left_hand==null: return
-	viewmodel_right_hand.visible=slot>0; viewmodel_left_hand.visible=slot in [3,6]
+	if viewmodel_right_hand==null: return
+	var using_real=viewmodel_right_hand==viewmodel_left_hand
+	viewmodel_right_hand.visible=slot>0
+	if not using_real and viewmodel_left_hand!=null:
+		viewmodel_left_hand.visible=slot in [3,6]
+	if using_real:
+		viewmodel_right_hand.position=Vector3(0,-.30,-.58)
+		viewmodel_right_hand.rotation_degrees=Vector3.ZERO
+		return
 	if slot==1:
 		viewmodel_right_hand.position=Vector3(.34,-.34,-.60); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-8)
 	elif slot==2:
@@ -3004,20 +3021,41 @@ func _set_viewmodel_pose(slot:int) -> void:
 		viewmodel_right_hand.position=Vector3(.31,-.29,-.55); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-6)
 		viewmodel_left_hand.position=Vector3(-.22,-.27,-.78); viewmodel_left_hand.rotation_degrees=Vector3(-10,0,18)
 
+func _fps_asset_for_selected(slot:int) -> String:
+	var item=selected_tool.to_lower()
+	if "tabanca" in item: return "res://assets/fps_viewmodel/pistol.glb"
+	if "pompal" in item: return "res://assets/fps_viewmodel/shotgun.glb"
+	if "tüfek" in item or "tufek" in item: return "res://assets/fps_viewmodel/rifle.glb"
+	if "arbalet" in item: return "res://assets/fps_viewmodel/crossbow.glb"
+	if "mızrak" in item or "mizrak" in item: return "res://assets/fps_viewmodel/spear.glb"
+	if "meşale" in item or "mesale" in item: return "res://assets/fps_viewmodel/torch.glb"
+	if "yay" in item: return "res://assets/fps_viewmodel/bow.glb"
+	if slot==1 or "balta" in item: return "res://assets/fps_viewmodel/stone_axe.glb"
+	if slot==2 or "kazma" in item: return "res://assets/fps_viewmodel/stone_pickaxe.glb"
+	if slot==4 or "çekiç" in item or "cekic" in item: return "res://assets/fps_viewmodel/building_hammer.glb"
+	return ""
+
 func _update_held_item(slot:int):
 	_set_viewmodel_pose(slot)
 	if held_item: held_item.queue_free()
 	held_item=Node3D.new(); held_item.name="HeldItem"; camera.add_child(held_item)
 	held_item.position=Vector3(.30,-.27,-.72)
 	if slot==0: held_item.visible=false; return
-	var paths={1:"res://assets/items/tools/stone_axe.glb",2:"res://assets/items/tools/stone_pickaxe.glb",3:"res://assets/items/weapons/scrap_rifle.glb",4:"res://assets/items/tools/building_hammer.glb"}
-	var visual=_load_asset(str(paths.get(slot,"")))
+	var fps_path=_fps_asset_for_selected(slot)
+	var visual=_load_asset(fps_path)
+	if visual!=null:
+		visual.scale=Vector3.ONE
+		visual.position=Vector3.ZERO
+		visual.rotation_degrees=Vector3.ZERO
+		held_item.add_child(visual)
+		return
+	# Keep the old lightweight fallback so a missing imported GLB never leaves the player empty-handed.
+	var legacy_paths={1:"res://assets/items/tools/stone_axe.glb",2:"res://assets/items/tools/stone_pickaxe.glb",3:"res://assets/items/weapons/scrap_rifle.glb",4:"res://assets/items/tools/building_hammer.glb"}
+	visual=_load_asset(str(legacy_paths.get(slot,"")))
 	if visual!=null:
 		visual.scale=Vector3(.9,.9,.9)
-		if slot in [1,4]: visual.rotation_degrees.z=180.0
-		elif slot==2: visual.rotation_degrees=Vector3(0,0,170)
-		elif slot==3: visual.rotation_degrees=Vector3(0,90,0)
-		held_item.add_child(visual); return
+		held_item.add_child(visual)
+		return
 	var wood_mat=StandardMaterial3D.new(); wood_mat.albedo_color=Color(.30,.16,.06)
 	var metal_mat=StandardMaterial3D.new(); metal_mat.albedo_color=Color(.30,.33,.36)
 	if slot==1:
