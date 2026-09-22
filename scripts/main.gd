@@ -211,16 +211,16 @@ var craft_resources: Dictionary = {
 var craft_category := "SİLAHLAR"
 
 var pois := [
-	{"id":"unfinished_house","name":"Tamamlanmamis Ev","pos":Vector3(-130,0,130),"color":Color(.34,.28,.20)},
-	{"id":"watchtower","name":"Gozetleme Kulesi","pos":Vector3(0,0,160),"color":Color(.30,.27,.22)},
-	{"id":"plane_wreck","name":"Ucak Enkazi","pos":Vector3(140,0,130),"color":Color(.30,.32,.33)},
-	{"id":"tank_site","name":"Tank Bolgesi","pos":Vector3(170,0,0),"color":Color(.25,.29,.22)},
-	{"id":"factory","name":"Fabrika","pos":Vector3(140,0,-130),"color":Color(.30,.29,.27)},
-	{"id":"junkyard","name":"Arac Hurdaligi","pos":Vector3(0,0,-160),"color":Color(.34,.25,.19)},
-	{"id":"military_post","name":"Askeri Karakol","pos":Vector3(-130,0,-130),"color":Color(.24,.28,.21)},
-	{"id":"bunker","name":"Yeralti Siginagi","pos":Vector3(-170,0,0),"color":Color(.32,.32,.30)},
-	{"id":"gas_station","name":"Terk Edilmis Benzinlik","pos":Vector3(-160,0,80),"color":Color(.38,.28,.18)},
-	{"id":"shipyard","name":"Liman Tersane","pos":Vector3(160,0,80),"color":Color(.25,.29,.31)}
+	{"id":"hospital","name":"Terk Edilmis Hastane","pos":Vector3(-130,0,130),"asset":"res://abandoned hospital 3d model.glb","size":24.0},
+	{"id":"watchtower","name":"Gozetleme Kulesi","pos":Vector3(0,0,160),"asset":"res://rusted watchtower 3d model.glb","size":14.0},
+	{"id":"plane_wreck","name":"Ucak Enkazi","pos":Vector3(140,0,130),"asset":"res://airplane wreckage 3d model.glb","size":22.0},
+	{"id":"tank_site","name":"Terk Edilmis Tank","pos":Vector3(170,0,0),"asset":"res://battle tank 3d model.glb","size":9.0},
+	{"id":"factory","name":"Terk Edilmis Fabrika","pos":Vector3(140,0,-130),"asset":"res://industrial ruin 3d model.glb","size":25.0},
+	{"id":"junkyard","name":"Arac Hurdaligi","pos":Vector3(0,0,-160),"asset":"res://post-apocalyptic car junkyard 3d model.glb","size":24.0},
+	{"id":"military_post","name":"Terk Edilmis Askeri Karakol","pos":Vector3(-130,0,-130),"asset":"res://ruined military base 3d model.glb","size":23.0},
+	{"id":"bunker","name":"Yeralti Siginagi","pos":Vector3(-170,0,0),"asset":"res://bunker entrance 3d model.glb","size":16.0},
+	{"id":"gas_station","name":"Terk Edilmis Benzin Istasyonu","pos":Vector3(-160,0,80),"asset":"res://rusted gas station 3d model.glb","size":22.0},
+	{"id":"graveyard","name":"Yipranmis Mezarlik","pos":Vector3(160,0,80),"asset":"res://graveyard ruins 3d model.glb","size":22.0}
 ]
 
 var pits := [
@@ -2117,60 +2117,58 @@ func _landmark_cyl(p:Vector3, r_bot:float, r_top:float, h:float, col:Color):
 	var mi=MeshInstance3D.new(); var cyl=CylinderMesh.new(); cyl.bottom_radius=r_bot; cyl.top_radius=r_top; cyl.height=h; mi.mesh=cyl; mi.position=p; mi.material_override=_simple_mat(col); add_child(mi)
 
 func _build_survival_poi(b):
-	# Lift each POI onto the current terrain height so hills cannot bury it.
+	# New Meshy boss/POI regions replace the old procedural block geometry.
 	var base:Vector3=b.pos
-	var c:=Vector3(base.x,height_at(base.x,base.z),base.z)
-	var col:Color=b.color; var id:String=b.id
-	# Distinct abandoned survival silhouettes. No historical landmark or boss-fort geometry.
-	if id=="unfinished_house":
-		_landmark_box(c+Vector3(0,.25,0),Vector3(12,.5,10),Color(.32,.29,.25))
-		for p in [Vector3(-5,2.5,-4.5),Vector3(5,2.5,-4.5),Vector3(-5,2.5,4.5),Vector3(5,2.5,4.5)]: _landmark_box(c+p,Vector3(.55,5,.55),col)
-		_landmark_box(c+Vector3(-3.5,4.7,0),Vector3(5,.35,9),Color(.26,.22,.18),Vector3(0,0,-8))
-	elif id=="watchtower":
-		for x in [-3.0,3.0]:
-			for z in [-3.0,3.0]: _landmark_box(c+Vector3(x,4.5,z),Vector3(.45,9,.45),col)
-		_landmark_box(c+Vector3(0,8.7,0),Vector3(8,.45,8),col)
-		_landmark_box(c+Vector3(0,10.2,0),Vector3(5.5,2.6,5.5),Color(.25,.24,.21))
-		_landmark_box(c+Vector3(0,11.8,0),Vector3(7,.25,7),Color(.18,.18,.17))
-	elif id=="plane_wreck":
-		_landmark_box(c+Vector3(0,1,0),Vector3(15,2.1,3.2),col,Vector3(0,24,7))
-		_landmark_box(c+Vector3(-1,.9,0),Vector3(5,.25,19),Color(.27,.29,.29),Vector3(0,24,7))
-		_landmark_box(c+Vector3(6,.8,1),Vector3(5,1.2,2.5),Color(.22,.23,.23),Vector3(0,38,18))
-	elif id=="tank_site":
-		_landmark_box(c+Vector3(0,.8,0),Vector3(7,1.6,10),Color(.24,.29,.21))
-		_landmark_box(c+Vector3(0,2,0),Vector3(4.2,1.3,4.4),col)
-		_landmark_box(c+Vector3(0,2.2,-6),Vector3(.5,.5,9),Color(.18,.21,.17))
-		for x in [-3.7,3.7]: _landmark_box(c+Vector3(x,.65,0),Vector3(.65,1.3,10.5),Color(.12,.13,.11))
-	elif id=="factory":
-		_landmark_box(c+Vector3(0,3,0),Vector3(19,6,13),col)
-		_landmark_box(c+Vector3(-5,6.6,0),Vector3(7,.3,13),Color(.20,.20,.19),Vector3(0,0,8))
-		_landmark_cyl(c+Vector3(6,9,3),1.25,1.0,12,Color(.22,.21,.20))
-		_landmark_cyl(c+Vector3(2,7,-4),.8,.7,8,Color(.30,.23,.18))
-	elif id=="junkyard":
-		for i in 9:
-			var x=float(i%3)*5.0-5.0; var z=float(i/3)*5.5-5.5
-			_landmark_box(c+Vector3(x,.65,z),Vector3(3.6,1.3,5.2),Color(.30,.22,.17),Vector3(0,i*17,0))
-		for x in [-8.0,8.0]: _landmark_box(c+Vector3(x,1.4,0),Vector3(.3,2.8,18),Color(.20,.19,.17))
-	elif id=="military_post":
-		_landmark_box(c+Vector3(0,1.5,0),Vector3(12,3,8),Color(.25,.29,.22))
-		_landmark_box(c+Vector3(-7,1,-5),Vector3(5,2,3.5),col)
-		for x in [-8.0,8.0]: _landmark_box(c+Vector3(x,.9,3),Vector3(.8,1.8,13),Color(.35,.33,.27))
-		_landmark_box(c+Vector3(0,.8,9),Vector3(17,1.6,.7),Color(.35,.33,.27))
-	elif id=="bunker":
-		_landmark_box(c+Vector3(0,.45,0),Vector3(15,.9,11),Color(.29,.30,.29))
-		_landmark_box(c+Vector3(0,1.2,-4.5),Vector3(5,2.4,1),Color(.15,.16,.15))
-		_landmark_box(c+Vector3(-2.7,1.2,-2.5),Vector3(.5,2.4,5),col)
-		_landmark_box(c+Vector3(2.7,1.2,-2.5),Vector3(.5,2.4,5),col)
-	elif id=="gas_station":
-		_landmark_box(c+Vector3(4,2.2,3),Vector3(10,4.4,8),Color(.34,.29,.23))
-		_landmark_box(c+Vector3(-3,3,-4),Vector3(15,.35,7),Color(.31,.28,.24))
-		for x in [-6.0,0.0]: _landmark_box(c+Vector3(x,1,-4),Vector3(.8,2,.8),Color(.25,.18,.14))
-		for x in [-6.0,0.0]: _landmark_box(c+Vector3(x,.8,-4),Vector3(1.5,1.6,.8),Color(.37,.22,.15))
-	elif id=="shipyard":
-		_landmark_box(c+Vector3(0,.35,0),Vector3(20,.7,13),Color(.28,.25,.21))
-		_landmark_box(c+Vector3(-6,2,0),Vector3(5,4,8),col)
-		_landmark_box(c+Vector3(5,1.5,1),Vector3(7,3,4),Color(.30,.23,.18))
-		for x in [-8.0,-3.0,2.0,7.0]: _landmark_box(c+Vector3(x,-.1,-8),Vector3(.6,1.8,7),Color(.24,.19,.14))
+	var root=Node3D.new()
+	root.name="POI_"+str(b.id)
+	root.position=Vector3(base.x,height_at(base.x,base.z),base.z)
+	root.set_meta("poi_id",str(b.id))
+	add_child(root)
+
+	var model=_load_asset(str(b.asset))
+	if model==null:
+		push_warning("POI asset missing: "+str(b.asset))
+		return
+	root.add_child(model)
+
+	# Meshy exports use different unit scales. Normalize each POI to its intended game footprint.
+	var bounds:=AABB()
+	var has_bounds:=false
+	var stack:Array[Node]=[model]
+	while not stack.is_empty():
+		var cur=stack.pop_back()
+		if cur is MeshInstance3D and cur.mesh!=null:
+			var box:AABB=cur.global_transform * cur.mesh.get_aabb()
+			if not has_bounds:
+				bounds=box
+				has_bounds=true
+			else:
+				bounds=bounds.merge(box)
+		for child in cur.get_children():
+			stack.append(child)
+	if has_bounds:
+		var longest=maxf(bounds.size.x,maxf(bounds.size.y,bounds.size.z))
+		if longest>0.001:
+			var s=float(b.size)/longest
+			model.scale=Vector3.ONE*s
+			# Put the lowest point on the terrain instead of leaving the model floating.
+			model.position.y=-bounds.position.y*s
+
+	# Generate collision from the real meshes. Open doors/passages stay open so players can enter.
+	stack=[model]
+	while not stack.is_empty():
+		var cur=stack.pop_back()
+		if cur is MeshInstance3D and cur.mesh!=null:
+			var body=StaticBody3D.new()
+			body.name="POICollision"
+			var cs=CollisionShape3D.new()
+			cs.shape=cur.mesh.create_trimesh_shape()
+			body.add_child(cs)
+			cur.add_child(body)
+		for child in cur.get_children():
+			if child is StaticBody3D and child.name=="POICollision":
+				continue
+			stack.append(child)
 
 func _simple_mat(c:Color)->StandardMaterial3D:
 	var m=StandardMaterial3D.new(); m.albedo_color=c; m.roughness=.75; return m
