@@ -236,35 +236,45 @@ var pits := [
 func _process(delta:float) -> void:
 	_update_poi_boss_test_movement(delta)
 
+func _play_poi_boss_animation(root:Node3D, wanted:String, looped:bool=true) -> void:
+	var ap:=_find_animation_player(root)
+	if ap==null: return
+	var clip:=_find_animation_name(ap,wanted)
+	if clip.is_empty(): return
+	var a:=ap.get_animation(clip)
+	if a!=null:
+		a.loop_mode=Animation.LOOP_LINEAR if looped else Animation.LOOP_NONE
+	ap.play(clip,0.15)
+
 func _update_poi_boss_test_movement(delta:float) -> void:
-	# Temporary autonomous patrol test. No player targeting or combat yet.
+	# Animation showcase: Idle, Walk, Run and Attack. No damage/combat yet.
 	for root in poi_boss_visuals:
 		if root==null or not is_instance_valid(root): continue
 		var t=float(root.get_meta("boss_move_time",0.0))-delta
-		var walking=bool(root.get_meta("boss_is_walking",true))
+		var state=str(root.get_meta("boss_state","walk"))
 		if t<=0.0:
-			walking=not walking
-			root.set_meta("boss_is_walking",walking)
-			t=randf_range(3.0,6.0) if walking else randf_range(1.0,2.5)
-			var ap:=_find_animation_player(root)
-			if ap!=null:
-				var clip:=_find_animation_name(ap,"Walk" if walking else "Idle")
-				if not clip.is_empty():
-					var a:=ap.get_animation(clip)
-					if a!=null: a.loop_mode=Animation.LOOP_LINEAR
-					ap.play(clip,0.2)
+			if state=="walk":
+				state="idle"; t=2.0; _play_poi_boss_animation(root,"Idle",true)
+			elif state=="idle":
+				state="run"; t=3.0; _play_poi_boss_animation(root,"Run",true)
+			elif state=="run":
+				state="attack"; t=1.05; _play_poi_boss_animation(root,"Attack",false)
+			else:
+				state="walk"; t=4.0; _play_poi_boss_animation(root,"Walk",true)
+			root.set_meta("boss_state",state)
 		root.set_meta("boss_move_time",t)
-		if walking:
+		if state=="walk" or state=="run":
 			var home:Vector3=root.get_meta("boss_home",root.position)
-			var phase=float(root.get_meta("boss_phase",0.0))+delta*.35
+			var phase=float(root.get_meta("boss_phase",0.0))+delta*(.35 if state=="walk" else .55)
 			root.set_meta("boss_phase",phase)
 			var target=home+Vector3(cos(phase)*7.0,0.0,sin(phase)*7.0)
 			var dir=target-root.position; dir.y=0.0
 			if dir.length()>.15:
 				dir=dir.normalized()
-				root.position+=dir*delta*1.15
+				root.position+=dir*delta*(1.15 if state=="walk" else 2.5)
 				root.position.y=height_at(root.position.x,root.position.z)
-				root.rotation.y=lerp_angle(root.rotation.y,atan2(-dir.x,-dir.z),delta*3.0)
+				# Imported boss faces the opposite local forward axis, so add 180 degrees.
+				root.rotation.y=lerp_angle(root.rotation.y,atan2(-dir.x,-dir.z)+PI,delta*4.0)
 
 func _ready():
 	# Keep scene entry light on Android: show the camera/HUD first, then build the
@@ -400,7 +410,7 @@ func _build_poi_bosses() -> void:
 		root.set_meta("boss_home",root.position)
 		root.set_meta("boss_phase",randf()*TAU)
 		root.set_meta("boss_move_time",randf_range(2.0,5.0))
-		root.set_meta("boss_is_walking",true)
+		root.set_meta("boss_state","walk")
 		poi_boss_visuals.append(root)
 		# Rigged Kara Kiyi boss: start Walk so limb motion is obvious during the test.
 		var anim_player:=_find_animation_player(boss)
