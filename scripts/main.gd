@@ -2971,7 +2971,7 @@ func _update_bed_minimap():
 func _build_first_person_viewmodel() -> void:
 	viewmodel_root=Node3D.new(); viewmodel_root.name="FirstPersonViewModel"; camera.add_child(viewmodel_root)
 	viewmodel_root.position=Vector3(0,0,0)
-	var real_hands=_load_asset("res://assets/fps_viewmodel/fps_two_hands.glb")
+	var real_hands=_load_asset("res://assets/fps_two_hands.glb")
 	if real_hands!=null:
 		real_hands.name="RealFPSHands"
 		real_hands.position=Vector3(0,-.30,-.58)
@@ -3023,16 +3023,16 @@ func _set_viewmodel_pose(slot:int) -> void:
 
 func _fps_asset_for_selected(slot:int) -> String:
 	var item=selected_tool.to_lower()
-	if "tabanca" in item: return "res://assets/fps_viewmodel/pistol.glb"
-	if "pompal" in item: return "res://assets/fps_viewmodel/shotgun.glb"
-	if "tüfek" in item or "tufek" in item: return "res://assets/fps_viewmodel/rifle.glb"
-	if "arbalet" in item: return "res://assets/fps_viewmodel/crossbow.glb"
-	if "mızrak" in item or "mizrak" in item: return "res://assets/fps_viewmodel/spear.glb"
-	if "meşale" in item or "mesale" in item: return "res://assets/fps_viewmodel/torch.glb"
-	if "yay" in item: return "res://assets/fps_viewmodel/bow.glb"
-	if slot==1 or "balta" in item: return "res://assets/fps_viewmodel/stone_axe.glb"
-	if slot==2 or "kazma" in item: return "res://assets/fps_viewmodel/stone_pickaxe.glb"
-	if slot==4 or "çekiç" in item or "cekic" in item: return "res://assets/fps_viewmodel/building_hammer.glb"
+	if "tabanca" in item: return "res://assets/pistol.glb"
+	if "pompal" in item: return "res://assets/shotgun.glb"
+	if "tüfek" in item or "tufek" in item: return "res://assets/rifle.glb"
+	if "arbalet" in item: return "res://assets/crossbow.glb"
+	if "mızrak" in item or "mizrak" in item: return "res://assets/spear.glb"
+	if "meşale" in item or "mesale" in item: return "res://assets/torch.glb"
+	if "yay" in item: return "res://assets/bow.glb"
+	if slot==1 or "balta" in item: return "res://assets/stone_axe.glb"
+	if slot==2 or "kazma" in item: return "res://assets/stone_pickaxe.glb"
+	if slot==4 or "çekiç" in item or "cekic" in item: return "res://assets/building_hammer.glb"
 	return ""
 
 func _update_held_item(slot:int):
