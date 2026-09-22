@@ -332,10 +332,10 @@ func _ground_color(h:float, z:float=0.0)->Color:
 	if z < -170.0:
 		var shore_t=clampf((-170.0-z)/18.0,0.0,1.0)
 		return Color(.78,.70,.42).lerp(Color(.50,.42,.31),shore_t)
-	if h < -1.5: return Color(.52,.38,.22)
-	if h < .4: return Color(.78,.70,.42)
-	if h > 6.0: return Color(.62,.60,.55)
-	return Color(1,1,1)
+	if h < -1.5: return Color(.29,.22,.14)
+	if h < .4: return Color(.42,.34,.20)
+	if h > 6.0: return Color(.43,.40,.32)
+	return Color(.48,.43,.27)
 
 func _ground_asset_to_terrain(n:Node3D, x:float, z:float)->void:
 	var ymin:=INF
@@ -383,7 +383,7 @@ func _terrain_surface(cells:int) -> ArrayMesh:
 
 func _build_terrain_mesh():
 	var mesh=_terrain_surface(64)
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.22,.34,.13); mat.roughness=.96; mat.vertex_color_use_as_albedo=true
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.30,.24,.15); mat.roughness=.96; mat.vertex_color_use_as_albedo=true
 	if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"):
 		var t=ResourceLoader.load("res://assets/environment/ground/grass_albedo.jpg")
 		if t is Texture2D: mat.albedo_texture=t
