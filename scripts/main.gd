@@ -400,7 +400,30 @@ func _build_terrain_mesh():
 	var cs=CollisionShape3D.new(); cs.shape=collision_mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
 
 func _make_kara_tree(parent:Node3D) -> void:
-	# Upright original tree: dark weathered trunk + conifer crown.
+	# Realistic Meshy autumn tree. Keep the old procedural tree only as a safe fallback.
+	var tree_path="res://autumn tree 3d model.glb"
+	var tree=_load_asset(tree_path)
+	if tree!=null:
+		parent.add_child(tree)
+		# Meshy exports can use arbitrary units. Normalize the imported model to about 7.5 m tall.
+		var bounds:=AABB()
+		var has_bounds:=false
+		var stack:Array[Node]=[tree]
+		while not stack.is_empty():
+			var cur=stack.pop_back()
+			if cur is MeshInstance3D and cur.mesh!=null:
+				var local_box: AABB=cur.transform * cur.mesh.get_aabb()
+				if not has_bounds:
+					bounds=local_box; has_bounds=true
+				else:
+					bounds=bounds.merge(local_box)
+			for child in cur.get_children():
+				stack.append(child)
+		if has_bounds and bounds.size.y>0.001:
+			var s=7.5/bounds.size.y
+			tree.scale=Vector3.ONE*s
+			tree.position.y=-bounds.position.y*s
+		return
 	var trunk=MeshInstance3D.new(); var tm=CylinderMesh.new(); tm.top_radius=.22; tm.bottom_radius=.34; tm.height=5.2
 	trunk.mesh=tm; trunk.position.y=2.6; trunk.material_override=_simple_mat(Color(.18,.105,.055)); parent.add_child(trunk)
 	for i in 4:
