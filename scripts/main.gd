@@ -2119,7 +2119,8 @@ func _landmark_cyl(p:Vector3, r_bot:float, r_top:float, h:float, col:Color):
 	var mi=MeshInstance3D.new(); var cyl=CylinderMesh.new(); cyl.bottom_radius=r_bot; cyl.top_radius=r_top; cyl.height=h; mi.mesh=cyl; mi.position=p; mi.material_override=_simple_mat(col); add_child(mi)
 
 func _build_survival_poi(b):
-	# New Meshy boss/POI regions replace the old procedural block geometry.
+	# Real Meshy boss/POI model. Normalize from model-local bounds so arbitrary GLB origins
+	# cannot push the visible geometry underground or tens of metres away from the POI marker.
 	var base:Vector3=b.pos
 	var root=Node3D.new()
 	root.name="POI_"+str(b.id)
@@ -2129,18 +2130,20 @@ func _build_survival_poi(b):
 
 	var model=_load_asset(str(b.asset))
 	if model==null:
-		push_warning("POI asset missing: "+str(b.asset))
+		push_error("POI LOAD FAILED: "+str(b.asset))
 		return
 	root.add_child(model)
 
-	# Meshy exports use different unit scales. Normalize each POI to its intended game footprint.
 	var bounds:=AABB()
 	var has_bounds:=false
 	var stack:Array[Node]=[model]
+	var model_inv:Transform3D=model.global_transform.affine_inverse()
 	while not stack.is_empty():
 		var cur=stack.pop_back()
 		if cur is MeshInstance3D and cur.mesh!=null:
-			var box:AABB=cur.global_transform * cur.mesh.get_aabb()
+			# Convert every mesh AABB back into the model root's LOCAL space.
+			var rel:Transform3D=model_inv * cur.global_transform
+			var box:AABB=rel * cur.mesh.get_aabb()
 			if not has_bounds:
 				bounds=box
 				has_bounds=true
@@ -2148,15 +2151,24 @@ func _build_survival_poi(b):
 				bounds=bounds.merge(box)
 		for child in cur.get_children():
 			stack.append(child)
-	if has_bounds:
-		var longest=maxf(bounds.size.x,maxf(bounds.size.y,bounds.size.z))
-		if longest>0.001:
-			var s=float(b.size)/longest
-			model.scale=Vector3.ONE*s
-			# Put the lowest point on the terrain instead of leaving the model floating.
-			model.position.y=-bounds.position.y*s
 
-	# Generate collision from the real meshes. Open doors/passages stay open so players can enter.
+	if not has_bounds:
+		push_error("POI HAS NO MESH: "+str(b.asset))
+		return
+
+	var longest=maxf(bounds.size.x,maxf(bounds.size.y,bounds.size.z))
+	if longest<=0.001:
+		push_error("POI INVALID BOUNDS: "+str(b.asset))
+		return
+
+	var s=float(b.size)/longest
+	model.scale=Vector3.ONE*s
+	# Centre X/Z on the boss marker and put the model's true lowest point on terrain.
+	var center_x=bounds.position.x+bounds.size.x*.5
+	var center_z=bounds.position.z+bounds.size.z*.5
+	model.position=Vector3(-center_x*s,-bounds.position.y*s,-center_z*s)
+
+	# Collision follows the exact imported meshes. Open entrances remain traversable.
 	stack=[model]
 	while not stack.is_empty():
 		var cur=stack.pop_back()
