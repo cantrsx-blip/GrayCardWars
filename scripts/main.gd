@@ -249,6 +249,8 @@ func _build_world_staged() -> void:
 	# Build the ten boss/POI regions before heavy resource spawning so they are visible immediately on mobile.
 	_build_pois()
 	await get_tree().process_frame
+	_build_poi_bosses()
+	await get_tree().process_frame
 	_build_weather_system()
 	await get_tree().process_frame
 	await _build_rocks_staged()
@@ -311,6 +313,51 @@ func _add_static_box(pos: Vector3, size: Vector3, col: Color) -> void:
 	colshape.shape = sh
 	body.add_child(colshape)
 	add_child(body)
+
+func _build_poi_bosses() -> void:
+	# One shared GLB resource, instanced once at each of the ten POI/boss regions.
+	# Visual placement only for now; combat AI is intentionally added separately.
+	var boss_path="res://horror monster 3d model.glb"
+	if not ResourceLoader.exists(boss_path):
+		push_error("BOSS MODEL NOT FOUND: "+boss_path)
+		return
+	for p in pois:
+		var boss=_load_asset(boss_path)
+		if boss==null:
+			push_error("BOSS LOAD FAILED: "+boss_path)
+			return
+		boss.name="Boss_"+str(p.id)
+		add_child(boss)
+		# Normalize every Tripo instance to about twice a normal player's height (~3.6 m).
+		var bounds:=AABB()
+		var has_bounds:=false
+		var stack:Array[Node]=[boss]
+		var boss_inv:Transform3D=boss.global_transform.affine_inverse()
+		while not stack.is_empty():
+			var cur=stack.pop_back()
+			if cur is MeshInstance3D and cur.mesh!=null:
+				var rel:Transform3D=boss_inv * cur.global_transform
+				var box:AABB=rel * cur.mesh.get_aabb()
+				if not has_bounds:
+					bounds=box; has_bounds=true
+				else:
+					bounds=bounds.merge(box)
+			for child in cur.get_children():
+				stack.append(child)
+		if not has_bounds or bounds.size.y<=0.001:
+			boss.queue_free()
+			continue
+		var s=3.6/bounds.size.y
+		boss.scale=Vector3.ONE*s
+		# Offset a little from the POI center so the boss does not spawn inside the landmark.
+		var outward=Vector2(p.pos.x,p.pos.z).normalized()
+		if outward.length()<.1: outward=Vector2(0,1)
+		var bx=float(p.pos.x)-outward.x*18.0
+		var bz=float(p.pos.z)-outward.y*18.0
+		boss.position=Vector3(bx,height_at(bx,bz)-bounds.position.y*s,bz)
+		boss.rotation_degrees.y=rad_to_deg(atan2(-outward.x,-outward.y))
+		boss.set_meta("poi_id",str(p.id))
+		boss.set_meta("is_boss_visual",true)
 
 func _load_asset(path:String)->Node3D:
 	if path.is_empty() or not ResourceLoader.exists(path):
