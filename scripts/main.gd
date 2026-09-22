@@ -384,7 +384,11 @@ func _terrain_surface(cells:int) -> ArrayMesh:
 func _build_terrain_mesh():
 	var mesh=_terrain_surface(64)
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.30,.24,.15); mat.roughness=.96; mat.vertex_color_use_as_albedo=true
-	if ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"):
+	# Autumn forest-floor texture matched to the realistic tree asset.
+	if ResourceLoader.exists("res://autumn_ground_albedo.jpg"):
+		var t=ResourceLoader.load("res://autumn_ground_albedo.jpg")
+		if t is Texture2D: mat.albedo_texture=t
+	elif ResourceLoader.exists("res://assets/environment/ground/grass_albedo.jpg"):
 		var t=ResourceLoader.load("res://assets/environment/ground/grass_albedo.jpg")
 		if t is Texture2D: mat.albedo_texture=t
 	if ResourceLoader.exists("res://assets/environment/ground/grass_normal.png"):
