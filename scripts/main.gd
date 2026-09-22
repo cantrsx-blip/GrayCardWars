@@ -441,10 +441,33 @@ func _make_meteor(parent:Node3D) -> void:
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.27,.23,.22); mat.metallic=.58; mat.roughness=.82; meteor.material_override=mat; parent.add_child(meteor)
 
 func _make_kara_rock(parent:Node3D) -> void:
-	# Light coastal stone, deliberately not coal-black.
-	var rock=MeshInstance3D.new(); var rm=SphereMesh.new(); rm.radius=.72; rm.height=1.15
-	rock.mesh=rm; rock.position.y=.48; rock.scale=Vector3(1.25,.72,1.0); rock.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.68,.67,.63); mat.roughness=.96; rock.material_override=mat; parent.add_child(rock)
+	# Realistic imported boulder. Keep the old procedural rock as a safe fallback.
+	var rock_path="res://rock boulder 3d model.glb"
+	var rock=_load_asset(rock_path)
+	if rock!=null:
+		parent.add_child(rock)
+		var bounds:=AABB()
+		var has_bounds:=false
+		var stack:Array[Node]=[rock]
+		while not stack.is_empty():
+			var cur=stack.pop_back()
+			if cur is MeshInstance3D and cur.mesh!=null:
+				var local_box:AABB=cur.transform * cur.mesh.get_aabb()
+				if not has_bounds:
+					bounds=local_box; has_bounds=true
+				else:
+					bounds=bounds.merge(local_box)
+			for child in cur.get_children():
+				stack.append(child)
+		if has_bounds and bounds.size.y>0.001:
+			var s=1.5/bounds.size.y
+			rock.scale=Vector3.ONE*s
+			rock.position.y=-bounds.position.y*s
+		rock.rotation_degrees.y=randf_range(0,360)
+		return
+	var fallback=MeshInstance3D.new(); var rm=SphereMesh.new(); rm.radius=.72; rm.height=1.15
+	fallback.mesh=rm; fallback.position.y=.48; fallback.scale=Vector3(1.25,.72,1.0); fallback.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.68,.67,.63); mat.roughness=.96; fallback.material_override=mat; parent.add_child(fallback)
 
 func _build_world_environment() -> void:
 	if world_env != null:
