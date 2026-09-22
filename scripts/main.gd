@@ -2580,8 +2580,16 @@ func _select_hotbar(slot:int):
 	hotbar_feedback_token+=1
 	var token=hotbar_feedback_token
 	_hide_hotbar_feedback_later(token)
+	var held_slot:=0
 	var legacy={"BALTA":1,"KAZMA":2,"SILAH":3,"YAPI CEKICI":4}
-	_update_held_item(int(legacy.get(key,0)))
+	held_slot=int(legacy.get(key,0))
+	# Crafted/store weapons use keys such as "Tabanca|gray"; map their real item name to an FPS grip.
+	if "|" in key:
+		var item_name=str(key.split("|")[0])
+		if item_name in ["Tabanca"]: held_slot=5
+		elif item_name in ["Tüfek","Pompalı","Arbalet"]: held_slot=3
+		elif item_name in ["Mızrak","Meşale","Yay"]: held_slot=6
+	_update_held_item(held_slot)
 	build_mode=key=="YAPI CEKICI"
 	if build_mode: _ensure_build_preview()
 	elif build_preview: build_preview.visible=false
@@ -2980,7 +2988,7 @@ func _make_viewmodel_arm(arm_name:String,pos:Vector3,mirror:bool) -> Node3D:
 
 func _set_viewmodel_pose(slot:int) -> void:
 	if viewmodel_right_hand==null or viewmodel_left_hand==null: return
-	viewmodel_right_hand.visible=slot>0; viewmodel_left_hand.visible=slot==3
+	viewmodel_right_hand.visible=slot>0; viewmodel_left_hand.visible=slot in [3,6]
 	if slot==1:
 		viewmodel_right_hand.position=Vector3(.34,-.34,-.60); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-8)
 	elif slot==2:
@@ -2990,6 +2998,11 @@ func _set_viewmodel_pose(slot:int) -> void:
 		viewmodel_left_hand.position=Vector3(-.24,-.28,-.78); viewmodel_left_hand.rotation_degrees=Vector3(-12,0,18)
 	elif slot==4:
 		viewmodel_right_hand.position=Vector3(.34,-.34,-.60); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-8)
+	elif slot==5:
+		viewmodel_right_hand.position=Vector3(.30,-.24,-.48); viewmodel_right_hand.rotation_degrees=Vector3(-18,0,-7)
+	elif slot==6:
+		viewmodel_right_hand.position=Vector3(.31,-.29,-.55); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-6)
+		viewmodel_left_hand.position=Vector3(-.22,-.27,-.78); viewmodel_left_hand.rotation_degrees=Vector3(-10,0,18)
 
 func _update_held_item(slot:int):
 	_set_viewmodel_pose(slot)
@@ -3015,6 +3028,10 @@ func _update_held_item(slot:int):
 		_add_held_box(Vector3(.18,.18,.85),Vector3(0,0,-.18),metal_mat); _add_held_box(Vector3(.12,.35,.16),Vector3(0,-.22,.05),wood_mat)
 	elif slot==4:
 		_add_held_box(Vector3(.12,.82,.12),Vector3(0,-.05,0),wood_mat); _add_held_box(Vector3(.65,.28,.24),Vector3(0,.35,0),metal_mat)
+	elif slot==5:
+		_add_held_box(Vector3(.18,.28,.58),Vector3(0,.02,-.18),metal_mat); _add_held_box(Vector3(.16,.38,.18),Vector3(0,-.20,.02),wood_mat)
+	elif slot==6:
+		_add_held_box(Vector3(.10,.10,1.15),Vector3(0,0,-.35),wood_mat)
 
 func _add_held_box(sz:Vector3,pos:Vector3,mat:Material):
 	var m=MeshInstance3D.new(); var b=BoxMesh.new(); b.size=sz; m.mesh=b; m.position=pos; m.material_override=mat; held_item.add_child(m)
