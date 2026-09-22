@@ -8,6 +8,7 @@ var gray_cards := 1
 var ammo := 40
 var enemies: Array[CharacterBody3D] = []
 var fort_bosses: Array[CharacterBody3D] = []
+var poi_boss_visuals: Array[Node3D] = []
 var fire_built := false
 var house_parts := 0
 var boat_built := false
@@ -232,6 +233,39 @@ var pits := [
 	Vector3(-30, 0, -110)
 ]
 
+func _process(delta:float) -> void:
+	_update_poi_boss_test_movement(delta)
+
+func _update_poi_boss_test_movement(delta:float) -> void:
+	# Temporary autonomous patrol test. No player targeting or combat yet.
+	for root in poi_boss_visuals:
+		if root==null or not is_instance_valid(root): continue
+		var t=float(root.get_meta("boss_move_time",0.0))-delta
+		var walking=bool(root.get_meta("boss_is_walking",true))
+		if t<=0.0:
+			walking=not walking
+			root.set_meta("boss_is_walking",walking)
+			t=randf_range(3.0,6.0) if walking else randf_range(1.0,2.5)
+			var ap:=_find_animation_player(root)
+			if ap!=null:
+				var clip:=_find_animation_name(ap,"Walk" if walking else "Idle")
+				if not clip.is_empty():
+					var a:=ap.get_animation(clip)
+					if a!=null: a.loop_mode=Animation.LOOP_LINEAR
+					ap.play(clip,0.2)
+		root.set_meta("boss_move_time",t)
+		if walking:
+			var home:Vector3=root.get_meta("boss_home",root.position)
+			var phase=float(root.get_meta("boss_phase",0.0))+delta*.35
+			root.set_meta("boss_phase",phase)
+			var target=home+Vector3(cos(phase)*7.0,0.0,sin(phase)*7.0)
+			var dir=target-root.position; dir.y=0.0
+			if dir.length()>.15:
+				dir=dir.normalized()
+				root.position+=dir*delta*1.15
+				root.position.y=height_at(root.position.x,root.position.z)
+				root.rotation.y=lerp_angle(root.rotation.y,atan2(-dir.x,-dir.z),delta*3.0)
+
 func _ready():
 	# Keep scene entry light on Android: show the camera/HUD first, then build the
 	# expensive world over several frames instead of blocking the first render.
@@ -363,12 +397,19 @@ func _build_poi_bosses() -> void:
 		root.rotation_degrees.y=rad_to_deg(atan2(-outward.x,-outward.y))
 		root.set_meta("poi_id",str(p.id))
 		root.set_meta("is_boss_visual",true)
-		# Rigged Kara Kiyi boss: start its embedded Idle clip immediately.
+		root.set_meta("boss_home",root.position)
+		root.set_meta("boss_phase",randf()*TAU)
+		root.set_meta("boss_move_time",randf_range(2.0,5.0))
+		root.set_meta("boss_is_walking",true)
+		poi_boss_visuals.append(root)
+		# Rigged Kara Kiyi boss: start Walk so limb motion is obvious during the test.
 		var anim_player:=_find_animation_player(boss)
 		if anim_player!=null:
-			var idle_name:=_find_animation_name(anim_player,"Idle")
-			if not idle_name.is_empty():
-				anim_player.play(idle_name)
+			var walk_name:=_find_animation_name(anim_player,"Walk")
+			if not walk_name.is_empty():
+				var walk_anim:=anim_player.get_animation(walk_name)
+				if walk_anim!=null: walk_anim.loop_mode=Animation.LOOP_LINEAR
+				anim_player.play(walk_name)
 
 func _find_animation_player(node:Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
