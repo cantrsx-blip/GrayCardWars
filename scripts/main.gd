@@ -315,7 +315,7 @@ func _add_static_box(pos: Vector3, size: Vector3, col: Color) -> void:
 	add_child(body)
 
 func _build_poi_bosses() -> void:
-	var boss_path="res://horror monster 3d model.glb"
+	var boss_path="res://kara_kiyi_boss_rigged_godot4.glb"
 	if not ResourceLoader.exists(boss_path):
 		push_error("BOSS MODEL NOT FOUND: "+boss_path)
 		return
@@ -363,6 +363,32 @@ func _build_poi_bosses() -> void:
 		root.rotation_degrees.y=rad_to_deg(atan2(-outward.x,-outward.y))
 		root.set_meta("poi_id",str(p.id))
 		root.set_meta("is_boss_visual",true)
+		# Rigged Kara Kiyi boss: start its embedded Idle clip immediately.
+		var anim_player:=_find_animation_player(boss)
+		if anim_player!=null:
+			var idle_name:=_find_animation_name(anim_player,"Idle")
+			if not idle_name.is_empty():
+				anim_player.play(idle_name)
+
+func _find_animation_player(node:Node) -> AnimationPlayer:
+	if node is AnimationPlayer:
+		return node as AnimationPlayer
+	for child in node.get_children():
+		var found:=_find_animation_player(child)
+		if found!=null:
+			return found
+	return null
+
+func _find_animation_name(player_node:AnimationPlayer, wanted:String) -> StringName:
+	var wanted_lower:=wanted.to_lower()
+	for library_name in player_node.get_animation_library_list():
+		var library:=player_node.get_animation_library(library_name)
+		if library==null:
+			continue
+		for animation_name in library.get_animation_list():
+			if str(animation_name).to_lower()==wanted_lower:
+				return animation_name
+	return &""
 
 func _load_asset(path:String)->Node3D:
 	if path.is_empty() or not ResourceLoader.exists(path):
