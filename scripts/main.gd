@@ -436,9 +436,33 @@ func _make_kara_tree(parent:Node3D) -> void:
 		crown.mesh=cm; crown.position.y=4.4+float(i)*.85; crown.material_override=_simple_mat(Color(.10,.22,.12)); parent.add_child(crown)
 
 func _make_meteor(parent:Node3D) -> void:
-	var meteor=MeshInstance3D.new(); var mm=SphereMesh.new(); mm.radius=.72; mm.height=1.15
-	meteor.mesh=mm; meteor.position.y=.48; meteor.scale=Vector3(1.22,.74,1.02); meteor.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.27,.23,.22); mat.metallic=.58; mat.roughness=.82; meteor.material_override=mat; parent.add_child(meteor)
+	# Realistic imported asteroid. Keep the old procedural meteor as a safe fallback.
+	var meteor_path="res://rocky asteroid 3d model.glb"
+	var meteor=_load_asset(meteor_path)
+	if meteor!=null:
+		parent.add_child(meteor)
+		var bounds:=AABB()
+		var has_bounds:=false
+		var stack:Array[Node]=[meteor]
+		while not stack.is_empty():
+			var cur=stack.pop_back()
+			if cur is MeshInstance3D and cur.mesh!=null:
+				var local_box:AABB=cur.transform * cur.mesh.get_aabb()
+				if not has_bounds:
+					bounds=local_box; has_bounds=true
+				else:
+					bounds=bounds.merge(local_box)
+			for child in cur.get_children():
+				stack.append(child)
+		if has_bounds and bounds.size.y>0.001:
+			var s=1.35/bounds.size.y
+			meteor.scale=Vector3.ONE*s
+			meteor.position.y=-bounds.position.y*s
+		meteor.rotation_degrees.y=randf_range(0,360)
+		return
+	var fallback=MeshInstance3D.new(); var mm=SphereMesh.new(); mm.radius=.72; mm.height=1.15
+	fallback.mesh=mm; fallback.position.y=.48; fallback.scale=Vector3(1.22,.74,1.02); fallback.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.27,.23,.22); mat.metallic=.58; mat.roughness=.82; fallback.material_override=mat; parent.add_child(fallback)
 
 func _make_kara_rock(parent:Node3D) -> void:
 	# Realistic imported boulder. Keep the old procedural rock as a safe fallback.
