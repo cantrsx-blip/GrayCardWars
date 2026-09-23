@@ -340,6 +340,33 @@ func _near_poi(x: float, z: float) -> bool:
 			return true
 	return false
 
+func _near_settlement(x:float,z:float,margin:float=19.0)->bool:
+	var centers=[
+		Vector2(-105,-165),Vector2(-55,-165),Vector2(55,-165),Vector2(105,-165),
+		Vector2(-105,-100),Vector2(-50,-100),Vector2(20,-105),Vector2(75,-100),
+		Vector2(-100,-35),Vector2(-45,-35),Vector2(20,-40),Vector2(80,-35),
+		Vector2(-100,35),Vector2(-45,35),Vector2(20,35),Vector2(80,35),
+		Vector2(-95,95),Vector2(-35,100),Vector2(35,95),Vector2(95,95),Vector2(0,0)
+	]
+	for p in centers:
+		if absf(x-p.x)<margin and absf(z-p.y)<margin: return true
+	return false
+
+func _terrain_slope(x:float,z:float)->float:
+	var d=1.5
+	var hx=absf(height_at(x+d,z)-height_at(x-d,z))/(d*2.0)
+	var hz=absf(height_at(x,z+d)-height_at(x,z-d))/(d*2.0)
+	return maxf(hx,hz)
+
+func _terrain_transition(x:float,z:float,r:float=4.0)->bool:
+	var h=height_at(x,z)
+	var base=_terrain_texture_index(x,z,h)
+	var samples=[Vector2(r,0),Vector2(-r,0),Vector2(0,r),Vector2(0,-r)]
+	for o in samples:
+		if _terrain_texture_index(x+o.x,z+o.y,height_at(x+o.x,z+o.y))!=base:
+			return true
+	return false
+
 func _add_static_box(pos: Vector3, size: Vector3, col: Color) -> void:
 	var body = StaticBody3D.new()
 	body.position = pos
@@ -481,7 +508,7 @@ func _ground_asset_to_terrain(n:Node3D, x:float, z:float)->void:
 						var corner=aabb.position+Vector3(aabb.size.x*ix,aabb.size.y*iy,aabb.size.z*iz)
 						ymin=minf(ymin,(cur.global_transform*corner).y)
 		for child in cur.get_children(): stack.append(child)
-	if ymin<INF: n.global_position.y+=height_at(x,z)-ymin-.16
+	if ymin<INF: n.global_position.y+=height_at(x,z)-ymin-.48
 
 func _add_tree_canopy(parent:Node3D, tree_path:String, tree_scale:float)->void:
 	var canopy_color=Color(.18,.46,.14) if "pine" in tree_path else Color(.24,.52,.16)
@@ -573,33 +600,37 @@ func _terrain_material(path:String)->StandardMaterial3D:
 	return mat
 
 func _add_transition_vegetation() -> void:
-	# Lightweight, collision-free cover used only in scattered terrain transition pockets.
+	# Collision-free wild cover. Spawn only on real texture borders, away from settlements/POIs.
 	var rng=RandomNumberGenerator.new(); rng.seed=424242
-	for i in 95:
-		var x=rng.randf_range(-185.0,185.0)
-		var z=rng.randf_range(-160.0,185.0)
-		if _near_poi(x,z): continue
-		var h=height_at(x,z)
-		var idx=_terrain_texture_index(x,z,h)
-		# Keep only a fraction so vegetation never forms a continuous wall.
-		if rng.randf()>.58: continue
-		var root=Node3D.new(); root.name="TransitionCover"; root.position=Vector3(x,h-.05,z); add_child(root)
-		root.rotation_degrees.y=rng.randf_range(0.0,360.0)
+	var made=0
+	for attempt in 900:
+		if made>=72: break
+		var x=rng.randf_range(-185.0,185.0); var z=rng.randf_range(-158.0,185.0)
+		if _near_poi(x,z) or _near_settlement(x,z,23.0): continue
+		if _terrain_slope(x,z)>.24 or not _terrain_transition(x,z,4.2): continue
+		var h=height_at(x,z); var idx=_terrain_texture_index(x,z,h)
 		var dry=idx in [2,3,4,6]
-		var mat=StandardMaterial3D.new()
-		mat.albedo_color=Color(.30,.24,.15) if dry else Color(.20,.36,.12)
-		mat.roughness=1.0
-		var stems=3+rng.randi_range(0,3)
-		for s in stems:
-			var mi=MeshInstance3D.new(); var bm=BoxMesh.new()
-			bm.size=Vector3(rng.randf_range(.035,.07),rng.randf_range(.75,1.65),rng.randf_range(.035,.07))
-			mi.mesh=bm; mi.position=Vector3(rng.randf_range(-.35,.35),bm.size.y*.5,rng.randf_range(-.35,.35))
-			mi.rotation_degrees=Vector3(rng.randf_range(-18.0,18.0),rng.randf_range(0.0,360.0),rng.randf_range(-18.0,18.0))
-			mi.material_override=mat; root.add_child(mi)
+		var root=Node3D.new(); root.name="DryTransitionBush" if dry else "GreenTransitionBush"
+		root.position=Vector3(x,h-.08,z); root.rotation_degrees.y=rng.randf_range(0.0,360.0); add_child(root)
+		var stem_mat=StandardMaterial3D.new(); stem_mat.roughness=1.0
+		stem_mat.albedo_color=Color(.25,.17,.09) if dry else Color(.16,.28,.08)
+		var leaf_mat=StandardMaterial3D.new(); leaf_mat.roughness=1.0
+		leaf_mat.albedo_color=Color(.38,.29,.12) if dry else Color(.18,.40,.10)
+		var branches=7+rng.randi_range(0,5)
+		for s in branches:
+			var branch=MeshInstance3D.new(); var bm=CylinderMesh.new()
+			bm.top_radius=.012; bm.bottom_radius=rng.randf_range(.022,.045); bm.height=rng.randf_range(.55,1.45)
+			branch.mesh=bm; branch.position=Vector3(rng.randf_range(-.32,.32),bm.height*.43,rng.randf_range(-.32,.32))
+			branch.rotation_degrees=Vector3(rng.randf_range(-28.0,28.0),rng.randf_range(0.0,360.0),rng.randf_range(-28.0,28.0))
+			branch.material_override=stem_mat; root.add_child(branch)
 		if not dry:
-			for q in 2:
-				var leaf=MeshInstance3D.new(); var sm=SphereMesh.new(); sm.radius=rng.randf_range(.22,.38); sm.height=sm.radius*1.4
-				leaf.mesh=sm; leaf.position=Vector3(rng.randf_range(-.25,.25),rng.randf_range(.55,1.15),rng.randf_range(-.25,.25)); leaf.material_override=mat; root.add_child(leaf)
+			for q in 7+rng.randi_range(0,5):
+				var leaf=MeshInstance3D.new(); var lm=QuadMesh.new()
+				lm.size=Vector2(rng.randf_range(.16,.32),rng.randf_range(.28,.52))
+				leaf.mesh=lm; leaf.position=Vector3(rng.randf_range(-.48,.48),rng.randf_range(.28,1.12),rng.randf_range(-.48,.48))
+				leaf.rotation_degrees=Vector3(rng.randf_range(-35.0,35.0),rng.randf_range(0.0,360.0),rng.randf_range(-25.0,25.0))
+				leaf.material_override=leaf_mat; root.add_child(leaf)
+		made+=1
 
 func _build_terrain_mesh():
 	var mesh=_terrain_visual_mesh(64)
@@ -1519,31 +1550,24 @@ func _update_wildlife(delta:float) -> void:
 			if body: body.position.y=1.45+sin(Time.get_ticks_msec()*0.012)*0.05
 
 func _build_trees_staged() -> void:
-	var tree_target=360 if OS.has_feature("mobile") else 1485
-	var settlement_centers_local=[
-		Vector3(-105,0,-165),Vector3(-55,0,-165),Vector3(55,0,-165),Vector3(105,0,-165),
-		Vector3(-105,0,-100),Vector3(-50,0,-100),Vector3(20,0,-105),Vector3(75,0,-100),
-		Vector3(-100,0,-35),Vector3(-45,0,-35),Vector3(20,0,-40),Vector3(80,0,-35),
-		Vector3(-100,0,35),Vector3(-45,0,35),Vector3(20,0,35),Vector3(80,0,35),
-		Vector3(-95,0,95),Vector3(-35,0,100),Vector3(35,0,95),Vector3(95,0,95),Vector3(0,0,0)
-	]
-	for i in tree_target:
-		var p:Vector3
-		# Most trees form sight-breaking belts around settlements, never on the concrete itself.
-		if i < int(tree_target*0.72):
-			var sc=settlement_centers_local[i%settlement_centers_local.size()]
-			var angle=randf()*TAU
-			var radius=randf_range(17.0,38.0)
-			p=Vector3(sc.x+cos(angle)*radius,0,sc.z+sin(angle)*radius)
-		else:
-			p=_rand_map_point(MAP_HALF-12)
-		if _resource_spawn_safe(p.x,p.z):
-			var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
-			_make_kara_tree(tree_body)
-			var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new(); trunk_shape.radius=.34; trunk_shape.height=5.2; trunk_col.shape=trunk_shape; trunk_col.position.y=2.6; tree_body.add_child(trunk_col)
-			tree_body.set_meta("loot","wood")
-		if i > 0 and i % 16 == 0:
-			await get_tree().process_frame
+	var tree_target=240 if OS.has_feature("mobile") else 700
+	var made=0
+	var attempts=0
+	while made<tree_target and attempts<tree_target*18:
+		attempts+=1
+		var p=_rand_map_point(MAP_HALF-12)
+		if _near_poi(p.x,p.z) or _near_settlement(p.x,p.z,22.0): continue
+		if _terrain_slope(p.x,p.z)>.20: continue
+		# Trees now favor actual borders between two terrain materials.
+		if made<int(tree_target*.78) and not _terrain_transition(p.x,p.z,5.0): continue
+		if not _resource_spawn_safe(p.x,p.z): continue
+		var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z)-.32,p.z)
+		tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
+		_make_kara_tree(tree_body)
+		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new()
+		trunk_shape.radius=.34; trunk_shape.height=4.7; trunk_col.shape=trunk_shape; trunk_col.position.y=2.35; tree_body.add_child(trunk_col)
+		tree_body.set_meta("loot","wood"); made+=1
+		if made>0 and made%16==0: await get_tree().process_frame
 
 func _build_hills_and_pits():
 	# Terrain heightfield already provides hills and pits. Avoid duplicate cylinder geometry.
