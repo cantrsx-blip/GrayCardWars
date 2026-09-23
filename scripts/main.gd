@@ -291,8 +291,8 @@ func _build_world_staged() -> void:
 	_build_world_base()
 	await get_tree().process_frame
 	# Build the ten boss/POI regions before heavy resource spawning so they are visible immediately on mobile.
-	_build_pois()
-	await get_tree().process_frame
+	# TEST BUILD: heavyweight 3D POI models are intentionally excluded from runtime loading.
+	# Their coordinates/data stay in `pois` so they can be restored later unchanged.
 	_build_poi_bosses()
 	await get_tree().process_frame
 	_build_weather_system()
@@ -481,7 +481,7 @@ func _ground_asset_to_terrain(n:Node3D, x:float, z:float)->void:
 						var corner=aabb.position+Vector3(aabb.size.x*ix,aabb.size.y*iy,aabb.size.z*iz)
 						ymin=minf(ymin,(cur.global_transform*corner).y)
 		for child in cur.get_children(): stack.append(child)
-	if ymin<INF: n.global_position.y+=height_at(x,z)-ymin
+	if ymin<INF: n.global_position.y+=height_at(x,z)-ymin-.16
 
 func _add_tree_canopy(parent:Node3D, tree_path:String, tree_scale:float)->void:
 	var canopy_color=Color(.18,.46,.14) if "pine" in tree_path else Color(.24,.52,.16)
@@ -513,6 +513,11 @@ func _terrain_surface(cells:int) -> ArrayMesh:
 	return st.commit()
 
 func _terrain_texture_index(x:float,z:float,h:float)->int:
+	# Warp classification coordinates so texture borders do not follow visible square/grid lines.
+	var ox=x
+	var oz=z
+	x=ox+sin(oz*.037)*7.5+sin((ox+oz)*.019)*4.0
+	z=oz+cos(ox*.041)*7.0+cos((ox-oz)*.021)*3.5
 	# 64x64 terrain cells are 6.25 m. Assign whole cells to broad natural regions,
 	# never per-pixel random noise, so the world reads as continuous terrain.
 	if z < -168.0: return 6 # sandy coast
@@ -566,6 +571,35 @@ func _terrain_material(path:String)->StandardMaterial3D:
 		var tex=ResourceLoader.load(path)
 		if tex is Texture2D: mat.albedo_texture=tex
 	return mat
+
+func _add_transition_vegetation() -> void:
+	# Lightweight, collision-free cover used only in scattered terrain transition pockets.
+	var rng=RandomNumberGenerator.new(); rng.seed=424242
+	for i in 95:
+		var x=rng.randf_range(-185.0,185.0)
+		var z=rng.randf_range(-160.0,185.0)
+		if _near_poi(x,z): continue
+		var h=height_at(x,z)
+		var idx=_terrain_texture_index(x,z,h)
+		# Keep only a fraction so vegetation never forms a continuous wall.
+		if rng.randf()>.58: continue
+		var root=Node3D.new(); root.name="TransitionCover"; root.position=Vector3(x,h-.05,z); add_child(root)
+		root.rotation_degrees.y=rng.randf_range(0.0,360.0)
+		var dry=idx in [2,3,4,6]
+		var mat=StandardMaterial3D.new()
+		mat.albedo_color=Color(.30,.24,.15) if dry else Color(.20,.36,.12)
+		mat.roughness=1.0
+		var stems=3+rng.randi_range(0,3)
+		for s in stems:
+			var mi=MeshInstance3D.new(); var bm=BoxMesh.new()
+			bm.size=Vector3(rng.randf_range(.035,.07),rng.randf_range(.75,1.65),rng.randf_range(.035,.07))
+			mi.mesh=bm; mi.position=Vector3(rng.randf_range(-.35,.35),bm.size.y*.5,rng.randf_range(-.35,.35))
+			mi.rotation_degrees=Vector3(rng.randf_range(-18.0,18.0),rng.randf_range(0.0,360.0),rng.randf_range(-18.0,18.0))
+			mi.material_override=mat; root.add_child(mi)
+		if not dry:
+			for q in 2:
+				var leaf=MeshInstance3D.new(); var sm=SphereMesh.new(); sm.radius=rng.randf_range(.22,.38); sm.height=sm.radius*1.4
+				leaf.mesh=sm; leaf.position=Vector3(rng.randf_range(-.25,.25),rng.randf_range(.55,1.15),rng.randf_range(-.25,.25)); leaf.material_override=mat; root.add_child(leaf)
 
 func _build_terrain_mesh():
 	var mesh=_terrain_visual_mesh(64)
@@ -708,6 +742,7 @@ func _build_world_base():
 	_build_world_environment()
 	_build_world_light()
 	_build_terrain_mesh()
+	_add_transition_vegetation()
 	_build_settlement_areas()
 	_build_map_edge_mountains()
 	_build_corner_settlements()
