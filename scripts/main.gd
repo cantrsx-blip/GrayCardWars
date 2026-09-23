@@ -291,8 +291,8 @@ func _build_world_staged() -> void:
 	_build_world_base()
 	await get_tree().process_frame
 	# Build the ten boss/POI regions before heavy resource spawning so they are visible immediately on mobile.
-	# TEST BUILD: heavyweight 3D POI models are intentionally excluded from runtime loading.
-	# Their coordinates/data stay in `pois` so they can be restored later unchanged.
+	# Restore the ten heavyweight 3D boss/POI region models.
+	_build_pois()
 	_build_poi_bosses()
 	await get_tree().process_frame
 	_build_weather_system()
@@ -3382,7 +3382,7 @@ func _add_held_box(sz:Vector3,pos:Vector3,mat:Material):
 
 
 func _create_survival_clock(layer:CanvasLayer):
-	day_label=Label.new(); day_label.set_anchors_preset(Control.PRESET_TOP_RIGHT); day_label.position=Vector2(-245,12); day_label.size=Vector2(210,32); day_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT; day_label.text="09:00  ☀"; layer.add_child(day_label)
+	day_label=Label.new(); day_label.set_anchors_preset(Control.PRESET_TOP_RIGHT); day_label.position=Vector2(-245,12); day_label.size=Vector2(210,32); day_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT; day_label.text="09:00  ☀"; day_label.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(day_label)
 
 func _update_day_cycle(delta:float):
 	day_clock=fmod(day_clock+delta*.035,24.0)
@@ -3500,7 +3500,7 @@ func _update_reload(delta:float):
 
 
 func _create_cheat_ui(layer:CanvasLayer):
-	cheat_label=Label.new(); cheat_label.position=Vector2(510,10); cheat_label.size=Vector2(260,34); cheat_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cheat_label.text=""; layer.add_child(cheat_label)
+	cheat_label=Label.new(); cheat_label.position=Vector2(510,10); cheat_label.size=Vector2(260,34); cheat_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cheat_label.text=""; cheat_label.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(cheat_label)
 
 func _toggle_cheat_mode():
 	if _panel_open(): return
