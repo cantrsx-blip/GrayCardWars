@@ -540,49 +540,28 @@ func _terrain_surface(cells:int) -> ArrayMesh:
 	return st.commit()
 
 func _terrain_texture_index(x:float,z:float,h:float)->int:
-	# Warp classification coordinates so texture borders do not follow visible square/grid lines.
-	var ox=x
-	var oz=z
-	x=ox+sin(oz*.037)*7.5+sin((ox+oz)*.019)*4.0
-	z=oz+cos(ox*.041)*7.0+cos((ox-oz)*.021)*3.5
-	# 64x64 terrain cells are 6.25 m. Assign whole cells to broad natural regions,
-	# never per-pixel random noise, so the world reads as continuous terrain.
-	if z < -168.0: return 6 # sandy coast
-	for p in pois:
-		var d=Vector2(x-p.pos.x,z-p.pos.z).length()
-		if d < 31.0: return 4 # rubble around abandoned/boss regions
-	# Broken old asphalt corridors linking the interior. Gaps keep them from looking modern.
-	var road_noise=sin(x*.071+z*.043)+sin(x*.019-z*.083)
-	if absf(x) < 5.2 and z > -150.0 and z < 150.0 and road_noise > -1.15: return 5
-	if absf(z-35.0) < 5.2 and x > -145.0 and x < 145.0 and road_noise > -1.10: return 5
-	# Rocky ground naturally increases on the raised outer terrain.
-	if h > 5.8 or (Vector2(x,z).length()>150.0 and sin(x*.061)+cos(z*.057)>.65): return 2
-	# A few broad dry/cracked basins.
-	var dry=sin((x+42.0)*.031)+cos((z-18.0)*.037)+sin((x-z)*.018)
-	if dry > 1.55 and Vector2(x,z).length()<155.0: return 3
-	# Autumn leaf floor is deliberately limited to forest-like clusters.
-	var forest=sin((x-28.0)*.026)+cos((z+36.0)*.029)+sin((x+z)*.017)
-	if forest > 1.35 and z > -155.0: return 7
-	# Fresh grass appears in smaller open patches; mixed grass is the transition.
-	var green=sin((x+70.0)*.041)+cos((z-55.0)*.035)
-	if green > 1.18 and h < 4.8: return 8
-	if green > .20 or forest > .55: return 1
-	return 0
+	# 15-texture natural-neighbour chain. Nearby cells can only drift to nearby
+	# visual families, avoiding harsh dry-to-green jumps across the 6.25 m grid.
+	var chain=[0,1,2,3,9,8,7,12,6,4,5,10,11,13,14]
+	var field=sin(x*.012)+cos(z*.014)+sin((x+z)*.007)*.72+cos((x-z)*.009)*.55
+	var detail=sin(x*.031+z*.023)*.28+cos(x*.019-z*.027)*.22
+	var t=clampf((field+detail+2.77)/5.54,0.0,1.0)
+	var pos=int(round(t*float(chain.size()-1)))
+	return chain[clampi(pos,0,chain.size()-1)]
 
 func _terrain_visual_mesh(cells:int)->ArrayMesh:
 	var tools:Array[SurfaceTool]=[]
-	for i in 9:
+	for i in 15:
 		var st=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES); tools.append(st)
 	var step=(MAP_HALF*2.0)/float(cells)
 	for zi in cells:
 		for xi in cells:
 			var x0=-MAP_HALF+xi*step; var x1=x0+step; var z0=-MAP_HALF+zi*step; var z1=z0+step
-			var a=Vector3(x0,height_at(x0,z0),z0); var b=Vector3(x1,height_at(x1,z0),z0)
+			var a=Vector3(x0,height_at(x0,z0),z0); var bb=Vector3(x1,height_at(x1,z0),z0)
 			var cc=Vector3(x1,height_at(x1,z1),z1); var d=Vector3(x0,height_at(x0,z1),z1)
 			var center=Vector3((x0+x1)*.5,0,(z0+z1)*.5); center.y=height_at(center.x,center.z)
 			var st:SurfaceTool=tools[_terrain_texture_index(center.x,center.z,center.y)]
-			# One 1024 texture represents exactly one 6.25 x 6.25 m cell.
-			st.set_uv(Vector2(0,0)); st.add_vertex(a); st.set_uv(Vector2(1,0)); st.add_vertex(b); st.set_uv(Vector2(1,1)); st.add_vertex(cc)
+			st.set_uv(Vector2(0,0)); st.add_vertex(a); st.set_uv(Vector2(1,0)); st.add_vertex(bb); st.set_uv(Vector2(1,1)); st.add_vertex(cc)
 			st.set_uv(Vector2(0,0)); st.add_vertex(a); st.set_uv(Vector2(1,1)); st.add_vertex(cc); st.set_uv(Vector2(0,1)); st.add_vertex(d)
 	var mesh=ArrayMesh.new()
 	for st in tools:
@@ -635,20 +614,13 @@ func _add_transition_vegetation() -> void:
 func _build_terrain_mesh():
 	var mesh=_terrain_visual_mesh(64)
 	var texture_paths=[
-		"res://01_toprak.png",
-		"res://02_cimenli_toprak.png",
-		"res://03_tasli_toprak.png",
-		"res://04_catlak_toprak.png",
-		"res://05_molozlu_zemin.png",
-		"res://06_eski_asfalt.png",
-		"res://07_kumlu_toprak.png",
-		"res://autumn_ground_albedo.jpg",
-		"res://09_cimen.png"
+		"res://z01.jpg","res://z02.jpg","res://z03.jpg","res://z04.jpg","res://z05.jpg",
+		"res://z06.jpg","res://z07.jpg","res://z08.jpg","res://z09.jpg","res://z10.jpg",
+		"res://z11.jpg","res://z12.jpg","res://z13.jpg","res://z14.jpg","res://z15.jpg"
 	]
 	for i in texture_paths.size():
 		mesh.surface_set_material(i,_terrain_material(texture_paths[i]))
 	var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; add_child(terrain)
-	# Collision stays coarse and texture-independent for fast Android startup.
 	var collision_mesh=_terrain_surface(24)
 	var body=StaticBody3D.new(); body.name="TerrainCollision"
 	var cs=CollisionShape3D.new(); cs.shape=collision_mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
