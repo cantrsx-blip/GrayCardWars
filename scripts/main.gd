@@ -458,6 +458,18 @@ func _build_meteor_encounter() -> void:
 		var target_h:=PLAYER_HEIGHT*8.0
 		meteor_node.scale*=target_h/bounds.size.y
 		_ground_asset_to_terrain(meteor_node,0,0)
+	# Solid meteor collision: player and CharacterBody3D bosses cannot pass through it.
+	var solid=StaticBody3D.new()
+	solid.name="MeteorSolidCollision"
+	meteor_node.add_child(solid)
+	var cs=CollisionShape3D.new()
+	var shape=CapsuleShape3D.new()
+	var final_bounds:=_node_visual_bounds(meteor_node)
+	shape.radius=maxf(1.2,maxf(final_bounds.size.x,final_bounds.size.z)*0.42)
+	shape.height=maxf(shape.radius*2.0,final_bounds.size.y*0.92)
+	cs.shape=shape
+	cs.position=final_bounds.position+final_bounds.size*0.5
+	solid.add_child(cs)
 
 func _node_visual_bounds(root:Node3D) -> AABB:
 	var first:=true
