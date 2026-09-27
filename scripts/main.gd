@@ -451,11 +451,13 @@ func _build_meteor_encounter() -> void:
 	var solid=StaticBody3D.new()
 	solid.name="MeteorSolidCollision"
 	var cs=CollisionShape3D.new()
-	var shape=CapsuleShape3D.new()
+	var shape=CylinderShape3D.new()
 	var final_bounds:=_node_visual_bounds(meteor_node)
-	# Collision follows the meteor body closely: reachable for VUR, but never enterable.
-	shape.radius=maxf(1.0,maxf(final_bounds.size.x,final_bounds.size.z)*0.46)
-	shape.height=maxf(shape.radius*2.0,final_bounds.size.y*0.90)
+	# One solid safety volume around the complete meteor footprint. The player stops
+	# before the visual mesh, so the camera can never enter and expose back faces.
+	var meteor_radius:=maxf(final_bounds.size.x,final_bounds.size.z)*0.62
+	shape.radius=maxf(2.0,meteor_radius)
+	shape.height=maxf(2.0,final_bounds.size.y*1.05)
 	cs.shape=shape
 	cs.position=Vector3(0,shape.height*0.5,0)
 	solid.add_child(cs)
