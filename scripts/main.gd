@@ -206,18 +206,7 @@ var craft_resources: Dictionary = {
 }
 var craft_category := "SİLAHLAR"
 
-var pois := [
-	{"id":"hospital","name":"Terk Edilmis Hastane","pos":Vector3(-130,0,130),"asset":"res://abandoned hospital 3d model.glb","size":24.0},
-	{"id":"watchtower","name":"Gozetleme Kulesi","pos":Vector3(0,0,160),"asset":"res://rusted watchtower 3d model.glb","size":14.0},
-	{"id":"plane_wreck","name":"Ucak Enkazi","pos":Vector3(140,0,130),"asset":"res://airplane wreckage 3d model.glb","size":22.0},
-	{"id":"tank_site","name":"Terk Edilmis Tank","pos":Vector3(170,0,0),"asset":"res://battle tank 3d model.glb","size":9.0},
-	{"id":"factory","name":"Terk Edilmis Fabrika","pos":Vector3(140,0,-130),"asset":"res://industrial ruin 3d model.glb","size":25.0},
-	{"id":"junkyard","name":"Arac Hurdaligi","pos":Vector3(0,0,-160),"asset":"res://post-apocalyptic car junkyard 3d model.glb","size":24.0},
-	{"id":"military_post","name":"Terk Edilmis Askeri Karakol","pos":Vector3(-130,0,-130),"asset":"res://ruined military base 3d model.glb","size":23.0},
-	{"id":"bunker","name":"Yeralti Siginagi","pos":Vector3(-170,0,0),"asset":"res://bunker entrance 3d model.glb","size":16.0},
-	{"id":"gas_station","name":"Terk Edilmis Benzin Istasyonu","pos":Vector3(-160,0,80),"asset":"res://rusted gas station 3d model.glb","size":22.0},
-	{"id":"graveyard","name":"Yipranmis Mezarlik","pos":Vector3(160,0,80),"asset":"res://graveyard ruins 3d model.glb","size":22.0}
-]
+var pois := []
 
 var pits := [
 	Vector3(48, 0, -36),
@@ -461,15 +450,17 @@ func _build_meteor_encounter() -> void:
 	# Solid meteor collision: player and CharacterBody3D bosses cannot pass through it.
 	var solid=StaticBody3D.new()
 	solid.name="MeteorSolidCollision"
-	meteor_node.add_child(solid)
 	var cs=CollisionShape3D.new()
 	var shape=CapsuleShape3D.new()
 	var final_bounds:=_node_visual_bounds(meteor_node)
-	shape.radius=maxf(1.2,maxf(final_bounds.size.x,final_bounds.size.z)*0.42)
-	shape.height=maxf(shape.radius*2.0,final_bounds.size.y*0.92)
+	# Tight collision lets the player reach the meteor while still blocking its core.
+	shape.radius=maxf(0.65,maxf(final_bounds.size.x,final_bounds.size.z)*0.24)
+	shape.height=maxf(shape.radius*2.0,final_bounds.size.y*0.72)
 	cs.shape=shape
-	cs.position=final_bounds.position+final_bounds.size*0.5
+	cs.position=Vector3(0,shape.height*0.5,0)
 	solid.add_child(cs)
+	solid.position=meteor_node.global_position
+	add_child(solid)
 
 func _node_visual_bounds(root:Node3D) -> AABB:
 	var first:=true
@@ -1147,14 +1138,7 @@ func _store_category(category:String):
 	_flash_message("MAĞAZA: "+category)
 
 func _nearest_poi() -> String:
-	var best := ""
-	var best_d := 9999.0
-	for b in pois:
-		var d = Vector2(player.position.x - b.pos.x, player.position.z - b.pos.z).length()
-		if d < best_d:
-			best_d = d
-			best = "%s (%.0f m)" % [b.name, d]
-	return best
+	return ""
 
 func _panel_open() -> bool:
 	return (inventory_panel != null and inventory_panel.visible) or (craft_panel != null and craft_panel.visible) or (store_panel != null and store_panel.visible) or (map_panel != null and map_panel.visible)
@@ -1202,7 +1186,7 @@ func _physics_process(delta):
 		_update_navigation_ui()
 		_update_minimap()
 		zone_label.text="%s  •  %s" % [("CUKUR" if in_pit else ("TERK EDILMIS BOLGE" if in_dry else "VAHSI")),_nearest_poi()]
-		hud.text = "HP %d  Ac %d  Su %d  Kart %d" % [health,int(hunger),int(thirst),gray_cards]
+		hud.text = "HP %d  Kart %d" % [health,gray_cards]
 		return
 	if message_time>0.0:
 		message_time-=delta
@@ -1212,15 +1196,6 @@ func _physics_process(delta):
 	if shoot_flash_time>0.0:
 		shoot_flash_time-=delta
 		if shoot_flash_time<=0.0 and hit_label: hit_label.visible=false
-	hunger = maxf(0.0, hunger - delta * 0.04)
-	thirst = maxf(0.0, thirst - delta * 0.06)
-	if hunger <= 0.0 or thirst <= 0.0:
-		_apply_damage(8.0 * delta)
-	if fire_built and player.global_position.distance_to(campfire_pos)<5.0:
-		hunger=minf(100.0,hunger+delta*.35)
-		heal_buffer+=delta*1.2
-		var heal_whole=int(floor(heal_buffer))
-		if heal_whole>0: health=min(100,health+heal_whole); heal_buffer-=heal_whole
 	var v = move_touch
 	if Input.is_key_pressed(KEY_W): v.y = -1
 	if Input.is_key_pressed(KEY_S): v.y = 1
@@ -1235,7 +1210,6 @@ func _physics_process(delta):
 	var dir = right*v.x + forward*(-v.y)
 	if dir.length() > 1.0: dir = dir.normalized()
 	var speed = player_move_speed * (.70 if in_pit else 1.0)
-	if hunger<20.0 or thirst<20.0: speed*=.78
 	if fly_mode: speed*=6.0
 	# FPS view direction is controlled by right-side look drag, not movement stick.
 	player.velocity.x=dir.x*speed; player.velocity.z=dir.z*speed
@@ -1249,8 +1223,11 @@ func _physics_process(delta):
 		elif player.velocity.y<0.0:
 			player.velocity.y=0.0
 		player.move_and_slide()
-	player.position.x = clampf(player.position.x, -MAP_HALF + 2.0, MAP_HALF - 2.0)
-	player.position.z = clampf(player.position.z, -MAP_HALF + 2.0, MAP_HALF - 2.0)
+	# Mountains begin near the map edge: this is the absolute playable boundary.
+	# The player can never cross into or through the mountain belt.
+	const MOUNTAIN_INNER_LIMIT := 184.0
+	player.position.x = clampf(player.position.x, -MOUNTAIN_INNER_LIMIT, MOUNTAIN_INNER_LIMIT)
+	player.position.z = clampf(player.position.z, -MOUNTAIN_INNER_LIMIT, MOUNTAIN_INNER_LIMIT)
 	var hy = height_at(player.position.x, player.position.z)
 	if not fly_mode:
 		# Terrain has no physics body, so only clamp when falling to terrain. Never overwrite
@@ -1288,7 +1265,7 @@ func _physics_process(delta):
 	elif in_dry:
 		zone = "TERK EDILMIS BOLGE"
 	zone_label.text="%s  •  %s" % [zone,_nearest_poi()]
-	hud.text = "HP %d  Ac %d  Su %d  Kart %d" % [health, int(hunger), int(thirst), gray_cards]
+	hud.text = "HP %d  Kart %d" % [health,gray_cards]
 
 func _build_weather_system():
 	# Rain, snow and fog are intentionally disabled.
