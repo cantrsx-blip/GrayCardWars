@@ -40,11 +40,6 @@ var rock_assets = [
 	"res://assets/environment/rocks/rock_large_01.glb",
 	"res://assets/environment/rocks/rock_boulder_01.glb"
 ]
-var plant_assets = [
-	"res://assets/environment/plants/plant_grass_01.glb",
-	"res://assets/environment/plants/plant_bush_01.glb",
-	"res://assets/environment/plants/debris_log_01.glb"
-]
 var asset_paths = {
 	"tree":"res://assets/environment/trees/tree_pine_01.glb",
 	"rock":"res://assets/environment/rocks/rock_medium_01.glb",
@@ -406,23 +401,7 @@ func _terrain_texture_index(x:float,z:float,h:float)->int:
 	return chain[clampi(pos,0,chain.size()-1)]
 
 func _terrain_visual_mesh(cells:int)->ArrayMesh:
-	var tools:Array[SurfaceTool]=[]
-	for i in 15:
-		var st=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES); tools.append(st)
-	var step=(MAP_HALF*2.0)/float(cells)
-	for zi in cells:
-		for xi in cells:
-			var x0=-MAP_HALF+xi*step; var x1=x0+step; var z0=-MAP_HALF+zi*step; var z1=z0+step
-			var a=Vector3(x0,height_at(x0,z0),z0); var bb=Vector3(x1,height_at(x1,z0),z0)
-			var cc=Vector3(x1,height_at(x1,z1),z1); var d=Vector3(x0,height_at(x0,z1),z1)
-			var center=Vector3((x0+x1)*.5,0,(z0+z1)*.5); center.y=height_at(center.x,center.z)
-			var st:SurfaceTool=tools[_terrain_texture_index(center.x,center.z,center.y)]
-			st.set_uv(Vector2(0,0)); st.add_vertex(a); st.set_uv(Vector2(1,0)); st.add_vertex(bb); st.set_uv(Vector2(1,1)); st.add_vertex(cc)
-			st.set_uv(Vector2(0,0)); st.add_vertex(a); st.set_uv(Vector2(1,1)); st.add_vertex(cc); st.set_uv(Vector2(0,1)); st.add_vertex(d)
-	var mesh=ArrayMesh.new()
-	for st in tools:
-		st.generate_normals(); st.commit(mesh)
-	return mesh
+	return _terrain_surface(cells)
 
 func _terrain_material(path:String)->StandardMaterial3D:
 	var mat=StandardMaterial3D.new()
@@ -433,49 +412,6 @@ func _terrain_material(path:String)->StandardMaterial3D:
 		var tex=ResourceLoader.load(path)
 		if tex is Texture2D: mat.albedo_texture=tex
 	return mat
-
-func _add_transition_vegetation() -> void:
-	# Collision-free wild cover. Spawn only on real texture borders, away from settlements/POIs.
-	var rng=RandomNumberGenerator.new(); rng.seed=424242
-	var made=0
-	for attempt in 900:
-		if made>=72: break
-		var x=rng.randf_range(-185.0,185.0); var z=rng.randf_range(-158.0,185.0)
-		if _near_poi(x,z) or _near_settlement(x,z,23.0): continue
-		if _terrain_slope(x,z)>.24 or not _terrain_transition(x,z,4.2): continue
-		var h=height_at(x,z); var idx=_terrain_texture_index(x,z,h)
-		var dry=idx in [2,3,4,6]
-		var root=Node3D.new(); root.name="DryTransitionBush" if dry else "GreenTransitionBush"
-		root.position=Vector3(x,h-.08,z); root.rotation_degrees.y=rng.randf_range(0.0,360.0); add_child(root)
-		var stem_mat=StandardMaterial3D.new(); stem_mat.roughness=1.0
-		stem_mat.albedo_color=Color(.25,.17,.09) if dry else Color(.16,.28,.08)
-		var leaf_mat=StandardMaterial3D.new(); leaf_mat.roughness=1.0
-		leaf_mat.albedo_color=Color(.38,.29,.12) if dry else Color(.18,.40,.10)
-		var branches=7+rng.randi_range(0,5)
-		for s in branches:
-			var branch=MeshInstance3D.new(); var bm=CylinderMesh.new()
-			bm.top_radius=.012; bm.bottom_radius=rng.randf_range(.022,.045); bm.height=rng.randf_range(.55,1.45)
-			branch.mesh=bm; branch.position=Vector3(rng.randf_range(-.32,.32),bm.height*.43,rng.randf_range(-.32,.32))
-			branch.rotation_degrees=Vector3(rng.randf_range(-28.0,28.0),rng.randf_range(0.0,360.0),rng.randf_range(-28.0,28.0))
-			branch.material_override=stem_mat; root.add_child(branch)
-		if not dry:
-			for q in 7+rng.randi_range(0,5):
-				var leaf=MeshInstance3D.new(); var lm=QuadMesh.new()
-				lm.size=Vector2(rng.randf_range(.16,.32),rng.randf_range(.28,.52))
-				leaf.mesh=lm; leaf.position=Vector3(rng.randf_range(-.48,.48),rng.randf_range(.28,1.12),rng.randf_range(-.48,.48))
-				leaf.rotation_degrees=Vector3(rng.randf_range(-35.0,35.0),rng.randf_range(0.0,360.0),rng.randf_range(-25.0,25.0))
-				leaf.material_override=leaf_mat; root.add_child(leaf)
-		made+=1
-
-func _build_terrain_mesh():
-	var mesh=_terrain_visual_mesh(64)
-	var terrain_material=_terrain_material("res://z13.jpg")
-	for i in mesh.get_surface_count():
-		mesh.surface_set_material(i,terrain_material)
-	var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; add_child(terrain)
-	var collision_mesh=_terrain_surface(24)
-	var body=StaticBody3D.new(); body.name="TerrainCollision"
-	var cs=CollisionShape3D.new(); cs.shape=collision_mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
 
 func _build_center_settlement_mound() -> void:
 	var body=StaticBody3D.new(); body.name="CenterSettlementMound"; body.position=Vector3(0,0.18,0); add_child(body)
