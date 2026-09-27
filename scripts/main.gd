@@ -453,9 +453,9 @@ func _build_meteor_encounter() -> void:
 	var cs=CollisionShape3D.new()
 	var shape=CapsuleShape3D.new()
 	var final_bounds:=_node_visual_bounds(meteor_node)
-	# Tight collision lets the player reach the meteor while still blocking its core.
-	shape.radius=maxf(0.65,maxf(final_bounds.size.x,final_bounds.size.z)*0.24)
-	shape.height=maxf(shape.radius*2.0,final_bounds.size.y*0.72)
+	# Collision follows the meteor body closely: reachable for VUR, but never enterable.
+	shape.radius=maxf(1.0,maxf(final_bounds.size.x,final_bounds.size.z)*0.46)
+	shape.height=maxf(shape.radius*2.0,final_bounds.size.y*0.90)
 	cs.shape=shape
 	cs.position=Vector3(0,shape.height*0.5,0)
 	solid.add_child(cs)
@@ -497,6 +497,9 @@ func _spawn_meteor_boss() -> void:
 	boss.position=Vector3(4.5+float(meteor_bosses.size()%3)*1.5,PLAYER_HEIGHT,4.5)
 	var cs=CollisionShape3D.new(); var shape=CapsuleShape3D.new(); shape.radius=.55; shape.height=1.9; cs.shape=shape; boss.add_child(cs)
 	boss.add_child(model); model.position=Vector3.ZERO
+	# Imported boss faces the opposite local direction. Turn only the visual model so
+	# CharacterBody movement remains toward the player while the boss faces forward.
+	model.rotation_degrees.y=180.0
 	var b=_node_visual_bounds(model)
 	if b.size.y>0.001: model.scale*=2.0/b.size.y
 	boss.set_meta("hp",10); add_child(boss); meteor_bosses.append(boss); boss_attack_cooldowns[boss.get_instance_id()]=0.0
@@ -1225,7 +1228,7 @@ func _physics_process(delta):
 		player.move_and_slide()
 	# Mountains begin near the map edge: this is the absolute playable boundary.
 	# The player can never cross into or through the mountain belt.
-	const MOUNTAIN_INNER_LIMIT := 184.0
+	const MOUNTAIN_INNER_LIMIT := 171.0
 	player.position.x = clampf(player.position.x, -MOUNTAIN_INNER_LIMIT, MOUNTAIN_INNER_LIMIT)
 	player.position.z = clampf(player.position.z, -MOUNTAIN_INNER_LIMIT, MOUNTAIN_INNER_LIMIT)
 	var hy = height_at(player.position.x, player.position.z)
