@@ -725,11 +725,11 @@ func _add_edge_mountain(p:Vector3,sx:float,sz:float) -> void:
 	var variation=absf(sin(sx*.071+sz*.113))
 	var old_height=11.0+variation*6.0
 	# Raise the new range substantially above the previous 66% test.
-	var target_height=old_height*1.15
+	var target_height=old_height*1.5333
 	var uniform_scale=target_height/bounds.size.y
 	model.scale=Vector3.ONE*uniform_scale
 	if absf(p.z)>=absf(p.x):
-		model.rotation_degrees.y=0.0 if p.z>0.0 else 180.0
+		model.rotation_degrees.y=180.0 if p.z>0.0 else 0.0
 	else:
 		model.rotation_degrees.y=90.0 if p.x<0.0 else -90.0
 	_ground_asset_to_terrain(model,p.x,p.z)
@@ -747,7 +747,8 @@ func _add_edge_mountain(p:Vector3,sx:float,sz:float) -> void:
 	cs.shape=sh
 	cs.position=Vector3(0,20.0,0)
 	barrier.add_child(cs)
-	model.add_child(barrier)
+	barrier.position=p
+	add_child(barrier)
 
 
 func _build_settlement_areas() -> void:
@@ -2095,7 +2096,9 @@ func _jump():
 	# Terrain is procedural rather than a physics floor, so allow jump when standing at
 	# terrain height as well as on foundation/roof/stair collisions.
 	var ground_y=height_at(player.position.x,player.position.z)+PLAYER_HEIGHT
-	if player.is_on_floor() or absf(player.position.y-ground_y)<.12:
+	var standing_on_terrain=player.position.y<=ground_y+0.25 and player.velocity.y<=0.05
+	if player.is_on_floor() or standing_on_terrain:
+		player.position.y=maxf(player.position.y,ground_y+0.02)
 		player.velocity.y=7.2
 		_play_sfx("jump")
 
