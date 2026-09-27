@@ -1341,9 +1341,6 @@ func _input(event):
 			look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-72.0,72.0)
 			camera.rotation_degrees.x=look_pitch
 			player_facing=-player.global_transform.basis.z
-	elif event.is_action_pressed("build_fire"):
-
-	elif event.is_action_pressed("build_house"):
 
 func _enemy_visual(color: Color, scale_v := Vector3.ONE) -> Node3D:
 	var root=Node3D.new(); root.scale=scale_v
