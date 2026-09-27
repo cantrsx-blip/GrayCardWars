@@ -701,10 +701,11 @@ func _add_settlement_concrete_tile(p:Vector3) -> void:
 
 
 func _build_map_edge_mountains() -> void:
-	# #301 flat interior stays untouched. Mountains form only the four X/Z +/-198 borders.
+	# Tripo mountain chain. Wider spacing matches the broad range model while
+	# intentional overlap hides seams and prevents wall-like repeated copies.
 	var edge:=198.0
-	var gate_half:=5.0 # 10m / two-foundation-wide visual gate opening.
-	var step:=8.0
+	var gate_half:=8.0
+	var step:=22.0
 	for side in [-1.0,1.0]:
 		var x:=-198.0
 		while x<=198.0:
@@ -730,14 +731,19 @@ func _add_edge_mountain(p:Vector3,sx:float,sz:float) -> void:
 	add_child(model)
 	var bounds:=_node_visual_bounds(model)
 	if bounds.size.y<=0.001: return
-	# New Tripo mountain replaces the procedural cylinders at 33% of the old
-	# 11-17 m mountain height. Small deterministic variation keeps copies natural.
+	# The first 33% test was too low in-game. Double it to 66% of the old
+	# procedural mountain height, keeping the broad Tripo range readable.
 	var variation=absf(sin(sx*.071+sz*.113))
 	var old_height=11.0+variation*6.0
-	var target_height=old_height*0.33
+	var target_height=old_height*0.66
 	var uniform_scale=target_height/bounds.size.y
 	model.scale=Vector3.ONE*uniform_scale
-	model.rotation_degrees.y=fmod(absf(sx*7.0+sz*11.0),360.0)
+	# Never random-rotate this one-sided range. Keep its good/front face toward
+	# the playable interior on every map edge.
+	if absf(p.z)>=absf(p.x):
+		model.rotation_degrees.y=0.0 if p.z>0.0 else 180.0
+	else:
+		model.rotation_degrees.y=90.0 if p.x<0.0 else -90.0
 	_ground_asset_to_terrain(model,p.x,p.z)
 
 func _add_edge_gate(p:Vector3,yaw:float) -> void:
