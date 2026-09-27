@@ -723,15 +723,22 @@ func _build_map_edge_mountains() -> void:
 	_add_edge_gate(Vector3(-edge,0,0),90.0)
 
 func _add_edge_mountain(p:Vector3,sx:float,sz:float) -> void:
-	var body=StaticBody3D.new(); body.position=p
-	var mesh_i=MeshInstance3D.new(); var cyl=CylinderMesh.new()
+	var model=_load_asset("res://mountain range 3d model.glb")
+	if model==null: return
+	model.name="EdgeMountain"
+	model.position=p
+	add_child(model)
+	var bounds:=_node_visual_bounds(model)
+	if bounds.size.y<=0.001: return
+	# New Tripo mountain replaces the procedural cylinders at 33% of the old
+	# 11-17 m mountain height. Small deterministic variation keeps copies natural.
 	var variation=absf(sin(sx*.071+sz*.113))
-	cyl.top_radius=2.0+variation*1.8; cyl.bottom_radius=6.0+variation*2.2; cyl.height=11.0+variation*6.0
-	mesh_i.mesh=cyl; mesh_i.position.y=cyl.height*.5
-	mesh_i.material_override=_simple_mat(Color(.27,.26,.22)); body.add_child(mesh_i)
-	var cs=CollisionShape3D.new(); var sh=CylinderShape3D.new()
-	sh.radius=cyl.bottom_radius; sh.height=cyl.height; cs.shape=sh; cs.position.y=cyl.height*.5; body.add_child(cs)
-	add_child(body)
+	var old_height=11.0+variation*6.0
+	var target_height=old_height*0.33
+	var uniform_scale=target_height/bounds.size.y
+	model.scale=Vector3.ONE*uniform_scale
+	model.rotation_degrees.y=fmod(absf(sx*7.0+sz*11.0),360.0)
+	_ground_asset_to_terrain(model,p.x,p.z)
 
 func _add_edge_gate(p:Vector3,yaw:float) -> void:
 	var gate=StaticBody3D.new(); gate.position=p+Vector3(0,2.0,0); gate.rotation_degrees.y=yaw
