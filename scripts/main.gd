@@ -507,10 +507,6 @@ func _build_world_base():
 	_build_world_environment()
 	_build_world_light()
 	_build_terrain_mesh()
-	_build_settlement_areas()
-	_build_map_edge_mountains()
-	_build_corner_settlements()
-	_build_settlement_houses()
 
 func _build_corner_settlements() -> void:
 	# All 20 settlements are distributed in the free interior. No four-corner lock.
