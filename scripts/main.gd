@@ -240,6 +240,9 @@ const BOSS_ATTACK_RANGE := 1.8
 const BOSS_ATTACK_COOLDOWN := 1.0
 const BOSS_METEOR_HIT_DAMAGE := 1
 const METEOR_ARENA_RADIUS := 17.0
+const GOD_WATCHER_DISTANCE := 230.0
+const GOD_WATCHER_VISIBLE_HEIGHT := 65.0
+var god_watchers: Array[Node3D] = []
 
 func _process(_delta:float) -> void:
 	pass
@@ -508,6 +511,9 @@ func _update_meteor_bosses(delta:float) -> void:
 		if not is_instance_valid(boss): meteor_bosses.erase(boss); continue
 		var id=boss.get_instance_id(); var cd:float=float(boss_attack_cooldowns.get(id,0.0)); cd=maxf(0.0,cd-delta); boss_attack_cooldowns[id]=cd
 		var d=player.global_position-boss.global_position; d.y=0.0; var dist=d.length()
+		# Keep every boss facing the player, even while attacking or standing still.
+		if dist>0.01:
+			boss.look_at(Vector3(player.global_position.x,boss.global_position.y,player.global_position.z),Vector3.UP)
 		if dist>BOSS_ATTACK_RANGE:
 			boss.velocity=d.normalized()*BOSS_SPEED if dist>0.01 else Vector3.ZERO
 			boss.velocity.y=0.0; boss.move_and_slide()
@@ -516,7 +522,7 @@ func _update_meteor_bosses(delta:float) -> void:
 			if arena_pos.length()>METEOR_ARENA_RADIUS:
 				arena_pos=arena_pos.normalized()*METEOR_ARENA_RADIUS
 				boss.global_position.x=arena_pos.x; boss.global_position.z=arena_pos.y
-			boss.look_at(Vector3(player.global_position.x,boss.global_position.y,player.global_position.z),Vector3.UP); _play_boss_anim(boss,"Run" if dist>6.0 else "Walk")
+			_play_boss_anim(boss,"Run" if dist>6.0 else "Walk")
 		else:
 			boss.velocity=Vector3.ZERO; _play_boss_anim(boss,"Attack")
 			if cd<=0.0: _apply_damage(1.0); boss_attack_cooldowns[id]=BOSS_ATTACK_COOLDOWN
@@ -554,6 +560,46 @@ func _build_world_base():
 	_build_center_settlement_mound()
 	_build_meteor_encounter()
 	_build_map_edge_mountains()
+	_build_god_watchers()
+
+func _build_god_watchers() -> void:
+	if not god_watchers.is_empty(): return
+	var positions=[
+		Vector3(0,0,-GOD_WATCHER_DISTANCE),
+		Vector3(0,0,GOD_WATCHER_DISTANCE),
+		Vector3(GOD_WATCHER_DISTANCE,0,0),
+		Vector3(-GOD_WATCHER_DISTANCE,0,0)
+	]
+	for i in positions.size():
+		var model=_load_asset("res://1.sv.tanri.glb")
+		if model==null: return
+		var root=Node3D.new()
+		root.name="GodWatcher_%d" % (i+1)
+		root.position=positions[i]
+		add_child(root)
+		root.add_child(model)
+		var bounds:=_node_visual_bounds(model)
+		if bounds.size.y>0.001:
+			model.scale*=GOD_WATCHER_VISIBLE_HEIGHT/bounds.size.y
+		# Sink the lower half behind the map-edge mountains so only torso/head is visible.
+		var scaled_bounds:=_node_visual_bounds(model)
+		model.position.y=-scaled_bounds.size.y*0.48
+		god_watchers.append(root)
+	_update_god_watchers()
+
+func _update_god_watchers() -> void:
+	if player==null: return
+	for watcher in god_watchers:
+		if not is_instance_valid(watcher): continue
+		var target=Vector3(player.global_position.x,watcher.global_position.y,player.global_position.z)
+		if watcher.global_position.distance_to(target)>0.01:
+			watcher.look_at(target,Vector3.UP)
+
+func _clear_meteor_bosses() -> void:
+	for boss in meteor_bosses.duplicate():
+		if is_instance_valid(boss): boss.queue_free()
+	meteor_bosses.clear()
+	boss_attack_cooldowns.clear()
 
 func _build_corner_settlements() -> void:
 	# All 20 settlements are distributed in the free interior. No four-corner lock.
@@ -1211,6 +1257,7 @@ func _physics_process(delta):
 	_update_footsteps(delta)
 	_update_damage_effect(delta)
 	_update_meteor_bosses(delta)
+	_update_god_watchers()
 	if health <= 0:
 		_death_feedback()
 		_respawn()
@@ -1419,6 +1466,7 @@ func _update_map_dot():
 		map_waypoint.position=Vector2(70+wx*1140.0,65+wz*570.0)
 
 func _respawn():
+	_clear_meteor_bosses()
 	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
 	health=100; hunger=70.0; thirst=80.0; damage_buffer=0.0; player.velocity=Vector3.ZERO; player.position=Vector3(0,PLAYER_HEIGHT,0)
 	if map_panel: map_panel.visible=false
