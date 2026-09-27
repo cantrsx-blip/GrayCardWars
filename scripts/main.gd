@@ -1580,7 +1580,7 @@ func _build_hud():
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(64,64); joystick_knob.size=Vector2(72,72); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
 	for item in [["↑",Vector2(88,4)],["↓",Vector2(88,168)],["←",Vector2(8,86)],["→",Vector2(168,86)]]:
 		var jl=Label.new(); jl.text=item[0]; jl.position=item[1]; jl.size=Vector2(28,28); jl.add_theme_font_size_override("font_size",22); jl.mouse_filter=Control.MOUSE_FILTER_IGNORE; joystick_base.add_child(jl)
-	var actions=[["KULLAN",_use_nearest_interior],["ENVANTER",_toggle_inventory],["ÜRET",_toggle_crafting],["PARCA",_cycle_build_piece],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down],["MAĞAZA",_open_store]]
+	var actions=[["ENVANTER",_toggle_inventory],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down],["MAĞAZA",_open_store]]
 	for i in actions.size():
 		var b=Button.new(); b.text=actions[i][0]; b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		if actions[i][0]=="HILE":
@@ -1590,20 +1590,16 @@ func _build_hud():
 		elif actions[i][0]=="ALCAL": fly_down_button=b
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15); b.pressed.connect(actions[i][1]); layer.add_child(b)
 	_update_fly_button_styles()
-	_create_hotbar(layer); _create_minimap(layer); _create_weapon_aim_ui(layer)
-	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
-	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
-	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.pressed.connect(_primary_action); layer.add_child(action_btn)
+	_create_minimap(layer)
 	var jump_btn=Button.new(); jump_btn.text="↑ Zıpla"; jump_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); jump_btn.position=Vector2(-238,-310); jump_btn.size=Vector2(92,76); jump_btn.add_theme_font_size_override("font_size",18); jump_btn.pressed.connect(_jump); layer.add_child(jump_btn)
 	var scope_btn=Button.new(); scope_btn.text="🔭"; scope_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); scope_btn.position=Vector2(-350,-320); scope_btn.size=Vector2(82,82); scope_btn.add_theme_font_size_override("font_size",28)
 	var scope_style=StyleBoxFlat.new(); scope_style.bg_color=Color(.10,.10,.10,.30); scope_style.corner_radius_top_left=41; scope_style.corner_radius_top_right=41; scope_style.corner_radius_bottom_left=41; scope_style.corner_radius_bottom_right=41
 	scope_btn.add_theme_stylebox_override("normal",scope_style); scope_btn.add_theme_stylebox_override("pressed",scope_style); scope_btn.pressed.connect(_toggle_scope); layer.add_child(scope_btn)
-	var build_btn=Button.new(); build_btn.text="İNŞA ET"; build_btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT); build_btn.position=Vector2(28,-390); build_btn.size=Vector2(150,56); build_btn.pressed.connect(_build_house); layer.add_child(build_btn)
 	crouch_button=Button.new(); crouch_button.text="↓ Çömel"; crouch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); crouch_button.position=Vector2(-238,-104); crouch_button.size=Vector2(104,80); crouch_button.add_theme_font_size_override("font_size",18)
 	var crouch_style=StyleBoxFlat.new(); crouch_style.bg_color=Color(.12,.12,.12,.34); crouch_style.corner_radius_top_left=40; crouch_style.corner_radius_top_right=40; crouch_style.corner_radius_bottom_left=40; crouch_style.corner_radius_bottom_right=40
 	crouch_button.add_theme_stylebox_override("normal",crouch_style); crouch_button.add_theme_stylebox_override("pressed",crouch_style); crouch_button.pressed.connect(_toggle_crouch); layer.add_child(crouch_button)
 	var aim=Label.new(); aim.text="+"; aim.set_anchors_preset(Control.PRESET_CENTER); aim.position=Vector2(-14,-22); aim.size=Vector2(28,44); aim.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; aim.add_theme_font_size_override("font_size",32); aim.add_theme_color_override("font_color",Color(.95,.08,.06,1)); aim.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(aim)
-	_create_survival_clock(layer); _create_damage_effect(layer); _create_ammo_ui(layer); _create_cheat_ui(layer)
+	_create_survival_clock(layer); _create_damage_effect(layer); _create_cheat_ui(layer)
 	facing_label=Label.new(); facing_label.set_anchors_preset(Control.PRESET_TOP_WIDE); facing_label.position=Vector2(0,48); facing_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; facing_label.add_theme_font_size_override("font_size",22); layer.add_child(facing_label)
 	waypoint_label=Label.new(); waypoint_label.set_anchors_preset(Control.PRESET_TOP_WIDE); waypoint_label.position=Vector2(0,76); waypoint_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; waypoint_label.add_theme_font_size_override("font_size",20); layer.add_child(waypoint_label)
 	_update_cheat_button_style()
@@ -1857,7 +1853,7 @@ func _physics_process(delta):
 		_update_navigation_ui()
 		_update_minimap()
 		zone_label.text="%s  •  %s" % [("CUKUR" if in_pit else ("TERK EDILMIS BOLGE" if in_dry else "VAHSI")),_nearest_poi()]
-		hud.text = "HP %d  Ac %d  Su %d  Kart %d  Mermi %d" % [health,int(hunger),int(thirst),gray_cards,ammo]
+		hud.text = "HP %d  Ac %d  Su %d  Kart %d" % [health,int(hunger),int(thirst),gray_cards]
 		return
 	if message_time>0.0:
 		message_time-=delta
@@ -1924,21 +1920,14 @@ func _physics_process(delta):
 	in_pit = hy < -2.0
 	in_dry = _near_poi(player.position.x, player.position.z)
 	var flat = Vector2(player.position.x, player.position.z)
-	_update_combat(delta)
-	
-	_update_resource_respawns(delta)
-	_update_build_preview()
 	_update_map_dot()
 	_update_navigation_ui()
 	_update_minimap()
 	_update_aim_marker()
-	_update_weapon_feedback(delta)
 	_update_day_cycle(delta)
 	_update_weather(delta)
 	_update_footsteps(delta)
 	_update_damage_effect(delta)
-	_update_reload(delta)
-	_update_crafting_feedback(delta)
 	if health <= 0:
 		_death_feedback()
 		_respawn()
@@ -1948,10 +1937,7 @@ func _physics_process(delta):
 	elif in_dry:
 		zone = "TERK EDILMIS BOLGE"
 	zone_label.text="%s  •  %s" % [zone,_nearest_poi()]
-	hud.text = "HP %d  Ac %d  Su %d  Kart %d  Mermi %d\nOdun %d  Tas %d  Cim %d  Bugday %d  Mantar %d" % [
-		health, int(hunger), int(thirst), gray_cards, ammo,
-		wood, stone, grass_n, wheat_n, mushroom_n
-	]
+	hud.text = "HP %d  Ac %d  Su %d  Kart %d" % [health, int(hunger), int(thirst), gray_cards]
 
 func _build_weather_system():
 	# Rain, snow and fog are intentionally disabled.
