@@ -233,7 +233,8 @@ var pits := [
 	Vector3(-30, 0, -110)
 ]
 
-func _process(delta:float) -> void:
+func _process(_delta:float) -> void:
+	pass
 
 func _ready():
 	# Keep scene entry light on Android: show the camera/HUD first, then build the
