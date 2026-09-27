@@ -234,7 +234,6 @@ var pits := [
 ]
 
 func _process(delta:float) -> void:
-	_update_poi_boss_test_movement(delta)
 
 func _play_poi_boss_animation(root:Node3D, wanted:String, looped:bool=true) -> void:
 	var ap:=_find_animation_player(root)
@@ -292,19 +291,13 @@ func _build_world_staged() -> void:
 	await get_tree().process_frame
 	# Build the ten boss/POI regions before heavy resource spawning so they are visible immediately on mobile.
 	# Restore the ten heavyweight 3D boss/POI region models.
-	_build_pois()
-	_build_poi_bosses()
 	await get_tree().process_frame
 	_build_weather_system()
 	await get_tree().process_frame
-	await _build_rocks_staged()
 	await get_tree().process_frame
-	await _build_meteors_staged()
 	await get_tree().process_frame
 	# Animals remain removed.
-	await _build_trees_staged()
 	# Humans/NPCs removed from world spawning.
-	_build_hills_and_pits()
 	# Grass pickups, wheat and mushrooms are removed. Tree code/assets are preserved but hidden for now.
 	# Raiders and bosses intentionally disabled for the KARA KIYI rebuild.
 	zone_label.text=""
