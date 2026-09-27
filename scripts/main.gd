@@ -595,7 +595,7 @@ func _build_god_watchers() -> void:
 			model.scale*=GOD_WATCHER_VISIBLE_HEIGHT/bounds.size.y
 		# Sink the lower half behind the map-edge mountains so only torso/head is visible.
 		var scaled_bounds:=_node_visual_bounds(model)
-		model.position.y=-scaled_bounds.size.y*0.48
+		model.position.y=-scaled_bounds.size.y*0.62
 		god_watchers.append(root)
 	_update_god_watchers()
 
@@ -701,27 +701,18 @@ func _add_settlement_concrete_tile(p:Vector3) -> void:
 
 
 func _build_map_edge_mountains() -> void:
-	# Tripo mountain chain. Wider spacing matches the broad range model while
-	# intentional overlap hides seams and prevents wall-like repeated copies.
+	# Dense Tripo mountain chain around all four edges. No gates/openings.
 	var edge:=198.0
-	var gate_half:=8.0
-	var step:=22.0
+	var step:=18.0
 	for side in [-1.0,1.0]:
 		var x:=-198.0
 		while x<=198.0:
-			if absf(x)>gate_half:
-				_add_edge_mountain(Vector3(x,0,side*edge),x,side*edge)
+			_add_edge_mountain(Vector3(x,0,side*edge),x,side*edge)
 			x+=step
 		var z:=-198.0
 		while z<=198.0:
-			if absf(z)>gate_half:
-				_add_edge_mountain(Vector3(side*edge,0,z),side*edge,z)
+			_add_edge_mountain(Vector3(side*edge,0,z),side*edge,z)
 			z+=step
-	# Closed, collidable gates at the exact midpoint of each edge.
-	_add_edge_gate(Vector3(0,0, edge),0.0)
-	_add_edge_gate(Vector3(0,0,-edge),0.0)
-	_add_edge_gate(Vector3( edge,0,0),90.0)
-	_add_edge_gate(Vector3(-edge,0,0),90.0)
 
 func _add_edge_mountain(p:Vector3,sx:float,sz:float) -> void:
 	var model=_load_asset("res://mountain range 3d model.glb")
@@ -731,31 +722,32 @@ func _add_edge_mountain(p:Vector3,sx:float,sz:float) -> void:
 	add_child(model)
 	var bounds:=_node_visual_bounds(model)
 	if bounds.size.y<=0.001: return
-	# The first 33% test was too low in-game. Double it to 66% of the old
-	# procedural mountain height, keeping the broad Tripo range readable.
 	var variation=absf(sin(sx*.071+sz*.113))
 	var old_height=11.0+variation*6.0
-	var target_height=old_height*0.66
+	# Raise the new range substantially above the previous 66% test.
+	var target_height=old_height*1.15
 	var uniform_scale=target_height/bounds.size.y
 	model.scale=Vector3.ONE*uniform_scale
-	# Never random-rotate this one-sided range. Keep its good/front face toward
-	# the playable interior on every map edge.
 	if absf(p.z)>=absf(p.x):
 		model.rotation_degrees.y=0.0 if p.z>0.0 else 180.0
 	else:
 		model.rotation_degrees.y=90.0 if p.x<0.0 else -90.0
 	_ground_asset_to_terrain(model,p.x,p.z)
 
-func _add_edge_gate(p:Vector3,yaw:float) -> void:
-	var gate=StaticBody3D.new(); gate.position=p+Vector3(0,2.0,0); gate.rotation_degrees.y=yaw
-	var mi=MeshInstance3D.new(); var box=BoxMesh.new(); box.size=Vector3(9.6,4.0,.55); mi.mesh=box
-	mi.material_override=_simple_mat(Color(.24,.12,.045)); gate.add_child(mi)
-	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(9.6,4.0,.55); cs.shape=sh; gate.add_child(cs)
-	# Simple old-plank relief makes the sealed exit read as a wooden door from a distance.
-	for i in 5:
-		var plank=MeshInstance3D.new(); var pb=BoxMesh.new(); pb.size=Vector3(1.65,3.65,.16); plank.mesh=pb
-		plank.position=Vector3(-3.4+i*1.7,0,.34); plank.material_override=_simple_mat(Color(.31,.17,.07)); gate.add_child(plank)
-	add_child(gate)
+	# Invisible vertical barrier on the playable side. It blocks walking, jumping
+	# and climbing through/on top of the decorative mountain meshes.
+	var barrier=StaticBody3D.new()
+	barrier.name="MountainBarrier"
+	var cs=CollisionShape3D.new()
+	var sh=BoxShape3D.new()
+	if absf(p.z)>=absf(p.x):
+		sh.size=Vector3(step if false else 20.0,40.0,3.0)
+	else:
+		sh.size=Vector3(3.0,40.0,20.0)
+	cs.shape=sh
+	cs.position=Vector3(0,20.0,0)
+	barrier.add_child(cs)
+	model.add_child(barrier)
 
 
 func _build_settlement_areas() -> void:
