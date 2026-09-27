@@ -606,6 +606,9 @@ func _update_god_watchers() -> void:
 		var target=Vector3(player.global_position.x,watcher.global_position.y,player.global_position.z)
 		if watcher.global_position.distance_to(target)>0.01:
 			watcher.look_at(target,Vector3.UP)
+			# Imported god model faces the opposite local direction: turn it 180 degrees
+			# so its face/chest, never its back, points toward the player.
+			watcher.rotate_y(PI)
 
 func _clear_meteor_bosses() -> void:
 	for boss in meteor_bosses.duplicate():
