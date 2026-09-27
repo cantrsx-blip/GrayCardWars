@@ -468,13 +468,9 @@ func _add_transition_vegetation() -> void:
 
 func _build_terrain_mesh():
 	var mesh=_terrain_visual_mesh(64)
-	var texture_paths=[
-		"res://z01.jpg","res://z02.jpg","res://z03.jpg","res://z04.jpg","res://z05.jpg",
-		"res://z06.jpg","res://z07.jpg","res://z08.jpg","res://z09.jpg","res://z10.jpg",
-		"res://z11.jpg","res://z12.jpg","res://z13.jpg","res://z14.jpg","res://z15.jpg"
-	]
-	for i in texture_paths.size():
-		mesh.surface_set_material(i,_terrain_material(texture_paths[i]))
+	var terrain_material=_terrain_material("res://z13.jpg")
+	for i in mesh.get_surface_count():
+		mesh.surface_set_material(i,terrain_material)
 	var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; add_child(terrain)
 	var collision_mesh=_terrain_surface(24)
 	var body=StaticBody3D.new(); body.name="TerrainCollision"
