@@ -239,6 +239,7 @@ const BOSS_SPEED := 2.6
 const BOSS_ATTACK_RANGE := 1.8
 const BOSS_ATTACK_COOLDOWN := 1.0
 const BOSS_METEOR_HIT_DAMAGE := 1
+const METEOR_ARENA_RADIUS := 17.0
 
 func _process(_delta:float) -> void:
 	pass
@@ -509,7 +510,13 @@ func _update_meteor_bosses(delta:float) -> void:
 		var d=player.global_position-boss.global_position; d.y=0.0; var dist=d.length()
 		if dist>BOSS_ATTACK_RANGE:
 			boss.velocity=d.normalized()*BOSS_SPEED if dist>0.01 else Vector3.ZERO
-			boss.velocity.y=0.0; boss.move_and_slide(); boss.look_at(Vector3(player.global_position.x,boss.global_position.y,player.global_position.z),Vector3.UP); _play_boss_anim(boss,"Run" if dist>6.0 else "Walk")
+			boss.velocity.y=0.0; boss.move_and_slide()
+			# Boss is confined to the circular concrete meteor arena.
+			var arena_pos:=Vector2(boss.global_position.x,boss.global_position.z)
+			if arena_pos.length()>METEOR_ARENA_RADIUS:
+				arena_pos=arena_pos.normalized()*METEOR_ARENA_RADIUS
+				boss.global_position.x=arena_pos.x; boss.global_position.z=arena_pos.y
+			boss.look_at(Vector3(player.global_position.x,boss.global_position.y,player.global_position.z),Vector3.UP); _play_boss_anim(boss,"Run" if dist>6.0 else "Walk")
 		else:
 			boss.velocity=Vector3.ZERO; _play_boss_anim(boss,"Attack")
 			if cd<=0.0: _apply_damage(1.0); boss_attack_cooldowns[id]=BOSS_ATTACK_COOLDOWN
