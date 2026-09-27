@@ -413,6 +413,15 @@ func _terrain_material(path:String)->StandardMaterial3D:
 		if tex is Texture2D: mat.albedo_texture=tex
 	return mat
 
+func _build_terrain_mesh() -> void:
+	var mesh=_terrain_visual_mesh(64)
+	var terrain_material=_terrain_material("res://z13.jpg")
+	if mesh.get_surface_count()>0: mesh.surface_set_material(0,terrain_material)
+	var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; add_child(terrain)
+	var collision_mesh=_terrain_surface(24)
+	var body=StaticBody3D.new(); body.name="TerrainCollision"
+	var cs=CollisionShape3D.new(); cs.shape=collision_mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
+
 func _build_center_settlement_mound() -> void:
 	var body=StaticBody3D.new(); body.name="CenterSettlementMound"; body.position=Vector3(0,0.18,0); add_child(body)
 	var mesh=MeshInstance3D.new(); var cylinder=CylinderMesh.new(); cylinder.top_radius=18.0; cylinder.bottom_radius=19.0; cylinder.height=0.36; cylinder.radial_segments=64; mesh.mesh=cylinder
