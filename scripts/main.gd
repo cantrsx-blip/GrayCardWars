@@ -228,6 +228,18 @@ var pits := [
 	Vector3(-30, 0, -110)
 ]
 
+# Meteor + level-1 boss encounter
+var meteor_node: Node3D
+var meteor_hits := 0
+var meteor_bosses: Array[CharacterBody3D] = []
+var boss_attack_cooldowns: Dictionary = {}
+const METEOR_HITS_PER_BOSS := 5
+const METEOR_HIT_RANGE := 7.0
+const BOSS_SPEED := 2.6
+const BOSS_ATTACK_RANGE := 1.8
+const BOSS_ATTACK_COOLDOWN := 1.0
+const BOSS_METEOR_HIT_DAMAGE := 1
+
 func _process(_delta:float) -> void:
 	pass
 
@@ -428,6 +440,80 @@ func _build_center_settlement_mound() -> void:
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.46,.40,.32); mat.roughness=1.0; mesh.material_override=mat; body.add_child(mesh)
 	var cs=CollisionShape3D.new(); var shape=CylinderShape3D.new(); shape.radius=19.0; shape.height=0.36; cs.shape=shape; body.add_child(cs)
 
+func _build_meteor_encounter() -> void:
+	if meteor_node!=null and is_instance_valid(meteor_node): return
+	meteor_node=_load_asset("res://meteor.glb")
+	if meteor_node==null: return
+	meteor_node.name="MeteorEncounter"
+	add_child(meteor_node)
+	meteor_node.position=Vector3(0,0.36,0)
+	_ground_asset_to_terrain(meteor_node,0,0)
+	# Normalize to roughly four player heights regardless of source-model units.
+	var bounds:=_node_visual_bounds(meteor_node)
+	if bounds.size.y>0.001:
+		var target_h:=PLAYER_HEIGHT*8.0
+		meteor_node.scale*=target_h/bounds.size.y
+		_ground_asset_to_terrain(meteor_node,0,0)
+
+func _node_visual_bounds(root:Node3D) -> AABB:
+	var first:=true
+	var result:=AABB()
+	var stack:Array[Node]=[root]
+	while not stack.is_empty():
+		var n=stack.pop_back()
+		if n is MeshInstance3D and n.mesh!=null:
+			var b:AABB=n.mesh.get_aabb()
+			var t:Transform3D=root.global_transform.affine_inverse()*n.global_transform
+			b=t*b
+			result=b if first else result.merge(b); first=false
+		for c in n.get_children(): stack.append(c)
+	return result
+
+func _meteor_strike() -> void:
+	if _panel_open() or player==null or meteor_node==null or not is_instance_valid(meteor_node): return
+	if player.global_position.distance_to(meteor_node.global_position)>METEOR_HIT_RANGE: return
+	meteor_hits+=1
+	for boss in meteor_bosses.duplicate():
+		if is_instance_valid(boss):
+			var hp:int=int(boss.get_meta("hp",10))-BOSS_METEOR_HIT_DAMAGE
+			boss.set_meta("hp",hp)
+			if hp<=0: meteor_bosses.erase(boss); boss_attack_cooldowns.erase(boss.get_instance_id()); boss.queue_free()
+	if meteor_hits%METEOR_HITS_PER_BOSS==0: _spawn_meteor_boss()
+	if gather_label:
+		gather_label.text="METEOR VURUSU %d  •  SONRAKI BOSS %d/5" % [meteor_hits,meteor_hits%5]
+		gather_label.visible=true; message_time=1.2
+
+func _spawn_meteor_boss() -> void:
+	var model=_load_asset("res://1.sv.boss.glb")
+	if model==null: return
+	var boss=CharacterBody3D.new(); boss.name="MeteorBoss_%d" % (meteor_bosses.size()+1)
+	boss.position=Vector3(4.5+float(meteor_bosses.size()%3)*1.5,PLAYER_HEIGHT,4.5)
+	var cs=CollisionShape3D.new(); var shape=CapsuleShape3D.new(); shape.radius=.55; shape.height=1.9; cs.shape=shape; boss.add_child(cs)
+	boss.add_child(model); model.position=Vector3.ZERO
+	var b=_node_visual_bounds(model)
+	if b.size.y>0.001: model.scale*=2.0/b.size.y
+	boss.set_meta("hp",10); add_child(boss); meteor_bosses.append(boss); boss_attack_cooldowns[boss.get_instance_id()]=0.0
+	_play_boss_anim(boss,"Idle")
+
+func _play_boss_anim(boss:Node3D,wanted:String) -> void:
+	var ap=_find_animation_player(boss)
+	if ap==null: return
+	var anim=_find_animation_name(ap,wanted)
+	if anim!=&"" and ap.current_animation!=str(anim): ap.play(anim)
+
+func _update_meteor_bosses(delta:float) -> void:
+	if player==null: return
+	for boss in meteor_bosses.duplicate():
+		if not is_instance_valid(boss): meteor_bosses.erase(boss); continue
+		var id=boss.get_instance_id(); var cd:float=float(boss_attack_cooldowns.get(id,0.0)); cd=maxf(0.0,cd-delta); boss_attack_cooldowns[id]=cd
+		var d=player.global_position-boss.global_position; d.y=0.0; var dist=d.length()
+		if dist>BOSS_ATTACK_RANGE:
+			boss.velocity=d.normalized()*BOSS_SPEED if dist>0.01 else Vector3.ZERO
+			boss.velocity.y=0.0; boss.move_and_slide(); boss.look_at(Vector3(player.global_position.x,boss.global_position.y,player.global_position.z),Vector3.UP); _play_boss_anim(boss,"Run" if dist>6.0 else "Walk")
+		else:
+			boss.velocity=Vector3.ZERO; _play_boss_anim(boss,"Attack")
+			if cd<=0.0: _apply_damage(1.0); boss_attack_cooldowns[id]=BOSS_ATTACK_COOLDOWN
+
 func _build_world_environment() -> void:
 	if world_env != null:
 		return
@@ -459,6 +545,7 @@ func _build_world_base():
 	_build_world_light()
 	_build_terrain_mesh()
 	_build_center_settlement_mound()
+	_build_meteor_encounter()
 	_build_map_edge_mountains()
 
 func _build_corner_settlements() -> void:
@@ -778,7 +865,7 @@ func _build_hud():
 	_create_minimap(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
-	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.mouse_filter=Control.MOUSE_FILTER_STOP; layer.add_child(action_btn)
+	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.mouse_filter=Control.MOUSE_FILTER_STOP; action_btn.pressed.connect(_meteor_strike); layer.add_child(action_btn)
 	var jump_btn=Button.new(); jump_btn.text="↑ Zıpla"; jump_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); jump_btn.position=Vector2(-238,-310); jump_btn.size=Vector2(92,76); jump_btn.add_theme_font_size_override("font_size",18); jump_btn.pressed.connect(_jump); layer.add_child(jump_btn)
 	var scope_btn=Button.new(); scope_btn.text="🔭"; scope_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); scope_btn.position=Vector2(-350,-320); scope_btn.size=Vector2(82,82); scope_btn.add_theme_font_size_override("font_size",28)
 	var scope_style=StyleBoxFlat.new(); scope_style.bg_color=Color(.10,.10,.10,.30); scope_style.corner_radius_top_left=41; scope_style.corner_radius_top_right=41; scope_style.corner_radius_bottom_left=41; scope_style.corner_radius_bottom_right=41
@@ -1116,6 +1203,7 @@ func _physics_process(delta):
 	_update_weather(delta)
 	_update_footsteps(delta)
 	_update_damage_effect(delta)
+	_update_meteor_bosses(delta)
 	if health <= 0:
 		_death_feedback()
 		_respawn()
