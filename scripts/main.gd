@@ -477,6 +477,12 @@ func _build_terrain_mesh():
 	var body=StaticBody3D.new(); body.name="TerrainCollision"
 	var cs=CollisionShape3D.new(); cs.shape=collision_mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
 
+func _build_center_settlement_mound() -> void:
+	var body=StaticBody3D.new(); body.name="CenterSettlementMound"; body.position=Vector3(0,0.18,0); add_child(body)
+	var mesh=MeshInstance3D.new(); var cylinder=CylinderMesh.new(); cylinder.top_radius=18.0; cylinder.bottom_radius=19.0; cylinder.height=0.36; cylinder.radial_segments=64; mesh.mesh=cylinder
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.46,.40,.32); mat.roughness=1.0; mesh.material_override=mat; body.add_child(mesh)
+	var cs=CollisionShape3D.new(); var shape=CylinderShape3D.new(); shape.radius=19.0; shape.height=0.36; cs.shape=shape; body.add_child(cs)
+
 func _build_world_environment() -> void:
 	if world_env != null:
 		return
@@ -507,6 +513,7 @@ func _build_world_base():
 	_build_world_environment()
 	_build_world_light()
 	_build_terrain_mesh()
+	_build_center_settlement_mound()
 	_build_map_edge_mountains()
 
 func _build_corner_settlements() -> void:
