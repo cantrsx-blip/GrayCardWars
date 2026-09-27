@@ -507,7 +507,6 @@ func _build_world_base():
 	_build_world_environment()
 	_build_world_light()
 	_build_terrain_mesh()
-	_add_transition_vegetation()
 	_build_settlement_areas()
 	_build_map_edge_mountains()
 	_build_corner_settlements()
