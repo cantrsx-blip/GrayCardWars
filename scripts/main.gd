@@ -694,47 +694,6 @@ func _animal_target_recent(animal:Node3D,target_id:int) -> bool:
 	var history:Array=animal.get_meta("target_history",[])
 	return history.has(target_id)
 
-func _spawn_humans() -> void:
-	# Five neutral human NPCs use the same target selection, spacing, obstacle
-	# avoidance and movement loop as wildlife. Their only job is meteor seeking.
-	for i in 5:
-		var pos=Vector3.ZERO
-		var best_gap=-1.0
-		for attempt in 70:
-			var p=_rand_map_point(MAP_HALF-16)
-			var candidate=Vector3(p.x,height_at(p.x,p.z),p.z)
-			if _bear_point_blocked(candidate,4.0): continue
-			var gap=INF
-			for other in bears+wildlife:
-				if not is_instance_valid(other): continue
-				gap=minf(gap,Vector2(candidate.x-other.global_position.x,candidate.z-other.global_position.z).length())
-			if bears.is_empty() and wildlife.is_empty(): gap=9999.0
-			if gap>best_gap:
-				best_gap=gap
-				pos=candidate
-			if gap>=18.0: break
-		var human=CharacterBody3D.new()
-		human.name="INSAN_%d" % i
-		human.position=pos
-		human.collision_layer=0
-		human.collision_mask=0
-		human.set_meta("animal_kind","INSAN")
-		human.set_meta("target_loot","meteor")
-		human.set_meta("speed",1.9)
-		human.set_meta("target_id",-1)
-		human.set_meta("avoiding",false)
-		add_child(human)
-		var cs=CollisionShape3D.new()
-		var shape=CapsuleShape3D.new()
-		shape.radius=0.34
-		shape.height=1.75
-		cs.shape=shape
-		cs.position.y=0.875
-		human.add_child(cs)
-		_make_human_visual(human)
-		human_npcs.append(human)
-		wildlife.append(human)
-
 func _make_human_visual(parent:Node3D) -> void:
 	var visual=Node3D.new()
 	visual.name="AnimalVisual"
@@ -767,43 +726,6 @@ func _make_human_visual(parent:Node3D) -> void:
 	head.position=Vector3(0,1.72,0)
 	head.material_override=skin
 	visual.add_child(head)
-
-func _spawn_wild_animal(kind:String,target_loot:String,visual_scale:float,speed:float) -> void:
-	var pos=Vector3.ZERO
-	var best_gap=-1.0
-	for attempt in 70:
-		var p=_rand_map_point(MAP_HALF-16)
-		var candidate=Vector3(p.x,height_at(p.x,p.z),p.z)
-		if _bear_point_blocked(candidate,4.0): continue
-		var gap=INF
-		for other in bears+wildlife:
-			if not is_instance_valid(other): continue
-			gap=minf(gap,Vector2(candidate.x-other.global_position.x,candidate.z-other.global_position.z).length())
-		if bears.is_empty() and wildlife.is_empty(): gap=9999.0
-		if gap>best_gap:
-			best_gap=gap
-			pos=candidate
-		if gap>=18.0: break
-	var animal=CharacterBody3D.new()
-	animal.name="%s_%d" % [kind,wildlife.size()]
-	animal.position=pos
-	animal.collision_layer=0
-	animal.collision_mask=0
-	animal.set_meta("animal_kind",kind)
-	animal.set_meta("target_loot",target_loot)
-	animal.set_meta("speed",speed)
-	animal.set_meta("target_id",-1)
-	animal.set_meta("avoiding",false)
-	add_child(animal)
-	var cs=CollisionShape3D.new()
-	var shape=CapsuleShape3D.new()
-	shape.radius=0.30
-	shape.height=1.1
-	cs.shape=shape
-	cs.position.y=0.55
-	animal.add_child(cs)
-	_make_wild_animal_visual(animal,kind,visual_scale)
-	wildlife.append(animal)
 
 func _make_wild_animal_visual(parent:Node3D,kind:String,visual_scale:float) -> void:
 	var visual=Node3D.new()
@@ -854,9 +776,9 @@ func _all_animal_avoidance(animal:Node3D,move_dir:Vector3) -> Vector3:
 	right_pos.y=height_at(right_pos.x,right_pos.z)
 	var left_gap=Vector2(left_pos.x-nearest.global_position.x,left_pos.z-nearest.global_position.z).length()
 	var right_gap=Vector2(right_pos.x-nearest.global_position.x,right_pos.z-nearest.global_position.z).length()
-	if not _bear_point_blocked(left_pos,2.2) and left_gap>=right_gap: return left
-	if not _bear_point_blocked(right_pos,2.2): return right
-	if not _bear_point_blocked(left_pos,2.2): return left
+	if not false and left_gap>=right_gap: return left
+	if not false: return right
+	if not false: return left
 	return -move_dir
 
 func _build_hills_and_pits():
@@ -1369,46 +1291,6 @@ func _apply_damage(amount:float):
 		health=max(0,health-whole)
 		damage_buffer-=whole
 
-func _primary_action():
-	if _panel_open(): return
-	if player==null or camera==null: return
-	if build_mode:
-
-		if preview_valid: _build_house()
-		else: _flash_message("BU PARCA BURAYA KURULAMAZ")
-		return
-	if selected_tool=="SILAH":
-		_shoot(); return
-	var space=get_world_3d().direct_space_state
-	var from=camera.global_position; var to=from+(-camera.global_transform.basis.z)*4.2
-	var q=PhysicsRayQueryParameters3D.create(from,to); q.exclude=[player]
-	var hit=space.intersect_ray(q)
-	if hit.is_empty(): return
-	var obj=hit.get("collider")
-	if obj==null or not obj.has_meta("loot"): return
-	var kind=str(obj.get_meta("loot"))
-	if selected_tool=="TAS BALTA" and kind=="wood":
-		var id=obj.get_instance_id(); var count=int(tree_hits.get(id,0))+1; tree_hits[id]=count; _play_sfx("chop"); _gather_particles(); _flash_message("AGAC %d / 4" % count)
-		if count>=4:
-			wood+=35; tree_hits.erase(id); _schedule_resource_respawn(obj,"wood"); _fell_tree(obj)
-	elif selected_tool=="TAS KAZMA" and kind in ["stone","meteor"]:
-		var id=obj.get_instance_id(); var needed=8 if kind=="meteor" else 4; var count=int(rock_hits.get(id,0))+1; rock_hits[id]=count; _play_sfx("chop"); _gather_particles()
-		_flash_message(("%s %d / %d" % [("METEOR" if kind=="meteor" else "TAS"),count,needed]))
-		if count>=needed:
-			rock_hits.erase(id); _schedule_resource_respawn(obj,kind)
-			if kind=="meteor": metal_parts+=20; _flash_message("METAL PARCALARI +20")
-			else: stone+=20
-
-func _house_asset(key:String,p:Vector3,yaw:float,size:Vector3)->Node3D:
-	var body=StaticBody3D.new(); body.position=p; body.rotation_degrees.y=yaw; add_child(body)
-	var visual=_load_asset(asset_paths[key])
-	if visual!=null: body.add_child(visual)
-	else:
-		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=size; mi.mesh=bm; mi.position.y=size.y*.5; mi.material_override=_simple_mat(Color(.42,.23,.08)); body.add_child(mi)
-	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=size; cs.shape=sh; cs.position.y=size.y*.5; body.add_child(cs)
-	body.set_meta("build_piece",build_piece_names[build_piece]); body.set_meta("structure_hp",structure_hp_default); body.set_meta("material","wood")
-	return body
-
 func _add_house_light(roof_pos:Vector3):
 	var light=OmniLight3D.new(); light.position=roof_pos+Vector3(0,-1.35,0); light.light_color=Color(1.0,.88,.68); light.light_energy=.85; light.omni_range=7.0; light.shadow_enabled=false; add_child(light)
 
@@ -1665,7 +1547,7 @@ func _refresh_inventory():
 		var parts=key.split("|")
 		if parts.size()<2: continue
 		var name=str(parts[0]); var rarity=str(parts[1])
-		var tex=_load_item_texture(_craft_icon_path(name,rarity))
+		var tex=null
 		var title="%s %s" % [_store_rarity_name(rarity),name]
 		var stackable=_inventory_is_stackable(name,rarity)
 		var remaining=count
@@ -1685,18 +1567,6 @@ func _build_blocks_respawn(p:Vector3)->bool:
 		if Vector2(p.x-q.x,p.z-q.z).length()<3.6: return true
 	if fire_built and Vector2(p.x-campfire_pos.x,p.z-campfire_pos.z).length()<3.0: return true
 	return false
-
-func _spawn_resource_at(kind:String,p:Vector3):
-	if kind not in ["wood","stone","meteor"]: return
-	p.y=height_at(p.x,p.z)
-	if kind=="wood":
-		var body=StaticBody3D.new(); body.position=p; body.rotation_degrees.y=randf_range(0,360); add_child(body); _make_kara_tree(body)
-		var cs=CollisionShape3D.new(); var sh=CylinderShape3D.new(); sh.radius=.34; sh.height=5.2; cs.shape=sh; cs.position.y=2.6; body.add_child(cs); body.set_meta("loot","wood")
-	else:
-		var body=StaticBody3D.new(); body.position=p; add_child(body)
-		if kind=="meteor": _make_meteor(body)
-		else: _make_kara_rock(body)
-		var cs=CollisionShape3D.new(); var sh=SphereShape3D.new(); sh.radius=.68; cs.shape=sh; cs.position.y=.5; body.add_child(cs); body.set_meta("loot",kind)
 
 func _rarity_list() -> Array:
 	return ["gray","green","blue","orange","red"]
@@ -1784,7 +1654,7 @@ func _refresh_hotbar() -> void:
 		for child in b.get_children(): child.queue_free()
 		if "|" in key:
 			var parts=key.split("|")
-			b.texture_normal=_load_item_texture(_craft_icon_path(str(parts[0]),str(parts[1])))
+			b.texture_normal=null
 		if not key.is_empty() and _hotbar_item_title(key)==selected_tool:
 			var selected=Panel.new()
 			selected.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1875,7 +1745,7 @@ func _spawn_dropped_item(key:String,amount:int) -> void:
 	root.position=drop_pos
 	add_child(root)
 	var sprite=Sprite3D.new()
-	sprite.texture=_load_item_texture(_craft_icon_path(str(parts[0]),str(parts[1])))
+	sprite.texture=null
 	sprite.pixel_size=.006
 	sprite.billboard=BaseMaterial3D.BILLBOARD_ENABLED
 	root.add_child(sprite)
@@ -1903,8 +1773,7 @@ func _select_hotbar(slot:int):
 		elif item_name in ["Mızrak","Meşale","Yay"]: held_slot=6
 
 	build_mode=key=="YAPI CEKICI"
-	if build_mode: _ensure_build_preview()
-	elif build_preview: build_preview.visible=false
+	if build_preview: build_preview.visible=false
 	_refresh_hotbar()
 
 
@@ -1980,10 +1849,8 @@ func _use_nearest_interior():
 		if d<dist: dist=d; best=n
 	if best==null: return
 	var kind=str(best.get_meta("interior",""))
-	if kind=="chest": _toggle_chest_transfer()
-	elif kind=="bed":
+	if kind=="bed":
 		bed_spawn=best.global_position+Vector3(0,1,1.5); has_bed_spawn=true; _update_bed_minimap(); _flash_message("YENIDEN DOGMA NOKTASI AYARLANDI")
-	elif kind=="workbench": _toggle_crafting()
 	elif kind=="stove": hunger=min(100.0,hunger+20.0); _flash_message("YEMEK PISIRILDI +20 ACLIK")
 
 func _flash_message(t:String):
@@ -2304,11 +2171,3 @@ func _is_player_loot_allowed(item:Node) -> bool:
 func metal_scrap() -> int:
 	# Placeholder resource hook until scrap loot is added.
 	return 9999 if cheat_mode else metal_parts
-
-func _place_tnt():
-	if tnt_count<=0 and not cheat_mode: _flash_message("TNT YOK"); return
-	if not cheat_mode: tnt_count-=1
-	var p=player.global_position-player.global_transform.basis.z*2.2
-	_flash_message("TNT YERLESTIRILDI")
-	var timer=get_tree().create_timer(2.5); timer.timeout.connect(_game_explosion.bind(p,7.5,90))
-
