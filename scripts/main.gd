@@ -235,46 +235,6 @@ var pits := [
 
 func _process(delta:float) -> void:
 
-func _play_poi_boss_animation(root:Node3D, wanted:String, looped:bool=true) -> void:
-	var ap:=_find_animation_player(root)
-	if ap==null: return
-	var clip:=_find_animation_name(ap,wanted)
-	if clip.is_empty(): return
-	var a:=ap.get_animation(clip)
-	if a!=null:
-		a.loop_mode=Animation.LOOP_LINEAR if looped else Animation.LOOP_NONE
-	ap.play(clip,0.15)
-
-func _update_poi_boss_test_movement(delta:float) -> void:
-	# Animation showcase: Idle, Walk, Run and Attack. No damage/combat yet.
-	for root in poi_boss_visuals:
-		if root==null or not is_instance_valid(root): continue
-		var t=float(root.get_meta("boss_move_time",0.0))-delta
-		var state=str(root.get_meta("boss_state","walk"))
-		if t<=0.0:
-			if state=="walk":
-				state="idle"; t=2.0; _play_poi_boss_animation(root,"Idle",true)
-			elif state=="idle":
-				state="run"; t=3.0; _play_poi_boss_animation(root,"Run",true)
-			elif state=="run":
-				state="attack"; t=1.05; _play_poi_boss_animation(root,"Attack",false)
-			else:
-				state="walk"; t=4.0; _play_poi_boss_animation(root,"Walk",true)
-			root.set_meta("boss_state",state)
-		root.set_meta("boss_move_time",t)
-		if state=="walk" or state=="run":
-			var home:Vector3=root.get_meta("boss_home",root.position)
-			var phase=float(root.get_meta("boss_phase",0.0))+delta*(.35 if state=="walk" else .55)
-			root.set_meta("boss_phase",phase)
-			var target=home+Vector3(cos(phase)*7.0,0.0,sin(phase)*7.0)
-			var dir=target-root.position; dir.y=0.0
-			if dir.length()>.15:
-				dir=dir.normalized()
-				root.position+=dir*delta*(1.15 if state=="walk" else 2.5)
-				root.position.y=height_at(root.position.x,root.position.z)
-				# Imported boss faces the opposite local forward axis, so add 180 degrees.
-				root.rotation.y=lerp_angle(root.rotation.y,atan2(-dir.x,-dir.z)+PI,delta*4.0)
-
 func _ready():
 	# Keep scene entry light on Android: show the camera/HUD first, then build the
 	# expensive world over several frames instead of blocking the first render.
@@ -378,69 +338,6 @@ func _add_static_box(pos: Vector3, size: Vector3, col: Color) -> void:
 	body.add_child(colshape)
 	add_child(body)
 
-func _build_poi_bosses() -> void:
-	var boss_path="res://kara_kiyi_boss_rigged_godot4.glb"
-	if not ResourceLoader.exists(boss_path):
-		push_error("BOSS MODEL NOT FOUND: "+boss_path)
-		return
-	for p in pois:
-		var root=Node3D.new()
-		root.name="BossRoot_"+str(p.id)
-		var outward=Vector2(float(p.pos.x),float(p.pos.z)).normalized()
-		if outward.length()<.1: outward=Vector2(0,1)
-		# Put each boss on the player-facing side of its landmark, in clear terrain.
-		var bx=float(p.pos.x)-outward.x*28.0
-		var bz=float(p.pos.z)-outward.y*28.0
-		root.position=Vector3(bx,height_at(bx,bz),bz)
-		add_child(root)
-		var boss=_load_asset(boss_path)
-		if boss==null:
-			root.queue_free()
-			continue
-		root.add_child(boss)
-		# Calculate bounds in the boss model's own local space, exactly like working POIs.
-		var bounds:=AABB()
-		var has_bounds:=false
-		var stack:Array[Node]=[boss]
-		var model_inv:Transform3D=boss.global_transform.affine_inverse()
-		while not stack.is_empty():
-			var cur=stack.pop_back()
-			if cur is MeshInstance3D and cur.mesh!=null:
-				var rel:Transform3D=model_inv * cur.global_transform
-				var box:AABB=rel * cur.mesh.get_aabb()
-				if not has_bounds:
-					bounds=box; has_bounds=true
-				else:
-					bounds=bounds.merge(box)
-			for child in cur.get_children():
-				stack.append(child)
-		if not has_bounds or bounds.size.y<=0.001:
-			push_error("BOSS HAS NO VALID MESH: "+str(p.id))
-			root.queue_free()
-			continue
-		# 3.6 m tall. Center X/Z and place the lowest mesh point exactly on root ground.
-		var s=3.6/bounds.size.y
-		boss.scale=Vector3.ONE*s
-		var center_x=bounds.position.x+bounds.size.x*.5
-		var center_z=bounds.position.z+bounds.size.z*.5
-		boss.position=Vector3(-center_x*s,-bounds.position.y*s,-center_z*s)
-		root.rotation_degrees.y=rad_to_deg(atan2(-outward.x,-outward.y))
-		root.set_meta("poi_id",str(p.id))
-		root.set_meta("is_boss_visual",true)
-		root.set_meta("boss_home",root.position)
-		root.set_meta("boss_phase",randf()*TAU)
-		root.set_meta("boss_move_time",randf_range(2.0,5.0))
-		root.set_meta("boss_state","walk")
-		poi_boss_visuals.append(root)
-		# Rigged Kara Kiyi boss: start Walk so limb motion is obvious during the test.
-		var anim_player:=_find_animation_player(boss)
-		if anim_player!=null:
-			var walk_name:=_find_animation_name(anim_player,"Walk")
-			if not walk_name.is_empty():
-				var walk_anim:=anim_player.get_animation(walk_name)
-				if walk_anim!=null: walk_anim.loop_mode=Animation.LOOP_LINEAR
-				anim_player.play(walk_name)
-
 func _find_animation_player(node:Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
 		return node as AnimationPlayer
@@ -502,19 +399,6 @@ func _ground_asset_to_terrain(n:Node3D, x:float, z:float)->void:
 						ymin=minf(ymin,(cur.global_transform*corner).y)
 		for child in cur.get_children(): stack.append(child)
 	if ymin<INF: n.global_position.y+=height_at(x,z)-ymin-.48
-
-func _add_tree_canopy(parent:Node3D, tree_path:String, tree_scale:float)->void:
-	var canopy_color=Color(.18,.46,.14) if "pine" in tree_path else Color(.24,.52,.16)
-	if not ("pine" in tree_path or "oak" in tree_path or "broadleaf" in tree_path): return
-	var offsets:Array[Vector3]
-	if "pine" in tree_path:
-		offsets=[Vector3(0,3.6,0),Vector3(0,4.8,0),Vector3(0,6.0,0),Vector3(0,7.2,0)]
-	else:
-		offsets=[Vector3(-.8,5.0,0),Vector3(.8,5.1,.2),Vector3(0,5.8,-.7),Vector3(0,6.2,.7)]
-	for off in offsets:
-		var crown=MeshInstance3D.new(); var sphere=SphereMesh.new()
-		sphere.radius=(1.45 if "pine" in tree_path else 1.8)*tree_scale; sphere.height=sphere.radius*2.0
-		crown.mesh=sphere; crown.position=off*tree_scale; crown.material_override=_simple_mat(canopy_color); parent.add_child(crown)
 
 func _terrain_surface(cells:int) -> ArrayMesh:
 	var st=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -617,96 +501,6 @@ func _build_terrain_mesh():
 	var collision_mesh=_terrain_surface(24)
 	var body=StaticBody3D.new(); body.name="TerrainCollision"
 	var cs=CollisionShape3D.new(); cs.shape=collision_mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
-
-func _make_kara_tree(parent:Node3D) -> void:
-	# Realistic Meshy autumn tree. Keep the old procedural tree only as a safe fallback.
-	var tree_path="res://autumn tree 3d model.glb"
-	var tree=_load_asset(tree_path)
-	if tree!=null:
-		parent.add_child(tree)
-		# Meshy exports can use arbitrary units. Normalize the imported model to about 7.5 m tall.
-		var bounds:=AABB()
-		var has_bounds:=false
-		var stack:Array[Node]=[tree]
-		while not stack.is_empty():
-			var cur=stack.pop_back()
-			if cur is MeshInstance3D and cur.mesh!=null:
-				var local_box: AABB=cur.transform * cur.mesh.get_aabb()
-				if not has_bounds:
-					bounds=local_box; has_bounds=true
-				else:
-					bounds=bounds.merge(local_box)
-			for child in cur.get_children():
-				stack.append(child)
-		if has_bounds and bounds.size.y>0.001:
-			var s=7.5/bounds.size.y
-			tree.scale=Vector3.ONE*s
-			tree.position.y=-bounds.position.y*s
-		return
-	var trunk=MeshInstance3D.new(); var tm=CylinderMesh.new(); tm.top_radius=.22; tm.bottom_radius=.34; tm.height=5.2
-	trunk.mesh=tm; trunk.position.y=2.6; trunk.material_override=_simple_mat(Color(.18,.105,.055)); parent.add_child(trunk)
-	for i in 4:
-		var crown=MeshInstance3D.new(); var cm=CylinderMesh.new()
-		cm.top_radius=.05; cm.bottom_radius=1.65-float(i)*.22; cm.height=2.2
-		crown.mesh=cm; crown.position.y=4.4+float(i)*.85; crown.material_override=_simple_mat(Color(.10,.22,.12)); parent.add_child(crown)
-
-func _make_meteor(parent:Node3D) -> void:
-	# Realistic imported asteroid. Keep the old procedural meteor as a safe fallback.
-	var meteor_path="res://rocky asteroid 3d model.glb"
-	var meteor=_load_asset(meteor_path)
-	if meteor!=null:
-		parent.add_child(meteor)
-		var bounds:=AABB()
-		var has_bounds:=false
-		var stack:Array[Node]=[meteor]
-		while not stack.is_empty():
-			var cur=stack.pop_back()
-			if cur is MeshInstance3D and cur.mesh!=null:
-				var local_box:AABB=cur.transform * cur.mesh.get_aabb()
-				if not has_bounds:
-					bounds=local_box; has_bounds=true
-				else:
-					bounds=bounds.merge(local_box)
-			for child in cur.get_children():
-				stack.append(child)
-		if has_bounds and bounds.size.y>0.001:
-			var s=1.35/bounds.size.y
-			meteor.scale=Vector3.ONE*s
-			meteor.position.y=-bounds.position.y*s
-		meteor.rotation_degrees.y=randf_range(0,360)
-		return
-	var fallback=MeshInstance3D.new(); var mm=SphereMesh.new(); mm.radius=.72; mm.height=1.15
-	fallback.mesh=mm; fallback.position.y=.48; fallback.scale=Vector3(1.22,.74,1.02); fallback.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.27,.23,.22); mat.metallic=.58; mat.roughness=.82; fallback.material_override=mat; parent.add_child(fallback)
-
-func _make_kara_rock(parent:Node3D) -> void:
-	# Realistic imported boulder. Keep the old procedural rock as a safe fallback.
-	var rock_path="res://rock boulder 3d model.glb"
-	var rock=_load_asset(rock_path)
-	if rock!=null:
-		parent.add_child(rock)
-		var bounds:=AABB()
-		var has_bounds:=false
-		var stack:Array[Node]=[rock]
-		while not stack.is_empty():
-			var cur=stack.pop_back()
-			if cur is MeshInstance3D and cur.mesh!=null:
-				var local_box:AABB=cur.transform * cur.mesh.get_aabb()
-				if not has_bounds:
-					bounds=local_box; has_bounds=true
-				else:
-					bounds=bounds.merge(local_box)
-			for child in cur.get_children():
-				stack.append(child)
-		if has_bounds and bounds.size.y>0.001:
-			var s=1.5/bounds.size.y
-			rock.scale=Vector3.ONE*s
-			rock.position.y=-bounds.position.y*s
-		rock.rotation_degrees.y=randf_range(0,360)
-		return
-	var fallback=MeshInstance3D.new(); var rm=SphereMesh.new(); rm.radius=.72; rm.height=1.15
-	fallback.mesh=rm; fallback.position.y=.48; fallback.scale=Vector3(1.25,.72,1.0); fallback.rotation_degrees=Vector3(randf_range(-8,8),randf_range(0,360),randf_range(-6,6))
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.68,.67,.63); mat.roughness=.96; fallback.material_override=mat; parent.add_child(fallback)
 
 func _build_world_environment() -> void:
 	if world_env != null:
@@ -913,192 +707,6 @@ func _resource_spawn_safe(x:float,z:float) -> bool:
 		if absf(x-sc.x)<13.5 and absf(z-sc.z)<13.5: return false
 	return true
 
-func _build_rocks_staged() -> void:
-	for i in (60 if OS.has_feature("mobile") else 234):
-		var p = _rand_map_point(MAP_HALF - 12)
-		if _resource_spawn_safe(p.x,p.z):
-			var rock_body=StaticBody3D.new(); rock_body.position=Vector3(p.x,height_at(p.x,p.z),p.z); add_child(rock_body)
-			_make_kara_rock(rock_body)
-			var rcs=CollisionShape3D.new(); var rsh=SphereShape3D.new(); rsh.radius=.68; rcs.shape=rsh; rcs.position.y=.5; rock_body.add_child(rcs)
-			rock_body.set_meta("loot","stone")
-		if i > 0 and i % 16 == 0:
-			await get_tree().process_frame
-
-func _build_meteors_staged() -> void:
-	for i in (60 if OS.has_feature("mobile") else 234):
-		var mp = _rand_map_point(MAP_HALF - 12)
-		if _resource_spawn_safe(mp.x,mp.z):
-			var meteor_body=StaticBody3D.new(); meteor_body.position=Vector3(mp.x,height_at(mp.x,mp.z),mp.z); add_child(meteor_body)
-			_make_meteor(meteor_body)
-			var mcs=CollisionShape3D.new(); var msh=SphereShape3D.new(); msh.radius=.68; mcs.shape=msh; mcs.position.y=.5; meteor_body.add_child(mcs)
-			meteor_body.set_meta("loot","meteor")
-			meteor_nodes.append(meteor_body)
-		if i > 0 and i % 16 == 0:
-			await get_tree().process_frame
-
-func _nearest_meteor_index(from_pos:Vector3) -> int:
-	var best_index=-1
-	var best_distance=INF
-	for i in meteor_nodes.size():
-		var meteor=meteor_nodes[i]
-		if not is_instance_valid(meteor): continue
-		var d=from_pos.distance_squared_to(meteor.global_position)
-		if d<best_distance:
-			best_distance=d
-			best_index=i
-	return best_index
-
-func _spawn_bears() -> void:
-	var spawn_points:Array[Vector3]=[]
-	for i in 5:
-		var chosen=Vector3.ZERO
-		var best_gap=-1.0
-		for attempt in 80:
-			var p=_rand_map_point(MAP_HALF-20)
-			var candidate=Vector3(p.x,height_at(p.x,p.z),p.z)
-			if _bear_point_blocked(candidate,6.0): continue
-			var gap=INF
-			for used in spawn_points:
-				gap=minf(gap,Vector2(candidate.x-used.x,candidate.z-used.z).length())
-			if spawn_points.is_empty(): gap=9999.0
-			if gap>best_gap:
-				best_gap=gap
-				chosen=candidate
-			if gap>=55.0: break
-		spawn_points.append(chosen)
-		var bear=CharacterBody3D.new()
-		bear.name="Bear_%d" % i
-		bear.position=chosen
-		bear.collision_layer=0
-		bear.collision_mask=0
-		bear.set_meta("job","METEOR")
-		bear.set_meta("moving",true)
-		add_child(bear)
-		# global_position is valid only after the bear enters the SceneTree.
-		bear.set_meta("meteor_index",_bear_nearest_safe_meteor_index(bear.global_position,-1,bear))
-		var cs=CollisionShape3D.new()
-		var shape=CapsuleShape3D.new()
-		shape.radius=0.45
-		shape.height=1.6
-		cs.shape=shape
-		cs.position.y=0.8
-		bear.add_child(cs)
-		_make_bear_visual(bear)
-		bears.append(bear)
-func _make_bear_visual(parent:Node3D) -> void:
-	var visual=Node3D.new()
-	visual.name="BearVisual"
-	parent.add_child(visual)
-	var scene=load("res://assets/animals/bear.glb")
-	if scene is PackedScene:
-		var model=scene.instantiate()
-		model.name="Body"
-		model.rotation_degrees.y=180.0
-		model.scale=Vector3.ONE*1.35
-		visual.add_child(model)
-		return
-	# Fallback keeps the animal visible if the external model cannot be imported.
-	var body=MeshInstance3D.new()
-	body.name="Body"
-	var body_mesh=SphereMesh.new()
-	body_mesh.radius=1.55
-	body_mesh.height=3.0
-	body.mesh=body_mesh
-	body.scale=Vector3(1.55,1.2,1.95)
-	body.position=Vector3(0,1.8,0)
-	body.material_override=_simple_mat(Color(.30,.16,.07))
-	visual.add_child(body)
-
-func _bear_random_target(bear:Node3D,min_distance:float,max_distance:float) -> Vector3:
-	var angle=randf_range(0.0,TAU)
-	var distance=randf_range(min_distance,max_distance)
-	var x=clampf(bear.position.x+cos(angle)*distance,-MAP_HALF+10.0,MAP_HALF-10.0)
-	var z=clampf(bear.position.z+sin(angle)*distance,-MAP_HALF+10.0,MAP_HALF-10.0)
-	return Vector3(x,height_at(x,z),z)
-
-func _bear_nearest_tree_position(bear:Node3D) -> Vector3:
-	var best_position=_bear_random_target(bear,8.0,14.0)
-	var best_distance=INF
-	for child in get_children():
-		if not child is Node3D: continue
-		if not child.has_meta("loot"): continue
-		if str(child.get_meta("loot"))!="wood": continue
-		var tree=child as Node3D
-		var distance=bear.global_position.distance_squared_to(tree.global_position)
-		if distance<best_distance:
-			best_distance=distance
-			best_position=tree.global_position
-	var angle=randf_range(0.0,TAU)
-	best_position.x+=cos(angle)*2.2
-	best_position.z+=sin(angle)*2.2
-	best_position.y=height_at(best_position.x,best_position.z)
-	return best_position
-
-func _bear_choose_target(bear:Node3D) -> void:
-	var job=str(bear.get_meta("job","DEVRIYE"))
-	if job=="DEVRIYE":
-		bear.set_meta("target",_bear_random_target(bear,8.0,14.0))
-		bear.set_meta("moving",true)
-		return
-	if job=="BESLENME":
-		bear.set_meta("target",_bear_nearest_tree_position(bear))
-		bear.set_meta("moving",true)
-		return
-	var meteor_index=_nearest_meteor_index(bear.global_position)
-	bear.set_meta("meteor_index",meteor_index)
-	if meteor_index>=0 and meteor_index<meteor_nodes.size():
-		var meteor=meteor_nodes[meteor_index]
-		if is_instance_valid(meteor):
-			var orbit_angle=float(bear.get_meta("orbit_angle",0.0))
-			var radius=randf_range(7.0,10.0)
-			var x=meteor.global_position.x+cos(orbit_angle)*radius
-			var z=meteor.global_position.z+sin(orbit_angle)*radius
-			bear.set_meta("target",Vector3(x,height_at(x,z),z))
-			bear.set_meta("moving",true)
-
-func _bear_job_speed(job:String) -> float:
-	if job=="BESLENME": return 2.6
-	if job=="METEOR BEKCISI": return 3.4
-	return 4.2
-
-func _bear_set_body_height(bear:Node3D,moving:bool,feeding:bool=false) -> void:
-	var visual=bear.get_node_or_null("BearVisual")
-	if visual==null: return
-	var body=visual.get_node_or_null("Body")
-	if body==null: return
-	if feeding:
-		body.position.y=1.55
-	elif moving:
-		body.position.y=1.8+sin(Time.get_ticks_msec()*0.012)*0.08
-	else:
-		body.position.y=1.8
-
-func _bear_point_blocked(pos:Vector3,radius:float) -> bool:
-	if _near_poi(pos.x,pos.z): return true
-	for child in get_children():
-		if not child is Node3D: continue
-		if child==player: continue
-		var n=child as Node3D
-		var loot=str(n.get_meta("loot",""))
-		if loot=="meteor": continue
-		if loot=="wood" or loot=="stone":
-			if Vector2(pos.x-n.global_position.x,pos.z-n.global_position.z).length()<radius:
-				return true
-	for wall in built_walls:
-		if is_instance_valid(wall) and Vector2(pos.x-wall.global_position.x,pos.z-wall.global_position.z).length()<radius: return true
-	for floor in built_floors:
-		if is_instance_valid(floor) and Vector2(pos.x-floor.global_position.x,pos.z-floor.global_position.z).length()<radius: return true
-	for stair in built_stairs:
-		if is_instance_valid(stair) and Vector2(pos.x-stair.global_position.x,pos.z-stair.global_position.z).length()<radius: return true
-	return false
-
-func _bear_too_close_to_other(bear:Node3D,pos:Vector3,min_distance:float) -> bool:
-	for other in bears+wildlife:
-		if other==bear or not is_instance_valid(other): continue
-		if Vector2(pos.x-other.global_position.x,pos.z-other.global_position.z).length()<min_distance:
-			return true
-	return false
-
 func _animal_remember_target(animal:Node3D,target_id:int) -> void:
 	var history:Array=animal.get_meta("target_history",[])
 	if target_id>=0 and not history.has(target_id):
@@ -1111,147 +719,6 @@ func _animal_target_recent(animal:Node3D,target_id:int) -> bool:
 	var history:Array=animal.get_meta("target_history",[])
 	return history.has(target_id)
 
-func _bear_nearest_safe_meteor_index(from_pos:Vector3,skip_index:int,requesting_bear:Node3D=null) -> int:
-	var reserved:Dictionary={}
-	for other in bears:
-		if not is_instance_valid(other) or other==requesting_bear: continue
-		var reserved_index=int(other.get_meta("meteor_index",-1))
-		if reserved_index>=0: reserved[reserved_index]=true
-	var best=-1
-	var best_distance=INF
-	for i in meteor_nodes.size():
-		if i==skip_index or reserved.has(i): continue
-		var meteor=meteor_nodes[i]
-		if not is_instance_valid(meteor): continue
-		if requesting_bear!=null and _animal_target_recent(requesting_bear,meteor.get_instance_id()): continue
-		if _bear_point_blocked(meteor.global_position,4.0): continue
-		var linear=Vector2(from_pos.x-meteor.global_position.x,from_pos.z-meteor.global_position.z).length()
-		if linear<15.0: continue
-		var d=linear*linear
-		if d<best_distance:
-			best_distance=d
-			best=i
-	if best<0 and requesting_bear!=null:
-		var history:Array=requesting_bear.get_meta("target_history",[])
-		if not history.is_empty():
-			history.pop_front()
-			requesting_bear.set_meta("target_history",history)
-			return _bear_nearest_safe_meteor_index(from_pos,skip_index,requesting_bear)
-	return best
-func _bear_avoidance_direction(bear:Node3D,move_dir:Vector3) -> Vector3:
-	var nearest:Node3D=null
-	var nearest_distance=INF
-	for other in bears+wildlife:
-		if other==bear or not is_instance_valid(other): continue
-		var offset=other.global_position-bear.global_position
-		var distance=Vector2(offset.x,offset.z).length()
-		if distance<20.0 and distance<nearest_distance:
-			nearest=other
-			nearest_distance=distance
-	if nearest==null:
-		return Vector3.ZERO
-	var my_index=int(bear.get_meta("meteor_index",-1))
-	var other_index=int(nearest.get_meta("meteor_index",-1))
-	var my_remaining=INF
-	var other_remaining=INF
-	if my_index>=0 and my_index<meteor_nodes.size() and is_instance_valid(meteor_nodes[my_index]):
-		my_remaining=Vector2(bear.global_position.x-meteor_nodes[my_index].global_position.x,bear.global_position.z-meteor_nodes[my_index].global_position.z).length()
-	if other_index>=0 and other_index<meteor_nodes.size() and is_instance_valid(meteor_nodes[other_index]):
-		other_remaining=Vector2(nearest.global_position.x-meteor_nodes[other_index].global_position.x,nearest.global_position.z-meteor_nodes[other_index].global_position.z).length()
-	if my_remaining<=other_remaining:
-		return Vector3.ZERO
-	var left=Vector3(-move_dir.z,0.0,move_dir.x)
-	var right=-left
-	var left_probe=bear.position+left*14.0
-	var right_probe=bear.position+right*14.0
-	left_probe.y=height_at(left_probe.x,left_probe.z)
-	right_probe.y=height_at(right_probe.x,right_probe.z)
-	var left_ok=not _bear_point_blocked(left_probe,2.6) and not _bear_too_close_to_other(bear,left_probe,12.0)
-	var right_ok=not _bear_point_blocked(right_probe,2.6) and not _bear_too_close_to_other(bear,right_probe,12.0)
-	if left_ok and right_ok:
-		var left_gap=Vector2(left_probe.x-nearest.global_position.x,left_probe.z-nearest.global_position.z).length()
-		var right_gap=Vector2(right_probe.x-nearest.global_position.x,right_probe.z-nearest.global_position.z).length()
-		return left if left_gap>=right_gap else right
-	if left_ok: return left
-	if right_ok: return right
-	return -move_dir
-
-func _bear_clear_of_others(bear:Node3D,min_distance:float) -> bool:
-	for other in bears:
-		if other==bear or not is_instance_valid(other): continue
-		if Vector2(bear.global_position.x-other.global_position.x,bear.global_position.z-other.global_position.z).length()<min_distance:
-			return false
-	return true
-
-func _update_bears(delta:float) -> void:
-	if bears.is_empty() or meteor_nodes.is_empty(): return
-	for bear in bears:
-		if not is_instance_valid(bear): continue
-		var index=int(bear.get_meta("meteor_index",-1))
-		if index<0 or index>=meteor_nodes.size() or not is_instance_valid(meteor_nodes[index]):
-			index=_bear_nearest_safe_meteor_index(bear.global_position,-1,bear)
-			if index<0: continue
-			bear.set_meta("meteor_index",index)
-		if bool(bear.get_meta("avoiding",false)):
-			var avoid_target=bear.get_meta("avoid_target",bear.position) as Vector3
-			var avoid_dir=avoid_target-bear.position
-			avoid_dir.y=0.0
-			if avoid_dir.length()<1.5 or _bear_clear_of_others(bear,25.0):
-				bear.set_meta("avoiding",false)
-				var new_index=_bear_nearest_safe_meteor_index(bear.global_position,index,bear)
-				if new_index>=0: bear.set_meta("meteor_index",new_index)
-				continue
-			avoid_dir=avoid_dir.normalized()
-			var avoid_next=bear.position+avoid_dir*1.7*delta
-			avoid_next.y=height_at(avoid_next.x,avoid_next.z)
-			if _bear_point_blocked(avoid_next,2.6):
-				bear.set_meta("avoiding",false)
-				continue
-			bear.rotation.y=atan2(-avoid_dir.x,-avoid_dir.z)
-			bear.position=avoid_next
-			_bear_set_body_height(bear,true)
-			continue
-		var target=meteor_nodes[index]
-		var target_pos=Vector3(target.global_position.x,height_at(target.global_position.x,target.global_position.z),target.global_position.z)
-		var dir=target_pos-bear.position
-		dir.y=0.0
-		if dir.length()<2.5:
-			_animal_remember_target(bear,target.get_instance_id())
-			var next_index=_bear_nearest_safe_meteor_index(bear.global_position,index,bear)
-			if next_index>=0: bear.set_meta("meteor_index",next_index)
-			continue
-		dir=dir.normalized()
-		var avoid_dir=_bear_avoidance_direction(bear,dir)
-		if avoid_dir.length_squared()>0.01:
-			var avoid_target=bear.position+avoid_dir.normalized()*randf_range(12.0,18.0)
-			avoid_target.x=clampf(avoid_target.x,-MAP_HALF+10.0,MAP_HALF-10.0)
-			avoid_target.z=clampf(avoid_target.z,-MAP_HALF+10.0,MAP_HALF-10.0)
-			avoid_target.y=height_at(avoid_target.x,avoid_target.z)
-			bear.set_meta("avoiding",true)
-			bear.set_meta("avoid_target",avoid_target)
-			continue
-		var next_pos=bear.position+Vector3(dir.x,0.0,dir.z)*1.7*delta
-		next_pos.y=height_at(next_pos.x,next_pos.z)
-		if _bear_point_blocked(next_pos,2.6):
-			var left=Vector3(-dir.z,0.0,dir.x)
-			var right=-left
-			var left_pos=bear.position+left*3.0
-			var right_pos=bear.position+right*3.0
-			left_pos.y=height_at(left_pos.x,left_pos.z)
-			right_pos.y=height_at(right_pos.x,right_pos.z)
-			if not _bear_point_blocked(left_pos,2.6):
-				dir=left
-			elif not _bear_point_blocked(right_pos,2.6):
-				dir=right
-			else:
-				var new_index=_bear_nearest_safe_meteor_index(bear.global_position,index,bear)
-				if new_index>=0: bear.set_meta("meteor_index",new_index)
-				continue
-		bear.set_meta("moving",true)
-		bear.rotation.y=atan2(-dir.x,-dir.z)
-		bear.position+=Vector3(dir.x,0.0,dir.z)*1.7*delta
-		bear.position.y=height_at(bear.position.x,bear.position.z)
-		_bear_set_body_height(bear,true)
 func _spawn_humans() -> void:
 	# Five neutral human NPCs use the same target selection, spacing, obstacle
 	# avoidance and movement loop as wildlife. Their only job is meteor seeking.
@@ -1292,7 +759,6 @@ func _spawn_humans() -> void:
 		_make_human_visual(human)
 		human_npcs.append(human)
 		wildlife.append(human)
-		_wildlife_choose_target(human)
 
 func _make_human_visual(parent:Node3D) -> void:
 	var visual=Node3D.new()
@@ -1326,14 +792,6 @@ func _make_human_visual(parent:Node3D) -> void:
 	head.position=Vector3(0,1.72,0)
 	head.material_override=skin
 	visual.add_child(head)
-
-func _spawn_wildlife() -> void:
-	for i in 10:
-		_spawn_wild_animal("KURT","stone",0.58,1.9)
-	for i in 10:
-		_spawn_wild_animal("DOMUZ","wood",0.58,1.5)
-	for i in 15:
-		_spawn_wild_animal("GEYIK","wood",0.675,2.0)
 
 func _spawn_wild_animal(kind:String,target_loot:String,visual_scale:float,speed:float) -> void:
 	var pos=Vector3.ZERO
@@ -1371,7 +829,6 @@ func _spawn_wild_animal(kind:String,target_loot:String,visual_scale:float,speed:
 	animal.add_child(cs)
 	_make_wild_animal_visual(animal,kind,visual_scale)
 	wildlife.append(animal)
-	_wildlife_choose_target(animal)
 
 func _make_wild_animal_visual(parent:Node3D,kind:String,visual_scale:float) -> void:
 	var visual=Node3D.new()
@@ -1404,39 +861,6 @@ func _make_wild_animal_visual(parent:Node3D,kind:String,visual_scale:float) -> v
 	body.material_override=_simple_mat(Color(.42,.38,.32))
 	visual.add_child(body)
 
-func _wildlife_target_reserved(node:Node3D,requesting:Node3D) -> bool:
-	var id=node.get_instance_id()
-	for other in wildlife:
-		if other==requesting or not is_instance_valid(other): continue
-		if int(other.get_meta("target_id",-1))==id: return true
-	return false
-
-func _wildlife_choose_target(animal:Node3D) -> void:
-	var wanted=str(animal.get_meta("target_loot",""))
-	var best:Node3D=null
-	var best_distance=INF
-	for child in get_children():
-		if not child is Node3D: continue
-		if str(child.get_meta("loot",""))!=wanted: continue
-		var node=child as Node3D
-		if _wildlife_target_reserved(node,animal): continue
-		if _animal_target_recent(animal,node.get_instance_id()): continue
-		var linear=Vector2(animal.global_position.x-node.global_position.x,animal.global_position.z-node.global_position.z).length()
-		if linear<15.0: continue
-		var d=linear*linear
-		if d<best_distance:
-			best_distance=d
-			best=node
-	if best==null:
-		var history:Array=animal.get_meta("target_history",[])
-		if not history.is_empty():
-			history.pop_front()
-			animal.set_meta("target_history",history)
-			_wildlife_choose_target(animal)
-			return
-	if best:
-		animal.set_meta("target_id",best.get_instance_id())
-		animal.set_meta("target_pos",best.global_position)
 func _all_animal_avoidance(animal:Node3D,move_dir:Vector3) -> Vector3:
 	var nearest:Node3D=null
 	var nearest_distance=INF
@@ -1460,95 +884,12 @@ func _all_animal_avoidance(animal:Node3D,move_dir:Vector3) -> Vector3:
 	if not _bear_point_blocked(left_pos,2.2): return left
 	return -move_dir
 
-func _update_wildlife(delta:float) -> void:
-	for animal in wildlife:
-		if not is_instance_valid(animal): continue
-		if bool(animal.get_meta("avoiding",false)):
-			var avoid_target=animal.get_meta("avoid_target",animal.position) as Vector3
-			var ad=avoid_target-animal.position
-			ad.y=0.0
-			if ad.length()<1.2:
-				animal.set_meta("avoiding",false)
-				_wildlife_choose_target(animal)
-				continue
-			ad=ad.normalized()
-			var ap=animal.position+ad*float(animal.get_meta("speed",3.0))*delta
-			ap.y=height_at(ap.x,ap.z)
-			if _bear_point_blocked(ap,2.2):
-				animal.set_meta("avoiding",false)
-				continue
-			animal.rotation.y=atan2(-ad.x,-ad.z)
-			animal.position=ap
-			continue
-		var target_pos=animal.get_meta("target_pos",animal.position) as Vector3
-		var dir=target_pos-animal.position
-		dir.y=0.0
-		if dir.length()<2.3:
-			_animal_remember_target(animal,int(animal.get_meta("target_id",-1)))
-			_wildlife_choose_target(animal)
-			continue
-		dir=dir.normalized()
-		var avoid=_all_animal_avoidance(animal,dir)
-		if avoid.length_squared()>0.01:
-			var avoid_target=animal.position+avoid.normalized()*randf_range(12.0,18.0)
-			avoid_target.x=clampf(avoid_target.x,-MAP_HALF+10.0,MAP_HALF-10.0)
-			avoid_target.z=clampf(avoid_target.z,-MAP_HALF+10.0,MAP_HALF-10.0)
-			avoid_target.y=height_at(avoid_target.x,avoid_target.z)
-			animal.set_meta("avoiding",true)
-			animal.set_meta("avoid_target",avoid_target)
-			continue
-		var next_pos=animal.position+dir*float(animal.get_meta("speed",3.0))*delta
-		next_pos.y=height_at(next_pos.x,next_pos.z)
-		if _bear_point_blocked(next_pos,2.2):
-			var side=Vector3(-dir.z,0.0,dir.x)
-			var side_pos=animal.position+side*3.0
-			side_pos.y=height_at(side_pos.x,side_pos.z)
-			if _bear_point_blocked(side_pos,2.2):
-				side=-side
-			dir=side
-		animal.rotation.y=atan2(-dir.x,-dir.z)
-		animal.position+=dir*float(animal.get_meta("speed",3.0))*delta
-		animal.position.y=height_at(animal.position.x,animal.position.z)
-		var visual=animal.get_node_or_null("AnimalVisual")
-		if visual:
-			var body=visual.get_node_or_null("Body")
-			if body: body.position.y=1.45+sin(Time.get_ticks_msec()*0.012)*0.05
-
-func _build_trees_staged() -> void:
-	var tree_target=240 if OS.has_feature("mobile") else 700
-	var made=0
-	var attempts=0
-	while made<tree_target and attempts<tree_target*18:
-		attempts+=1
-		var p=_rand_map_point(MAP_HALF-12)
-		if _near_poi(p.x,p.z) or _near_settlement(p.x,p.z,22.0): continue
-		if _terrain_slope(p.x,p.z)>.20: continue
-		# Trees now favor actual borders between two terrain materials.
-		if made<int(tree_target*.78) and not _terrain_transition(p.x,p.z,5.0): continue
-		if not _resource_spawn_safe(p.x,p.z): continue
-		var tree_body=StaticBody3D.new(); tree_body.position=Vector3(p.x,height_at(p.x,p.z)-.32,p.z)
-		tree_body.rotation_degrees.y=randf_range(0,360); add_child(tree_body)
-		_make_kara_tree(tree_body)
-		var trunk_col=CollisionShape3D.new(); var trunk_shape=CylinderShape3D.new()
-		trunk_shape.radius=.34; trunk_shape.height=4.7; trunk_col.shape=trunk_shape; trunk_col.position.y=2.35; tree_body.add_child(trunk_col)
-		tree_body.set_meta("loot","wood"); made+=1
-		if made>0 and made%16==0: await get_tree().process_frame
-
 func _build_hills_and_pits():
 	# Terrain heightfield already provides hills and pits. Avoid duplicate cylinder geometry.
 	pass
 
-func _build_gatherables():
-	# Vegetation intentionally disabled; trees are spawned by _build_world only.
-	pass
-
 func _rand_map_point(max_r: float) -> Vector3:
 	return Vector3(randf_range(-max_r,max_r),0,randf_range(-max_r,max_r))
-
-func _build_pois():
-	# Build the ten abandoned survival POIs.
-	for b in pois:
-		_build_survival_poi(b)
 
 func _build_player():
 	player = CharacterBody3D.new()
@@ -1567,7 +908,6 @@ func _build_player():
 	camera.fov = 72
 	camera.current = true
 	player.add_child(camera)
-	_build_first_person_viewmodel()
 
 func _build_hud():
 	var layer = CanvasLayer.new()
@@ -2027,9 +1367,8 @@ func _input(event):
 			camera.rotation_degrees.x=look_pitch
 			player_facing=-player.global_transform.basis.z
 	elif event.is_action_pressed("build_fire"):
-		_build_fire()
+
 	elif event.is_action_pressed("build_house"):
-		_build_house()
 
 func _enemy_visual(color: Color, scale_v := Vector3.ONE) -> Node3D:
 	var root=Node3D.new(); root.scale=scale_v
@@ -2051,38 +1390,6 @@ func _enemy_part(root:Node3D,size:Vector3,pos:Vector3,mat:Material,sphere:=false
 		var bx=BoxMesh.new(); bx.size=size; m.mesh=bx
 	m.position=pos; m.material_override=mat; root.add_child(m)
 
-func _spawn_combatants():
-	for b in pois:
-		for j in 3:
-			var e = CharacterBody3D.new()
-			e.position = b.pos + Vector3(cos(j * TAU / 3.0) * 12.0, 1.0, sin(j * TAU / 3.0) * 12.0)
-			var rc=asset_corrections["raider"]; var rv=_place_asset(asset_paths["raider"],e,Vector3(0,rc["y"],0),rc["scale"],rc["rot"])
-			if rv==null: e.add_child(_enemy_visual(Color(0.42,0.08,0.08)))
-			var ecs=CollisionShape3D.new(); var esh=CapsuleShape3D.new(); esh.radius=.42; esh.height=1.75; ecs.shape=esh; ecs.position.y=.88; e.add_child(ecs)
-			e.set_meta("hp", 60); e.set_meta("raider", true)
-			add_child(e); enemies.append(e)
-		var boss = CharacterBody3D.new(); boss.position = b.pos + Vector3(0,1,0)
-		var bc=asset_corrections["boss"]; var bv=_place_asset(asset_paths["boss"],boss,Vector3(0,bc["y"],0),bc["scale"],bc["rot"])
-		if bv==null: boss.add_child(_boss_visual())
-		var bcs=CollisionShape3D.new(); var bsh=CapsuleShape3D.new(); bsh.radius=.7; bsh.height=2.7; bcs.shape=bsh; bcs.position.y=1.35; boss.add_child(bcs)
-		boss.set_meta("hp",300); boss.set_meta("fort_boss",true)
-		boss.set_meta("boss_weapon",true); boss.set_meta("boss_infinite_ammo",true); boss.set_meta("no_loot_weapon",true)
-		add_child(boss); fort_bosses.append(boss)
-
-func _update_combat(delta):
-	for e in enemies:
-		if not is_instance_valid(e): continue
-		var d = player.global_position - e.global_position; var flat=Vector3(d.x,0,d.z)
-		if flat.length() < 18.0:
-			e.velocity = flat.normalized() * 2.2; e.move_and_slide(); e.global_position.y=height_at(e.global_position.x,e.global_position.z)+.05
-			if d.length() < 1.5: _apply_damage(12.0 * delta)
-	for b in fort_bosses:
-		if not is_instance_valid(b): continue
-		var d = player.global_position - b.global_position; var flat=Vector3(d.x,0,d.z)
-		if flat.length() < 26.0:
-			b.velocity = flat.normalized() * 1.6; b.move_and_slide(); b.global_position.y=height_at(b.global_position.x,b.global_position.z)+.05
-			if d.length() < 2.0: _apply_damage(18.0 * delta)
-
 func _apply_damage(amount:float):
 	damage_buffer += amount
 	var whole=int(floor(damage_buffer))
@@ -2094,7 +1401,7 @@ func _primary_action():
 	if _panel_open(): return
 	if player==null or camera==null: return
 	if build_mode:
-		_update_build_preview()
+
 		if preview_valid: _build_house()
 		else: _flash_message("BU PARCA BURAYA KURULAMAZ")
 		return
@@ -2119,35 +1426,6 @@ func _primary_action():
 			rock_hits.erase(id); _schedule_resource_respawn(obj,kind)
 			if kind=="meteor": metal_parts+=20; _flash_message("METAL PARCALARI +20")
 			else: stone+=20
-			_break_rock(obj)
-
-func _shoot():
-	if _panel_open(): return
-	if ammo <= 0: return
-	ammo -= 1
-	var target: CharacterBody3D; var best := 18.0
-	for e in enemies:
-		if is_instance_valid(e):
-			var d = e.global_position.distance_to(player.global_position)
-			if d < best: best = d; target = e
-	for b in fort_bosses:
-		if is_instance_valid(b):
-			var d = b.global_position.distance_to(player.global_position)
-			if d < best: best = d; target = b
-	if target == null: return
-	shoot_flash_time=.12; if hit_label: hit_label.text="✦"; hit_label.visible=true
-	var hp_now = int(target.get_meta("hp")) - 30; target.set_meta("hp", hp_now)
-	if hp_now <= 0:
-		var reward=5 if target.has_meta("fort_boss") else 1; gray_cards+=reward
-		if hit_label: hit_label.text="+%d KART" % reward; hit_label.visible=true; shoot_flash_time=.8
-		target.queue_free()
-
-func _build_fire():
-	if fire_built or wood < 15 or stone < 5: return
-	wood -= 15; stone -= 5; fire_built = true
-	var cp=player.global_position+Vector3(2,0,0); campfire_pos=cp
-	if _place_asset(asset_paths["campfire"],self,cp)==null: _add_static_box(cp+Vector3(0,.3,0),Vector3(1.4,.5,1.4),Color(.35,.14,.04))
-	var fire_light=OmniLight3D.new(); fire_light.position=cp+Vector3(0,1.0,0); fire_light.light_color=Color(1,.55,.2); fire_light.light_energy=2.2; fire_light.omni_range=8; add_child(fire_light)
 
 func _house_asset(key:String,p:Vector3,yaw:float,size:Vector3)->Node3D:
 	var body=StaticBody3D.new(); body.position=p; body.rotation_degrees.y=yaw; add_child(body)
@@ -2161,45 +1439,6 @@ func _house_asset(key:String,p:Vector3,yaw:float,size:Vector3)->Node3D:
 
 func _add_house_light(roof_pos:Vector3):
 	var light=OmniLight3D.new(); light.position=roof_pos+Vector3(0,-1.35,0); light.light_color=Color(1.0,.88,.68); light.light_energy=.85; light.omni_range=7.0; light.shadow_enabled=false; add_child(light)
-
-func _build_house():
-	if _panel_open(): return
-	if not build_mode:
-		build_mode=true; _ensure_build_preview(); return
-	_update_build_preview()
-	if not preview_valid: _flash_message("BU PARCA BURAYA KURULAMAZ"); return
-	var build_pos=build_preview.global_position
-	if not _settlement_build_allowed(build_pos): _flash_message("SADECE SECILEN YERLESIM ALANINDA INSA EDEBILIRSIN"); return
-	if build_piece in [1,2,3] and not _build_storey_allowed(build_pos): _flash_message("MAKSIMUM 4 KAT"); return
-	if wood<20 and not cheat_mode: return
-	var p=build_preview.global_position
-	var yaw=build_preview.rotation_degrees.y
-	if not cheat_mode: wood-=20
-	var made: Node3D
-	match build_piece:
-		0:
-			made=_build_foundation(p); built_floors.append(made)
-		1:
-			made=_build_wall_panel(p,yaw); built_walls.append(made)
-		2:
-			made=_build_door_frame(p,yaw); built_walls.append(made)
-		3:
-			made=_build_window_frame(p,yaw); built_walls.append(made)
-		4:
-			made=_build_roof_panel(p,yaw); built_roofs.append(made); _add_house_light(p)
-		5:
-			made=_build_stairs(p,yaw,stair_rise); built_stairs.append(made)
-		8: _build_interior_prop(p,build_piece,yaw+180.0)
-		_: _build_interior_prop(p,build_piece,yaw)
-	_claim_settlement(p)
-	house_parts+=1
-	if gather_label: gather_label.text=build_piece_names[build_piece]+" KURULDU"; gather_label.visible=true; message_time=1.0
-
-func _cycle_build_piece():
-	if _panel_open(): return
-	build_piece=(build_piece+1)%build_piece_names.size()
-	if hotbar_label: hotbar_label.text="YAPI: "+build_piece_names[build_piece]
-	if build_mode: _update_preview_shape()
 
 func _update_preview_shape():
 	if build_preview==null: return
@@ -2232,15 +1471,6 @@ func _update_preview_shape():
 		var box=BoxMesh.new()
 		var sizes=[Vector3(5,.45,5),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5.3,3,.3),Vector3(5,.35,5),Vector3(3,3,5)]
 		box.size=sizes[build_piece]; build_preview.mesh=box
-
-func _build_boat():
-	if boat_built or wood < 40: return
-	wood -= 40; boat_built = true
-	var bp=Vector3(player.position.x,0.12,-192)
-	var bc=asset_corrections["boat"]
-	var boat=_place_asset(asset_paths["boat"],self,bp,bc["scale"],bc["rot"])
-	if boat!=null: boat.name="PlayerBoat"
-	else: _add_static_box(bp,Vector3(3,.6,6),Color(.35,.16,.05))
 
 func _minimap_input(event):
 	if event is InputEventScreenTouch and event.pressed:
@@ -2474,20 +1704,6 @@ func _refresh_inventory():
 			shown+=1
 		if shown>=25: break
 
-func _schedule_resource_respawn(n:Node3D,kind:String):
-	respawn_nodes.append({"kind":kind,"pos":n.global_position,"time":RESOURCE_RESPAWN})
-
-func _update_resource_respawns(delta:float):
-	for i in range(respawn_nodes.size()-1,-1,-1):
-		respawn_nodes[i]["time"]-=delta
-		if respawn_nodes[i]["time"]>0.0: continue
-		var p:Vector3=respawn_nodes[i]["pos"]
-		if _build_blocks_respawn(p):
-			respawn_nodes[i]["time"]=30.0
-			continue
-		_spawn_resource_at(str(respawn_nodes[i]["kind"]),p)
-		respawn_nodes.remove_at(i)
-
 func _build_blocks_respawn(p:Vector3)->bool:
 	# Check the actual placed structure nodes instead of one old build_origin point.
 	for n in get_children():
@@ -2510,35 +1726,8 @@ func _spawn_resource_at(kind:String,p:Vector3):
 		else: _make_kara_rock(body)
 		var cs=CollisionShape3D.new(); var sh=SphereShape3D.new(); sh.radius=.68; cs.shape=sh; cs.position.y=.5; body.add_child(cs); body.set_meta("loot",kind)
 
-func _toggle_crafting():
-	if craft_panel==null: _create_crafting()
-	var opening=not craft_panel.visible
-	if inventory_panel: inventory_panel.visible=false
-	if store_panel: store_panel.visible=false
-	if map_panel: map_panel.visible=false
-	craft_panel.visible=opening
-	if craft_panel.visible: _refresh_crafting()
-	_set_modal_lock(_panel_open())
-
 func _rarity_list() -> Array:
 	return ["gray","green","blue","orange","red"]
-
-func _craft_base_recipes() -> Dictionary:
-	return {
-		"Mızrak":{"cat":"SİLAHLAR","base":"spear","mat":{"wood":1,"stone":1,"demir":1}},
-		"Meşale":{"cat":"SİLAHLAR","base":"torch","mat":{"wood":1,"stone":1,"demir":1}},
-		"Yay":{"cat":"SİLAHLAR","base":"bow","mat":{"wood":2,"ip":2,"deri":2}},
-		"Arbalet":{"cat":"SİLAHLAR","base":"crossbow","mat":{"wood":3,"ip":3,"deri":3,"demir":3}},
-		"Tabanca":{"cat":"SİLAHLAR","base":"pistol","mat":{"demir":4,"kulce_demir":1,"wood":2,"deri":2}},
-		"Pompalı":{"cat":"SİLAHLAR","base":"shotgun","mat":{"demir":4,"kulce_demir":2,"metal_boru":1,"wood":2,"deri":2}},
-		"Tüfek":{"cat":"SİLAHLAR","base":"rifle","mat":{"demir":4,"kulce_demir":2,"celik_boru":1,"wood":2,"deri":2}},
-		"Patlayıcı":{"cat":"SİLAHLAR","base":"explosive","mat":{"celik_boru":2,"demir":3,"ip":2,"barut":4}},
-		"Mızrak Ucu":{"cat":"MERMİLER","base":"spearhead","mat":{"stone":2,"demir":1},"special_barut":true},
-		"Ok":{"cat":"MERMİLER","base":"arrow","mat":{"stone":2,"demir":1},"special_barut":true},
-		"Tabanca Mermisi":{"cat":"MERMİLER","base":"pistol_ammo","mat":{"kulce_demir":2,"barut":2,"demir":4}},
-		"Pompalı Mermisi":{"cat":"MERMİLER","base":"shotgun_shell","mat":{"celik":2,"barut":3,"demir":6}},
-		"Tüfek Mermisi":{"cat":"MERMİLER","base":"rifle_ammo","mat":{"celik":3,"barut":4,"demir":8}}
-	}
 
 func _armor_recipe(name:String) -> Dictionary:
 	if name.begins_with("Ahşap"):
@@ -2546,29 +1735,6 @@ func _armor_recipe(name:String) -> Dictionary:
 	if name.begins_with("Taş"):
 		return {"cat":"ZIRHLAR","mat":{"stone":3,"deri":2,"ip":1}}
 	return {"cat":"ZIRHLAR","mat":{"demir":4,"kulce_demir":2,"deri":2,"ip":1}}
-
-func _craft_recipe(name:String, rarity:String) -> Dictionary:
-	var data:Dictionary
-	var base_recipes=_craft_base_recipes()
-	if base_recipes.has(name):
-		data=base_recipes[name].duplicate(true)
-	else:
-		data=_armor_recipe(name)
-	var idx=_rarity_list().find(rarity)
-	var mult=1 << idx
-	var req:Dictionary={}
-	for k in data.mat: req[k]=int(data.mat[k])*mult
-	if bool(data.get("special_barut",false)):
-		if rarity=="orange": req["barut"]=1
-		elif rarity=="red": req["barut"]=2
-	var card_keys=["gray_card","green_card","blue_card","orange_card","red_card"]
-	req[card_keys[idx]]=1
-	if idx>0: req["item:"+_craft_key(name,_rarity_list()[idx-1])]=1
-	data["requirements"]=req
-	return data
-
-func _craft_key(name:String,rarity:String)->String:
-	return name+"|"+rarity
 
 func _resource_amount(key:String)->int:
 	match key:
@@ -2592,114 +1758,6 @@ func _take_resource(key:String,amount:int)->void:
 				var item_key=key.trim_prefix("item:")
 				crafted_inventory[item_key]=maxi(0,int(crafted_inventory.get(item_key,0))-amount)
 			else: craft_resources[key]=maxi(0,int(craft_resources.get(key,0))-amount)
-
-func _craft_material_name(key:String)->String:
-	var names={"wood":"Odun","stone":"Taş","demir":"Demir","ip":"İp","deri":"Deri","kulce_demir":"Külçe Demir","metal_boru":"Metal Boru","celik":"Çelik","celik_boru":"Çelik Boru","barut":"Barut","gray_card":"Gri Kart","green_card":"Yeşil Kart","blue_card":"Mavi Kart","orange_card":"Turuncu Kart","red_card":"Kırmızı Kart"}
-	if key.begins_with("item:"):
-		var p=key.trim_prefix("item:").split("|")
-		return "%s %s" % [_store_rarity_name(str(p[1])),str(p[0])]
-	return str(names.get(key,key))
-
-func _craft_requirements_text(name:String,rarity:String)->String:
-	var req:Dictionary=_craft_recipe(name,rarity).requirements
-	var out:Array[String]=[]
-	for k in req: out.append("%s ×%d" % [_craft_material_name(k),int(req[k])])
-	return " + ".join(out)
-
-func _craft_icon_path(name:String,rarity:String)->String:
-	for cat in ["SİLAHLAR","MERMİLER","ZIRHLAR"]:
-		for item in _store_items(cat):
-			if str(item.name)==name and str(item.rarity)==rarity: return str(item.path)
-	return ""
-
-func _craft_names(category:String)->Array:
-	var names:Array=[]
-	for item in _store_items(category):
-		if not names.has(item.name): names.append(item.name)
-	return names
-
-func _create_crafting():
-	craft_panel=Panel.new(); craft_panel.set_anchors_preset(Control.PRESET_CENTER); craft_panel.position=Vector2(-390,-290); craft_panel.size=Vector2(780,580)
-	var title=Label.new(); title.text="ÜRETİM"; title.position=Vector2(22,14); title.size=Vector2(500,38); title.add_theme_font_size_override("font_size",26); craft_panel.add_child(title)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(710,10); close.size=Vector2(50,38); close.pressed.connect(_toggle_crafting); craft_panel.add_child(close)
-	for i in 3:
-		var cat=["SİLAHLAR","MERMİLER","ZIRHLAR"][i]
-		var b=Button.new(); b.text=cat; b.position=Vector2(20+i*245,58); b.size=Vector2(230,42); b.pressed.connect(_set_craft_category.bind(cat)); craft_panel.add_child(b)
-	var scroll=ScrollContainer.new(); scroll.name="CraftScroll"; scroll.position=Vector2(20,112); scroll.size=Vector2(740,445); scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED; craft_panel.add_child(scroll)
-	var list=VBoxContainer.new(); list.name="CraftList"; list.custom_minimum_size=Vector2(715,0); scroll.add_child(list)
-	var layers=get_children().filter(func(n): return n is CanvasLayer); if layers.size()>0: layers[-1].add_child(craft_panel)
-	craft_panel.visible=false
-	_refresh_crafting()
-
-func _set_craft_category(category:String)->void:
-	craft_category=category
-	_refresh_crafting()
-
-func _refresh_crafting()->void:
-	if craft_panel==null: return
-	var list=craft_panel.get_node_or_null("CraftScroll/CraftList")
-	if list==null: return
-	for c in list.get_children(): c.queue_free()
-	for name in _craft_names(craft_category):
-		for rarity in _rarity_list():
-			var row=HBoxContainer.new()
-			row.custom_minimum_size=Vector2(700,96)
-			var icon=TextureRect.new()
-			icon.custom_minimum_size=Vector2(92,82)
-			icon.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
-			icon.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			var icon_path=_craft_icon_path(name,rarity)
-			if not icon_path.is_empty():
-				icon.texture=_load_item_texture(icon_path)
-			row.add_child(icon)
-			var info=Label.new()
-			info.text="%s %s  •  %s" % [_store_rarity_name(rarity),name,_craft_requirements_text(name,rarity)]
-			info.custom_minimum_size=Vector2(470,82)
-			info.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
-			info.add_theme_font_size_override("font_size",14)
-			row.add_child(info)
-			var b=Button.new()
-			b.text="ÜRET"
-			b.custom_minimum_size=Vector2(115,60)
-			b.pressed.connect(_craft_catalog_item.bind(name,rarity))
-			row.add_child(b)
-			list.add_child(row)
-
-func _craft_catalog_item(name:String,rarity:String)->void:
-	var recipe=_craft_recipe(name,rarity)
-	var req:Dictionary=recipe.requirements
-	if not cheat_mode:
-		for k in req:
-			if _resource_amount(k)<int(req[k]):
-				_flash_message("MALZEME YETERSİZ: "+_craft_material_name(k))
-				return
-		for k in req:
-			_take_resource(k,int(req[k]))
-	var key=_craft_key(name,rarity)
-	crafted_inventory[key]=int(crafted_inventory.get(key,0))+1
-	_craft_success_feedback()
-	_play_sfx("craft")
-	_flash_message("%s %s ENVANTERE EKLENDİ" % [_store_rarity_name(rarity),name])
-	if inventory_panel==null:
-		_create_inventory()
-	_refresh_inventory()
-	_refresh_crafting()
-
-func _craft(kind:int):
-	# Legacy quick recipes stay available for old button bindings.
-	var crafted := false
-	if kind==0 and axe_count==0 and (cheat_mode or (wood>=20 and stone>=10)):
-		if not cheat_mode: wood-=20; stone-=10
-		axe_count=1; selected_tool="TAS BALTA"; crafted=true
-	elif kind==1 and pickaxe_count==0 and (cheat_mode or (wood>=15 and stone>=15)):
-		if not cheat_mode: wood-=15; stone-=15
-		pickaxe_count=1; selected_tool="TAS KAZMA"; crafted=true
-	elif kind==2 and (cheat_mode or stone>=5):
-		if not cheat_mode: stone-=5
-		ammo+=5; crafted=true
-	if not crafted: _flash_message("MALZEME YETERSİZ"); return
-	_craft_success_feedback(); _play_sfx("craft"); _refresh_inventory()
-
 
 func _create_hotbar(layer:CanvasLayer):
 	hotbar=HBoxContainer.new()
@@ -2871,7 +1929,7 @@ func _select_hotbar(slot:int):
 		if item_name in ["Tabanca"]: held_slot=5
 		elif item_name in ["Tüfek","Pompalı","Arbalet"]: held_slot=3
 		elif item_name in ["Mızrak","Meşale","Yay"]: held_slot=6
-	_update_held_item(held_slot)
+
 	build_mode=key=="YAPI CEKICI"
 	if build_mode: _ensure_build_preview()
 	elif build_preview: build_preview.visible=false
@@ -2885,12 +1943,6 @@ func _hide_hotbar_feedback_later(token:int) -> void:
 	selected_tool=""
 	_refresh_hotbar()
 
-
-func _ensure_build_preview():
-	if build_preview==null:
-		build_preview=MeshInstance3D.new(); var box=BoxMesh.new(); box.size=Vector3(5,.35,5); build_preview.mesh=box
-		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.2,.9,.35,.38); mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; build_preview.material_override=mat; add_child(build_preview)
-	build_preview.visible=true; _update_preview_shape()
 
 func _nearest_floor(max_dist:=9.0) -> Node3D:
 	var best: Node3D; var best_d: float = float(max_dist)
@@ -2938,208 +1990,15 @@ func _stair_below_roof(p:Vector3)->Node3D:
 			return s
 	return null
 
-func _update_build_preview():
-	if not build_mode or build_preview==null or player==null: return
-	preview_valid=false
-	var forward=-player.global_transform.basis.z; forward.y=0.0; forward=forward.normalized()
-	var probe=player.global_position+forward*5.0
-	var floor=_nearest_floor(12.0)
-	if build_piece==5:
-		var surface=_nearest_build_surface(probe,6.0)
-		if surface:
-			# Once a ceiling/floor exists above this tile, stairs belong to the new storey.
-			if _surface_has_roof_above(surface):
-				build_preview.global_position=probe
-				var mat_locked=build_preview.material_override as StandardMaterial3D
-				if mat_locked: mat_locked.albedo_color=Color(.95,.12,.08,.40)
-				return
-			# On a foundation/roof, the low end starts on the surface and the high end reaches
-			# exactly one wall height above it. The high end is aimed toward the selected edge.
-			stair_mode="storey"; stair_rise=3.0
-			var delta=probe-surface.global_position
-			var side=Vector3.ZERO; var yaw=0.0
-			if absf(delta.x)>absf(delta.z):
-				side=Vector3(1.0 if delta.x>=0.0 else -1.0,0,0)
-				yaw=90.0 if side.x>0.0 else -90.0
-			else:
-				side=Vector3(0,0,1.0 if delta.z>=0.0 else -1.0)
-				yaw=0.0 if side.z>0.0 else 180.0
-			# Local +Z is the high end. Centering on the tile puts that end on its wall edge.
-			var p=surface.global_position
-			p.y=surface.global_position.y+(.225 if surface in built_floors else .09)
-			build_preview.global_position=p; build_preview.rotation_degrees.y=yaw; preview_valid=true
-		else:
-			# Bedrock placement is only useful when the stair can terminate on a foundation.
-			var target=_nearest_floor(10.0)
-			if target:
-				stair_mode="terrain"
-				var to_target=target.global_position-probe
-				var side=Vector3.ZERO; var yaw=0.0
-				if absf(to_target.x)>absf(to_target.z):
-					side=Vector3(1.0 if to_target.x>0.0 else -1.0,0,0)
-					yaw=90.0 if side.x>0.0 else -90.0
-				else:
-					side=Vector3(0,0,1.0 if to_target.z>0.0 else -1.0)
-					yaw=0.0 if side.z>0.0 else 180.0
-				# High end is locked to the foundation edge/top. Any excess low-end length
-				# is allowed below bedrock, hiding it instead of leaving floating geometry.
-				var high=target.global_position-side*2.5
-				var high_y=target.global_position.y+.225
-				var low_sample=high-side*5.0
-				var rock_y=height_at(low_sample.x,low_sample.z)
-				stair_rise=maxf(.20,high_y-rock_y)
-				var center=high-side*2.5
-				center.y=high_y-stair_rise
-				build_preview.global_position=center; build_preview.rotation_degrees.y=yaw; preview_valid=true
-			else:
-				build_preview.global_position=probe
-	elif build_piece==0:
-		# Foundations remain ground-floor pieces only. Roofs are upper-floor build surfaces, not foundations.
-		var p=probe
-		if floor:
-			var delta=probe-floor.global_position
-			if absf(delta.x)>absf(delta.z):
-				p=floor.global_position+Vector3(5.0*(1.0 if delta.x>=0.0 else -1.0),0,0)
-			else:
-				p=floor.global_position+Vector3(0,0,5.0*(1.0 if delta.z>=0.0 else -1.0))
-			p.y=floor.global_position.y
-		else:
-			p.x=roundf(p.x/5.0)*5.0; p.z=roundf(p.z/5.0)*5.0
-			p.y=_foundation_top_y(p.x,p.z)
-		build_preview.global_position=p; build_preview.rotation_degrees.y=0; preview_valid=true
-	else:
-		var surface=_nearest_build_surface(probe,7.0)
-		if surface:
-			var delta=probe-surface.global_position
-			var p=surface.global_position; var yaw=0.0
-			if absf(delta.x)>absf(delta.z):
-				p.x+=2.5*(1.0 if delta.x>=0.0 else -1.0); yaw=90.0
-			else:
-				p.z+=2.5*(1.0 if delta.z>=0.0 else -1.0); yaw=0.0
-			var base_y=surface.global_position.y+(.225 if surface in built_floors else .09)
-			if build_piece in [1,2,3]:
-				p.y=base_y
-				preview_valid=_edge_slot_free(p,yaw)
-			elif build_piece==4:
-				p=surface.global_position+Vector3(0,(.225 if surface in built_floors else .09)+3.0,0)
-				yaw=0.0
-				# One roof per level/tile. This roof becomes the next build surface.
-				preview_valid=true
-				for r in built_roofs:
-					if is_instance_valid(r) and r.global_position.distance_to(p)<.35:
-						preview_valid=false; break
-			build_preview.global_position=p; build_preview.rotation_degrees.y=yaw
-		else:
-			build_preview.global_position=probe
-	if preview_valid and not _settlement_build_allowed(build_preview.global_position): preview_valid=false
-	if preview_valid and build_piece in [1,2,3] and not _build_storey_allowed(build_preview.global_position): preview_valid=false
-	var mat=build_preview.material_override as StandardMaterial3D
-	if mat: mat.albedo_color=Color(.2,.9,.35,.42) if preview_valid else Color(.95,.12,.08,.40)
-
-
 func _foundation_top_y(x:float,z:float)->float:
 	var corners=[Vector2(-2.5,-2.5),Vector2(2.5,-2.5),Vector2(-2.5,2.5),Vector2(2.5,2.5)]
 	var top=-INF
 	for off in corners: top=maxf(top,height_at(x+off.x,z+off.y))
 	return top+.35
 
-func _build_foundation(p:Vector3)->Node3D:
-	var root=StaticBody3D.new(); root.position=p; root.set_meta("build_piece","TEMEL"); root.set_meta("structure_hp",structure_hp_default); add_child(root)
-	var deck=MeshInstance3D.new(); var dm=BoxMesh.new(); dm.size=Vector3(5,.45,5); deck.mesh=dm; deck.material_override=_simple_mat(Color(.31,.20,.11)); root.add_child(deck)
-	var dcs=CollisionShape3D.new(); var dsh=BoxShape3D.new(); dsh.size=Vector3(5,.45,5); dcs.shape=dsh; root.add_child(dcs)
-	for off in [Vector2(-2.15,-2.15),Vector2(2.15,-2.15),Vector2(-2.15,2.15),Vector2(2.15,2.15)]:
-		var gy=height_at(p.x+off.x,p.z+off.y)
-		var deck_bottom=p.y-.225
-		var leg_h=maxf(.35,deck_bottom-gy)
-		var leg=MeshInstance3D.new(); var lm=BoxMesh.new(); lm.size=Vector3(.32,leg_h,.32); leg.mesh=lm
-		# Leg top touches the underside of the deck; leg bottom reaches its own terrain sample.
-		leg.position=Vector3(off.x,-.225-leg_h*.5,off.y); leg.material_override=_simple_mat(Color(.20,.14,.09)); root.add_child(leg)
-	return root
-
-func _build_stairs(p:Vector3,yaw:=0.0,rise:=3.0)->Node3D:
-	var run=5.0
-	var width=5.36
-	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
-	var steps:=6
-	var depth=run/float(steps)
-	for i in steps:
-		var t=float(i)/float(steps-1)
-		var tread_h=.16
-		var y=rise*t-tread_h*.5
-		var z=-run*.5+depth*(float(i)+.5)
-		var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(width,tread_h,depth+.08); mi.mesh=bm; mi.position=Vector3(0,y,z); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
-		var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(width,tread_h,depth+.08); cs.shape=sh; cs.position=Vector3(0,y,z); root.add_child(cs)
-	# Two slim wooden stringers visually support the treads without closing the underside.
-	var angle=-atan2(rise,run)
-	var length=sqrt(run*run+rise*rise)
-	for x in [-2.35,2.35]:
-		var rail=MeshInstance3D.new(); var rm=BoxMesh.new(); rm.size=Vector3(.18,.18,length); rail.mesh=rm
-		rail.position=Vector3(x,rise*.5,0); rail.rotation.x=angle; rail.material_override=_simple_mat(Color(.30,.17,.07)); root.add_child(rail)
-	root.set_meta("build_piece","MERDIVEN"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
-	return root
-func _build_wall_panel(p:Vector3,yaw:=0.0)->Node3D:
-	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
-	var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(5.36,3.0,.22); mi.mesh=bm; mi.position=Vector3(0,1.5,0); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
-	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(5.36,3.0,.22); cs.shape=sh; cs.position=Vector3(0,1.5,0); root.add_child(cs)
-	root.set_meta("build_piece","DUVAR"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
-	return root
-
 func _add_frame_box(root:Node3D,size:Vector3,pos:Vector3):
 	var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=size; mi.mesh=bm; mi.position=pos; mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
 	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=size; cs.shape=sh; cs.position=pos; root.add_child(cs)
-
-func _build_door_frame(p:Vector3,yaw:=0.0)->Node3D:
-	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
-	var opening=1.65
-	var side=(5.36-opening)*.5
-	_add_frame_box(root,Vector3(side,3.0,.22),Vector3(-(opening+side)*.5,1.5,0))
-	_add_frame_box(root,Vector3(side,3.0,.22),Vector3((opening+side)*.5,1.5,0))
-	_add_frame_box(root,Vector3(opening,.72,.22),Vector3(0,2.64,0))
-	root.set_meta("build_piece","KAPI"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
-	return root
-
-func _build_window_frame(p:Vector3,yaw:=0.0)->Node3D:
-	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
-	var opening_w=2.0; var side=(5.36-opening_w)*.5
-	_add_frame_box(root,Vector3(side,3.0,.22),Vector3(-(opening_w+side)*.5,1.5,0))
-	_add_frame_box(root,Vector3(side,3.0,.22),Vector3((opening_w+side)*.5,1.5,0))
-	_add_frame_box(root,Vector3(opening_w,.85,.22),Vector3(0,.425,0))
-	_add_frame_box(root,Vector3(opening_w,.70,.22),Vector3(0,2.65,0))
-	root.set_meta("build_piece","PENCERE"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
-	return root
-
-func _build_roof_panel(p:Vector3,yaw:=0.0)->Node3D:
-	var root=StaticBody3D.new(); root.position=p; root.rotation_degrees.y=yaw; add_child(root)
-	var stair=_stair_below_roof(p)
-	if stair:
-		# Stair landing gets a half-floor opening so the player can emerge onto the next storey.
-		var local_dir=stair.global_transform.basis.z.normalized()
-		var along_x=absf(local_dir.x)>absf(local_dir.z)
-		if along_x:
-			var sx=1.0 if local_dir.x>0.0 else -1.0
-			_add_frame_box(root,Vector3(2.54,.18,5.08),Vector3(-sx*1.27,0,0))
-		else:
-			var sz=1.0 if local_dir.z>0.0 else -1.0
-			_add_frame_box(root,Vector3(5.08,.18,2.54),Vector3(0,0,-sz*1.27))
-	else:
-		_add_frame_box(root,Vector3(5.08,.18,5.08),Vector3.ZERO)
-	root.set_meta("build_piece","TAVAN"); root.set_meta("structure_hp",structure_hp_default); root.set_meta("material","wood")
-	return root
-func _build_interior_prop(p:Vector3,kind:int,yaw:=0.0):
-	var obj:Node3D
-	if kind==6:
-		obj=_house_asset("house_chest",p,yaw,Vector3(1.5,1,1)); obj.set_meta("interior","chest")
-	elif kind==7:
-		obj=_house_asset("house_bed",p,yaw,Vector3(1.2,.44,2.2)); obj.set_meta("interior","bed"); bed_spawn=p+Vector3(0,1,1.5); has_bed_spawn=true; _update_bed_minimap()
-	elif kind==8:
-		obj=_house_asset("house_workbench",p,yaw,Vector3(2.2,1.1,.8)); obj.set_meta("interior","workbench")
-	elif kind==9:
-		obj=_house_asset("house_stove",p,yaw,Vector3(1.2,1,1.2)); obj.set_meta("interior","stove")
-		var glow=OmniLight3D.new(); glow.position=p+Vector3(0,1.3,0); glow.light_color=Color(1,.48,.16); glow.light_energy=1.4; glow.omni_range=7; add_child(glow)
-	elif kind==10:
-		obj=_house_asset("house_lamp",p,yaw,Vector3(.35,1.5,.35)); obj.set_meta("interior","lamp")
-		var lamp=OmniLight3D.new(); lamp.position=p+Vector3(0,1.7,0); lamp.light_color=Color(1,.72,.38); lamp.light_energy=1.1; lamp.omni_range=8; add_child(lamp)
-	if obj!=null: obj.add_to_group("interior_interactable")
 
 func _use_nearest_interior():
 	if _panel_open(): return
@@ -3154,15 +2013,6 @@ func _use_nearest_interior():
 		bed_spawn=best.global_position+Vector3(0,1,1.5); has_bed_spawn=true; _update_bed_minimap(); _flash_message("YENIDEN DOGMA NOKTASI AYARLANDI")
 	elif kind=="workbench": _toggle_crafting()
 	elif kind=="stove": hunger=min(100.0,hunger+20.0); _flash_message("YEMEK PISIRILDI +20 ACLIK")
-
-func _toggle_chest_transfer():
-	if wood+stone+grass_n+wheat_n+mushroom_n>0:
-		chest_storage["wood"]+=wood; chest_storage["stone"]+=stone; chest_storage["grass_n"]+=grass_n; chest_storage["wheat_n"]+=wheat_n; chest_storage["mushroom"]+=mushroom_n
-		wood=0; stone=0; grass_n=0; wheat_n=0; mushroom_n=0; _flash_message("KAYNAKLAR SANDIGA KONDU")
-	else:
-		wood=chest_storage["wood"]; stone=chest_storage["stone"]; grass_n=chest_storage["grass_n"]; wheat_n=chest_storage["wheat_n"]; mushroom_n=chest_storage["mushroom"]
-		chest_storage={"wood":0,"stone":0,"grass_n":0,"wheat_n":0,"mushroom":0}; _flash_message("SANDIK BOSALTILDI")
-	_refresh_inventory()
 
 func _flash_message(t:String):
 	if gather_label: gather_label.text=t; gather_label.visible=true; message_time=1.5
@@ -3190,14 +2040,6 @@ func _update_minimap():
 	minimap_dir.rotation=atan2(-player_facing.x,-player_facing.z)
 
 
-func _create_weapon_aim_ui(layer:CanvasLayer):
-	# Legacy white crosshair and moving aim dot removed. The red + from _build_hud is the only reticle.
-	crosshair=null; aim_marker=null
-	scope_overlay=Control.new(); scope_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); scope_overlay.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	var ring=Label.new(); ring.text="◯"; ring.add_theme_font_size_override("font_size",420); ring.set_anchors_preset(Control.PRESET_CENTER); ring.position=Vector2(-135,-270); scope_overlay.add_child(ring)
-	scope_overlay.visible=false; layer.add_child(scope_overlay)
-	hit_marker=Label.new(); hit_marker.text="×"; hit_marker.add_theme_font_size_override("font_size",38); hit_marker.set_anchors_preset(Control.PRESET_CENTER); hit_marker.position=Vector2(-12,-24); hit_marker.visible=false; hit_marker.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(hit_marker)
-
 func _toggle_scope():
 	if _panel_open(): return
 	if not has_scope: return
@@ -3222,13 +2064,6 @@ func _update_aim_marker():
 		aim_marker.position=center-Vector2(7,15); aim_marker.visible=not scoped
 
 
-func _update_weapon_feedback(delta:float):
-	recoil=move_toward(recoil,0.0,delta*10.0)
-	if camera: camera.rotation_degrees.x=look_pitch-recoil
-	if hit_marker_time>0.0:
-		hit_marker_time-=delta
-		if hit_marker_time<=0.0 and hit_marker: hit_marker.visible=false
-
 func _show_hit_marker():
 	if hit_marker: hit_marker.visible=true; hit_marker_time=.16
 
@@ -3250,59 +2085,6 @@ func _update_bed_minimap():
 	m.position=Vector2(5+(bed_spawn.x+MAP_HALF)/(MAP_HALF*2.0)*132.0,5+(bed_spawn.z+MAP_HALF)/(MAP_HALF*2.0)*132.0)-Vector2(5,9); minimap_panel.add_child(m)
 
 
-func _build_first_person_viewmodel() -> void:
-	viewmodel_root=Node3D.new(); viewmodel_root.name="FirstPersonViewModel"; camera.add_child(viewmodel_root)
-	viewmodel_root.position=Vector3(0,0,0)
-	var real_hands=_load_asset("res://assets/fps_two_hands.glb")
-	if real_hands!=null:
-		real_hands.name="RealFPSHands"
-		real_hands.position=Vector3(0,-.30,-.58)
-		real_hands.scale=Vector3.ONE
-		viewmodel_root.add_child(real_hands)
-		viewmodel_right_hand=real_hands
-		viewmodel_left_hand=real_hands
-		real_hands.visible=false
-	else:
-		viewmodel_right_hand=_make_viewmodel_arm("RightArm",Vector3(.38,-.34,-.58),false)
-		viewmodel_left_hand=_make_viewmodel_arm("LeftArm",Vector3(-.30,-.32,-.62),true)
-		viewmodel_root.add_child(viewmodel_right_hand); viewmodel_root.add_child(viewmodel_left_hand)
-		viewmodel_right_hand.visible=false; viewmodel_left_hand.visible=false
-
-func _make_viewmodel_arm(arm_name:String,pos:Vector3,mirror:bool) -> Node3D:
-	var root=Node3D.new(); root.name=arm_name; root.position=pos
-	var skin=_simple_mat(Color(.58,.40,.29))
-	var sleeve=_simple_mat(Color(.16,.18,.16))
-	var forearm=MeshInstance3D.new(); var fm=CylinderMesh.new(); fm.top_radius=.075; fm.bottom_radius=.105; fm.height=.58; forearm.mesh=fm
-	forearm.position=Vector3(0,-.18,.16); forearm.rotation_degrees.x=68; forearm.material_override=sleeve; root.add_child(forearm)
-	var hand=MeshInstance3D.new(); var hm=CapsuleMesh.new(); hm.radius=.09; hm.height=.28; hand.mesh=hm
-	hand.position=Vector3(0,.02,-.12); hand.rotation_degrees=Vector3(78,0,12 if mirror else -12); hand.material_override=skin; root.add_child(hand)
-	return root
-
-func _set_viewmodel_pose(slot:int) -> void:
-	if viewmodel_right_hand==null: return
-	var using_real=viewmodel_right_hand==viewmodel_left_hand
-	viewmodel_right_hand.visible=slot>0
-	if not using_real and viewmodel_left_hand!=null:
-		viewmodel_left_hand.visible=slot in [3,6]
-	if using_real:
-		viewmodel_right_hand.position=Vector3(0,-.30,-.58)
-		viewmodel_right_hand.rotation_degrees=Vector3.ZERO
-		return
-	if slot==1:
-		viewmodel_right_hand.position=Vector3(.34,-.34,-.60); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-8)
-	elif slot==2:
-		viewmodel_right_hand.position=Vector3(.34,-.34,-.60); viewmodel_right_hand.rotation_degrees=Vector3(-10,0,-6)
-	elif slot==3:
-		viewmodel_right_hand.position=Vector3(.34,-.31,-.55); viewmodel_right_hand.rotation_degrees=Vector3(-4,0,-4)
-		viewmodel_left_hand.position=Vector3(-.24,-.28,-.78); viewmodel_left_hand.rotation_degrees=Vector3(-12,0,18)
-	elif slot==4:
-		viewmodel_right_hand.position=Vector3(.34,-.34,-.60); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-8)
-	elif slot==5:
-		viewmodel_right_hand.position=Vector3(.30,-.24,-.48); viewmodel_right_hand.rotation_degrees=Vector3(-18,0,-7)
-	elif slot==6:
-		viewmodel_right_hand.position=Vector3(.31,-.29,-.55); viewmodel_right_hand.rotation_degrees=Vector3(-8,0,-6)
-		viewmodel_left_hand.position=Vector3(-.22,-.27,-.78); viewmodel_left_hand.rotation_degrees=Vector3(-10,0,18)
-
 func _fps_asset_for_selected(slot:int) -> String:
 	var item=selected_tool.to_lower()
 	if "tabanca" in item:
@@ -3323,46 +2105,6 @@ func _fps_asset_for_selected(slot:int) -> String:
 	if slot==4 or "çekiç" in item or "cekic" in item: return "res://assets/building_hammer.glb"
 	return ""
 
-func _update_held_item(slot:int):
-	_set_viewmodel_pose(slot)
-	if held_item: held_item.queue_free()
-	held_item=Node3D.new(); held_item.name="HeldItem"; camera.add_child(held_item)
-	held_item.position=Vector3(.30,-.27,-.72)
-	if slot==0: held_item.visible=false; return
-	var fps_path=_fps_asset_for_selected(slot)
-	var visual=_load_asset(fps_path)
-	if visual!=null:
-		visual.scale=Vector3.ONE
-		visual.position=Vector3.ZERO
-		visual.rotation_degrees=Vector3.ZERO
-		held_item.add_child(visual)
-		return
-	# Keep the old lightweight fallback so a missing imported GLB never leaves the player empty-handed.
-	var legacy_paths={1:"res://assets/items/tools/stone_axe.glb",2:"res://assets/items/tools/stone_pickaxe.glb",3:"res://assets/items/weapons/scrap_rifle.glb",4:"res://assets/items/tools/building_hammer.glb"}
-	visual=_load_asset(str(legacy_paths.get(slot,"")))
-	if visual!=null:
-		visual.scale=Vector3(.9,.9,.9)
-		held_item.add_child(visual)
-		return
-	var wood_mat=StandardMaterial3D.new(); wood_mat.albedo_color=Color(.30,.16,.06)
-	var metal_mat=StandardMaterial3D.new(); metal_mat.albedo_color=Color(.30,.33,.36)
-	if slot==1:
-		_add_held_box(Vector3(.12,.8,.12),Vector3(0,-.05,0),wood_mat); _add_held_box(Vector3(.75,.18,.18),Vector3(0,.34,0),metal_mat)
-	elif slot==2:
-		_add_held_box(Vector3(.12,.9,.12),Vector3(0,-.05,0),wood_mat); _add_held_box(Vector3(.95,.14,.16),Vector3(0,.4,0),metal_mat)
-	elif slot==3:
-		_add_held_box(Vector3(.18,.18,.85),Vector3(0,0,-.18),metal_mat); _add_held_box(Vector3(.12,.35,.16),Vector3(0,-.22,.05),wood_mat)
-	elif slot==4:
-		_add_held_box(Vector3(.12,.82,.12),Vector3(0,-.05,0),wood_mat); _add_held_box(Vector3(.65,.28,.24),Vector3(0,.35,0),metal_mat)
-	elif slot==5:
-		_add_held_box(Vector3(.18,.28,.58),Vector3(0,.02,-.18),metal_mat); _add_held_box(Vector3(.16,.38,.18),Vector3(0,-.20,.02),wood_mat)
-	elif slot==6:
-		_add_held_box(Vector3(.10,.10,1.15),Vector3(0,0,-.35),wood_mat)
-
-func _add_held_box(sz:Vector3,pos:Vector3,mat:Material):
-	var m=MeshInstance3D.new(); var b=BoxMesh.new(); b.size=sz; m.mesh=b; m.position=pos; m.material_override=mat; held_item.add_child(m)
-
-
 func _create_survival_clock(layer:CanvasLayer):
 	day_label=Label.new(); day_label.set_anchors_preset(Control.PRESET_TOP_RIGHT); day_label.position=Vector2(-245,12); day_label.size=Vector2(210,32); day_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT; day_label.text="09:00  ☀"; day_label.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(day_label)
 
@@ -3374,22 +2116,6 @@ func _update_day_cycle(delta:float):
 	var env:Environment=world_env.environment if world_env else null
 	if env:
 		env.ambient_light_energy=move_toward(env.ambient_light_energy,.28 if night else .72,delta*.08)
-
-
-func _craft_success_feedback():
-	crafting_flash_time=.45
-	if crafting_flash_button:
-		crafting_flash_button.modulate=Color(.25,1.0,.35,1.0)
-	_flash_message("URETIM TAMAMLANDI")
-
-func _update_crafting_feedback(delta:float):
-	if crafting_flash_time<=0.0: return
-	crafting_flash_time-=delta
-	if crafting_flash_button:
-		var pulse=.65+sin(crafting_flash_time*30.0)*.18
-		crafting_flash_button.scale=Vector2(pulse+0.35,pulse+0.35)
-		if crafting_flash_time<=0.0:
-			crafting_flash_button.modulate=Color.WHITE; crafting_flash_button.scale=Vector2.ONE
 
 
 func _setup_sfx():
@@ -3455,32 +2181,6 @@ func _muzzle_flash():
 	flash.position=player.global_position+Vector3(0,1.25,0)+(-player.global_transform.basis.z*1.0); fx_root.add_child(flash)
 	var t=get_tree().create_timer(.07); t.timeout.connect(flash.queue_free)
 
-func _gather_particles():
-	if fx_root==null or player==null: return
-	var p=GPUParticles3D.new(); p.amount=10; p.lifetime=.38; p.one_shot=true; p.explosiveness=1.0
-	var mesh=BoxMesh.new(); mesh.size=Vector3(.035,.035,.035); p.draw_pass_1=mesh
-	var pm=ParticleProcessMaterial.new(); pm.direction=Vector3(0,1,0); pm.spread=55.0; pm.initial_velocity_min=1.2; pm.initial_velocity_max=2.8; pm.gravity=Vector3(0,-5,0); p.process_material=pm
-	p.position=player.global_position+(-player.global_transform.basis.z*1.2)+Vector3(0,.7,0); fx_root.add_child(p); p.emitting=true
-	var t=get_tree().create_timer(.7); t.timeout.connect(p.queue_free)
-
-
-func _create_ammo_ui(layer:CanvasLayer):
-	ammo_label=Label.new(); ammo_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); ammo_label.position=Vector2(-260,-74); ammo_label.size=Vector2(220,42); ammo_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT; layer.add_child(ammo_label); _update_ammo_ui()
-
-func _update_ammo_ui():
-	if ammo_label: ammo_label.text=("DOLDURULUYOR..." if reloading else "%02d / %03d" % [magazine,reserve_ammo])
-
-func _reload_weapon():
-	if reloading or magazine>=magazine_size or reserve_ammo<=0: return
-	reloading=true; reload_time=1.35; _update_ammo_ui()
-
-func _update_reload(delta:float):
-	if not reloading: return
-	reload_time-=delta
-	if reload_time<=0:
-		var need=magazine_size-magazine; var take=min(need,reserve_ammo); magazine+=take; reserve_ammo-=take; reloading=false; _update_ammo_ui()
-
-
 func _create_cheat_ui(layer:CanvasLayer):
 	cheat_label=Label.new(); cheat_label.position=Vector2(510,10); cheat_label.size=Vector2(260,34); cheat_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cheat_label.text=""; cheat_label.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(cheat_label)
 
@@ -3494,7 +2194,6 @@ func _toggle_cheat_mode():
 	_update_cheat_button_style()
 	_flash_message("HILE ACIK" if cheat_mode else "HILE KAPALI")
 	if craft_panel:
-		_refresh_crafting()
 
 func _create_creative_menu(layer:CanvasLayer):
 	if creative_panel:
@@ -3588,31 +2287,6 @@ func _update_navigation_ui():
 	if waypoint_label: waypoint_label.text="%s HEDEF  %.0f m%s" % [arrow,dist,("  •  ✈" if fly_mode else "")]
 	if map_hint: map_hint.text="HEDEF: %.0f m  •  %s" % [dist,arrow]
 
-func _fell_tree(tree:Node3D):
-	# Tree tips away from the player, then disappears. Respawn scheduling stays unchanged.
-	if tree==null or not is_instance_valid(tree): return
-	var away=tree.global_position-player.global_position; away.y=0.0
-	var axis=Vector3(away.z,0.0,-away.x).normalized()
-	if axis.length()<.1: axis=Vector3.RIGHT
-	var tw=create_tween(); tw.set_trans(Tween.TRANS_QUAD); tw.set_ease(Tween.EASE_IN)
-	tw.tween_property(tree,"rotation",tree.rotation+axis*deg_to_rad(82.0),1.05)
-	tw.parallel().tween_property(tree,"position:y",tree.position.y-.35,1.05)
-	tw.tween_interval(.35); tw.tween_callback(tree.queue_free)
-
-func _break_rock(rock:Node3D):
-	if rock==null or not is_instance_valid(rock): return
-	rock.set_process(false)
-	for child in rock.get_children():
-		if child is VisualInstance3D: child.visible=false
-	for i in 8:
-		var chunk=MeshInstance3D.new(); var mesh=BoxMesh.new(); mesh.size=Vector3(randf_range(.18,.42),randf_range(.14,.34),randf_range(.18,.42)); chunk.mesh=mesh
-		var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.34,.33,.31); chunk.material_override=mat
-		chunk.global_position=rock.global_position+Vector3(randf_range(-.35,.35),randf_range(.25,.8),randf_range(-.35,.35)); fx_root.add_child(chunk)
-		var target=chunk.position+Vector3(randf_range(-1.4,1.4),randf_range(.25,.8),randf_range(-1.4,1.4))
-		var tw=create_tween(); tw.set_parallel(true); tw.tween_property(chunk,"position",target,.42); tw.tween_property(chunk,"rotation",Vector3(randf()*4.0,randf()*4.0,randf()*4.0),.42)
-		var timer=get_tree().create_timer(.55); timer.timeout.connect(chunk.queue_free)
-	var t=get_tree().create_timer(.1); t.timeout.connect(rock.queue_free)
-
 func _damage_structure(part:Node3D, damage:=35):
 	if part==null or not is_instance_valid(part): return
 	var kind=str(part.get_meta("build_piece",""))
@@ -3652,57 +2326,13 @@ func _add_human_limb(size:Vector3,pos:Vector3,mat:Material):
 	mesh.radius=min(size.x,size.z)*.5; mesh.height=size.y
 	limb.mesh=mesh; limb.position=pos; limb.material_override=mat; player.add_child(limb)
 
-func _boss_visual() -> Node3D:
-	var root=_enemy_visual(Color(.10,.11,.13),Vector3(2.15,2.15,2.15))
-	var armor=StandardMaterial3D.new(); armor.albedo_color=Color(.20,.22,.24); armor.metallic=.75; armor.roughness=.32
-	var dark=StandardMaterial3D.new(); dark.albedo_color=Color(.055,.06,.07); dark.metallic=.55
-	_boss_armor_part(root,Vector3(.88,.42,.48),Vector3(0,1.28,0),armor)
-	_boss_armor_part(root,Vector3(.34,.26,.42),Vector3(-.58,1.30,0),armor)
-	_boss_armor_part(root,Vector3(.34,.26,.42),Vector3(.58,1.30,0),armor)
-	_boss_armor_part(root,Vector3(.58,.22,.42),Vector3(0,.82,0),dark)
-	_boss_armor_part(root,Vector3(.27,.46,.30),Vector3(-.20,.42,0),armor)
-	_boss_armor_part(root,Vector3(.27,.46,.30),Vector3(.20,.42,0),armor)
-	var helmet=MeshInstance3D.new(); var hm=SphereMesh.new(); hm.radius=.34; hm.height=.55; helmet.mesh=hm; helmet.position=Vector3(0,1.68,0); helmet.material_override=armor; root.add_child(helmet)
-	return root
-
-func _boss_armor_part(root:Node3D,size:Vector3,pos:Vector3,mat:Material):
-	var m=MeshInstance3D.new(); var bx=BoxMesh.new(); bx.size=size; m.mesh=bx; m.position=pos; m.material_override=mat; root.add_child(m)
-
-func _boss_can_fire(boss:Node) -> bool:
-	return boss!=null and boss.has_meta("boss_weapon") and bool(boss.get_meta("boss_infinite_ammo",false))
-
 func _is_player_loot_allowed(item:Node) -> bool:
 	# Boss-only weapons/ammo are internal combat equipment and never enter loot/inventory UI.
 	return item==null or not bool(item.get_meta("no_loot_weapon",false))
 
-func _ammo_stock(ammo_type:String) -> int:
-	match ammo_type:
-		"7.62": return ammo_762
-		"9MM": return ammo_9mm
-		"12GA": return ammo_12ga
-		"ROCKET": return ammo_rocket
-	return 0
-
-func _craft_explosive(kind:String):
-	# Abstract game-only crafting costs, intentionally not a real-world recipe.
-	if kind=="EL_BOMBASI":
-		if not cheat_mode and (stone<12 or metal_scrap()<8): _flash_message("MALZEME YETERSIZ"); return
-		if not cheat_mode: stone-=12
-		grenade_count+=1; _craft_success_feedback()
-	elif kind=="TNT":
-		if not cheat_mode and (stone<20 or wood<10): _flash_message("MALZEME YETERSIZ"); return
-		if not cheat_mode: stone-=20; wood-=10
-		tnt_count+=1; _craft_success_feedback()
-
 func metal_scrap() -> int:
 	# Placeholder resource hook until scrap loot is added.
 	return 9999 if cheat_mode else metal_parts
-
-func _throw_grenade():
-	if grenade_count<=0 and not cheat_mode: _flash_message("EL BOMBASI YOK"); return
-	if not cheat_mode: grenade_count-=1
-	var p=player.global_position+Vector3(0,1.2,0)-player.global_transform.basis.z*4.5
-	var timer=get_tree().create_timer(1.2); timer.timeout.connect(_game_explosion.bind(p,5.5,55))
 
 func _place_tnt():
 	if tnt_count<=0 and not cheat_mode: _flash_message("TNT YOK"); return
@@ -3711,15 +2341,3 @@ func _place_tnt():
 	_flash_message("TNT YERLESTIRILDI")
 	var timer=get_tree().create_timer(2.5); timer.timeout.connect(_game_explosion.bind(p,7.5,90))
 
-func _game_explosion(pos:Vector3,radius:float,damage:int):
-	_play_sfx("explosion")
-	if fx_root:
-		var light=OmniLight3D.new(); light.light_color=Color(1,.38,.08); light.light_energy=9; light.omni_range=radius*1.4; light.global_position=pos; fx_root.add_child(light)
-		var timer=get_tree().create_timer(.14); timer.timeout.connect(light.queue_free)
-	for e in enemies.duplicate():
-		if is_instance_valid(e) and e.global_position.distance_to(pos)<=radius:
-			e.set_meta("hp",int(e.get_meta("hp",60))-damage)
-	for n in get_children():
-		if n is Node3D and n.global_position.distance_to(pos)<=radius and n.has_meta("build_piece"): _damage_structure(n,damage)
-	if player and player.global_position.distance_to(pos)<=radius:
-		health=max(0,health-int(damage*.55)); _flash_damage(.65)
