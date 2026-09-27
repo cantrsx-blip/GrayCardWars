@@ -741,7 +741,7 @@ func _add_edge_mountain(p:Vector3,sx:float,sz:float) -> void:
 	var cs=CollisionShape3D.new()
 	var sh=BoxShape3D.new()
 	if absf(p.z)>=absf(p.x):
-		sh.size=Vector3(step if false else 20.0,40.0,3.0)
+		sh.size=Vector3(20.0,40.0,3.0)
 	else:
 		sh.size=Vector3(3.0,40.0,20.0)
 	cs.shape=sh
