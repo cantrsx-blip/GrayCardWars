@@ -220,6 +220,7 @@ var pits := [
 # Meteor + level-1 boss encounter
 var meteor_node: Node3D
 var meteor_hits := 0
+var meteor_boss_spawn_count := 0
 var meteor_bosses: Array[CharacterBody3D] = []
 var boss_attack_cooldowns: Dictionary = {}
 const METEOR_HITS_PER_BOSS := 5
@@ -229,6 +230,8 @@ const BOSS_ATTACK_RANGE := 1.8
 const BOSS_ATTACK_COOLDOWN := 1.0
 const BOSS_METEOR_HIT_DAMAGE := 1
 const METEOR_ARENA_RADIUS := 17.0
+const CENTER_FORBIDDEN_HALF := 3.0
+const BOSS_SPAWN_DISTANCE := 15.0
 const GOD_WATCHER_DISTANCE := 230.0
 const GOD_WATCHER_VISIBLE_HEIGHT := 65.0
 var god_watchers: Array[Node3D] = []
@@ -495,8 +498,16 @@ func _meteor_strike() -> void:
 func _spawn_meteor_boss() -> void:
 	var model=_load_asset("res://1.sv.boss.glb")
 	if model==null: return
-	var boss=CharacterBody3D.new(); boss.name="MeteorBoss_%d" % (meteor_bosses.size()+1)
-	boss.position=Vector3(4.5+float(meteor_bosses.size()%3)*1.5,PLAYER_HEIGHT,4.5)
+	var boss=CharacterBody3D.new(); boss.name="MeteorBoss_%d" % (meteor_boss_spawn_count+1)
+	# Spawn order around the center foundation: North, South, East, West, then repeat.
+	var spawn_positions=[
+		Vector3(0,PLAYER_HEIGHT,-BOSS_SPAWN_DISTANCE),
+		Vector3(0,PLAYER_HEIGHT,BOSS_SPAWN_DISTANCE),
+		Vector3(BOSS_SPAWN_DISTANCE,PLAYER_HEIGHT,0),
+		Vector3(-BOSS_SPAWN_DISTANCE,PLAYER_HEIGHT,0)
+	]
+	boss.position=spawn_positions[meteor_boss_spawn_count%4]
+	meteor_boss_spawn_count+=1
 	var cs=CollisionShape3D.new(); var shape=CapsuleShape3D.new(); shape.radius=.55; shape.height=1.9; cs.shape=shape; boss.add_child(cs)
 	boss.add_child(model); model.position=Vector3.ZERO
 	# Imported boss faces the opposite local direction. Turn only the visual model so
@@ -530,6 +541,14 @@ func _update_meteor_bosses(delta:float) -> void:
 			if arena_pos.length()>METEOR_ARENA_RADIUS:
 				arena_pos=arena_pos.normalized()*METEOR_ARENA_RADIUS
 				boss.global_position.x=arena_pos.x; boss.global_position.z=arena_pos.y
+			# Bosses obey the same square center exclusion as the player.
+			if absf(boss.global_position.x)<CENTER_FORBIDDEN_HALF and absf(boss.global_position.z)<CENTER_FORBIDDEN_HALF:
+				var bax:=absf(boss.global_position.x)
+				var baz:=absf(boss.global_position.z)
+				if bax>baz:
+					boss.global_position.x=signf(boss.global_position.x)*CENTER_FORBIDDEN_HALF
+				else:
+					boss.global_position.z=signf(boss.global_position.z)*CENTER_FORBIDDEN_HALF
 			_play_boss_anim(boss,"Run" if dist>6.0 else "Walk")
 		else:
 			boss.velocity=Vector3.ZERO; _play_boss_anim(boss,"Attack")
@@ -1233,6 +1252,15 @@ func _physics_process(delta):
 	const MOUNTAIN_INNER_LIMIT := 171.0
 	player.position.x = clampf(player.position.x, -MOUNTAIN_INNER_LIMIT, MOUNTAIN_INNER_LIMIT)
 	player.position.z = clampf(player.position.z, -MOUNTAIN_INNER_LIMIT, MOUNTAIN_INNER_LIMIT)
+	# The square at the exact world center is forbidden. Push the player back to the
+	# nearest side instead of allowing entry from North/South/East/West.
+	if absf(player.position.x)<CENTER_FORBIDDEN_HALF and absf(player.position.z)<CENTER_FORBIDDEN_HALF:
+		var ax:=absf(player.position.x)
+		var az:=absf(player.position.z)
+		if ax>az:
+			player.position.x=signf(player.position.x)*CENTER_FORBIDDEN_HALF
+		else:
+			player.position.z=signf(player.position.z)*CENTER_FORBIDDEN_HALF
 	var hy = height_at(player.position.x, player.position.z)
 	if not fly_mode:
 		# Terrain has no physics body, so only clamp when falling to terrain. Never overwrite
