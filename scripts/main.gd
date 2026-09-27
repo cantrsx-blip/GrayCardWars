@@ -2165,7 +2165,6 @@ func _toggle_cheat_mode():
 		creative_panel.visible = false
 	_update_cheat_button_style()
 	_flash_message("HILE ACIK" if cheat_mode else "HILE KAPALI")
-	if craft_panel:
 
 func _create_creative_menu(layer:CanvasLayer):
 	if creative_panel:
