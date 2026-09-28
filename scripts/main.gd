@@ -952,8 +952,6 @@ func _build_hud():
 		elif actions[i][0]=="UC": fly_button=b
 		elif actions[i][0]=="ALCAL": fly_down_button=b
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15)
-		if actions[i][0]=="MAĞAZA":
-			_apply_store_button_image(b)
 		b.pressed.connect(actions[i][1]); layer.add_child(b)
 	_update_fly_button_styles()
 	_create_minimap(layer)
@@ -998,7 +996,6 @@ func _create_store_panel():
 	for i in categories.size():
 		var b=Button.new(); b.text=categories[i]
 		b.position=Vector2(18+i*146,58); b.size=Vector2(140,44); b.add_theme_font_size_override("font_size",14)
-		_apply_store_button_image(b)
 		b.pressed.connect(_store_category.bind(categories[i])); store_panel.add_child(b)
 	_store_category("TÜMÜ")
 	store_panel.visible=true
@@ -1070,21 +1067,22 @@ func _apply_store_button_image(btn:Button) -> void:
 func _make_store_slot(use_silver:bool=false) -> Control:
 	var cell=Panel.new()
 	cell.custom_minimum_size=Vector2(136,104)
+	if use_silver:
+		var silver_tex=_store_silver()
+		if silver_tex!=null:
+			var silver=TextureRect.new()
+			cell.add_child(silver)
+			silver.position=Vector2.ZERO
+			silver.size=Vector2(136,104)
+			silver.texture=silver_tex
+			silver.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+			silver.stretch_mode=TextureRect.STRETCH_SCALE
+			silver.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	var slot_style=StyleBoxFlat.new()
 	slot_style.bg_color=Color(0.03,0.03,0.03,0.18)
 	slot_style.border_color=Color(0.85,0.08,0.08,0.95)
 	slot_style.set_border_width_all(2)
 	cell.add_theme_stylebox_override("panel",slot_style)
-	if use_silver:
-		var silver_tex=_store_silver()
-		if silver_tex!=null:
-			var silver=TextureRect.new()
-			silver.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-			silver.texture=silver_tex
-			silver.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
-			silver.stretch_mode=TextureRect.STRETCH_SCALE
-			silver.mouse_filter=Control.MOUSE_FILTER_IGNORE
-			cell.add_child(silver)
 	return cell
 
 func _store_category(category:String):
