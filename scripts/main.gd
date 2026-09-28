@@ -1079,7 +1079,7 @@ func _show_store_category(category:String) -> void:
 		Color(1.00, 0.93, 0.28, 1.0),
 		Color(0.86, 0.10, 0.07, 1.0)
 	]
-	for i in 7:
+	for i in 25:
 		var img := Image.create(136, 104, false, Image.FORMAT_RGBA8)
 		img.fill(card_colors[i % 5])
 		var tex=TextureRect.new()
