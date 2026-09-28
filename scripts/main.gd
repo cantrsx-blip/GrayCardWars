@@ -989,7 +989,7 @@ func _create_store_panel():
 	layers[-1].add_child(store_panel)
 	var title=Label.new(); title.text="MAĞAZA"; title.position=Vector2(20,12); title.size=Vector2(620,38); title.add_theme_font_size_override("font_size",26); store_panel.add_child(title)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(712,10); close.size=Vector2(50,38); close.pressed.connect(_open_store); store_panel.add_child(close)
-	var categories=["TÜMÜ","SİLAHLAR","MERMİLER","ZIRHLAR","ALETLER"]
+	var categories=["TÜMÜ","SİLAHLAR","MERMİLER","ZIRHLAR"]
 	for i in categories.size():
 		var b=Button.new(); b.text=categories[i]
 		b.position=Vector2(18+i*146,58); b.size=Vector2(140,44); b.add_theme_font_size_override("font_size",14)
@@ -1003,7 +1003,7 @@ func _store_items(category:String) -> Array:
 	var bases:Array=[]
 	if category=="TÜMÜ":
 		var all:Array=[]
-		for cat in ["SİLAHLAR","MERMİLER","ZIRHLAR","ALETLER"]:
+		for cat in ["SİLAHLAR","MERMİLER","ZIRHLAR"]:
 			all.append_array(_store_items(cat))
 		return all
 	if category=="SİLAHLAR":
@@ -1022,10 +1022,6 @@ func _store_items(category:String) -> Array:
 			["stone_helmet","Taş Kask"],["stone_chest","Taş Göğüslük"],["stone_pants","Taş Pantolon"],["stone_boots","Taş Bot"],
 			["metal_helmet","Metal Kask"],["metal_chest","Metal Göğüslük"],["metal_pants","Metal Pantolon"],["metal_boots","Metal Bot"]
 		]
-	elif category=="ALETLER":
-		# Alet görselleri ayrı asset olarak eklendiğinde bu listeye bağlanacak.
-		# Şimdilik kategori korunuyor ve mevcut mağaza davranışı kaybolmuyor.
-		return []
 	var items:Array=[]
 	for base in bases:
 		for rarity in colors:
