@@ -1054,24 +1054,41 @@ func _show_store_category(category:String) -> void:
 	scroll.size=Vector2(740,425)
 	scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
 	store_panel.add_child(scroll)
-	var list=VBoxContainer.new()
-	list.custom_minimum_size=Vector2(700,0)
-	list.add_theme_constant_override("separation",8)
-	scroll.add_child(list)
+	var wrap=VBoxContainer.new()
+	wrap.custom_minimum_size=Vector2(700,0)
+	wrap.add_theme_constant_override("separation",8)
+	scroll.add_child(wrap)
+
 	var card_texture := _store_card_texture()
 	var status=Label.new()
 	status.text="err=%s w=%d h=%d tex=%s" % [last_store_tex_err, last_store_tex_w, last_store_tex_h, str(card_texture!=null)]
 	status.add_theme_font_size_override("font_size",18)
 	status.add_theme_color_override("font_color", Color(1,0.15,0.15,1))
-	list.add_child(status)
+	wrap.add_child(status)
+
+	var grid=GridContainer.new()
+	grid.columns=5
+	grid.add_theme_constant_override("h_separation",8)
+	grid.add_theme_constant_override("v_separation",8)
+	wrap.add_child(grid)
+
+	var card_colors = [
+		Color(0.75, 0.77, 0.80, 1.0),
+		Color(0.02, 0.58, 0.37, 1.0),
+		Color(0.55, 0.84, 0.96, 1.0),
+		Color(1.00, 0.93, 0.28, 1.0),
+		Color(0.86, 0.10, 0.07, 1.0)
+	]
 	for i in 7:
+		var img := Image.create(136, 104, false, Image.FORMAT_RGBA8)
+		img.fill(card_colors[i % 5])
 		var tex=TextureRect.new()
 		tex.custom_minimum_size=Vector2(136,104)
 		tex.size=Vector2(136,104)
 		tex.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
 		tex.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tex.texture=card_texture
-		list.add_child(tex)
+		tex.texture=ImageTexture.create_from_image(img)
+		grid.add_child(tex)
 
 func _rarity_name(rarity:String) -> String:
 	match rarity:
