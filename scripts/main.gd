@@ -444,10 +444,10 @@ func _build_meteor_encounter() -> void:
 	add_child(meteor_node)
 	meteor_node.position=Vector3(0,0.36,0)
 	_ground_asset_to_terrain(meteor_node,0,0)
-	# Normalize to roughly four player heights regardless of source-model units.
+	# Normalize meteor to four player heights regardless of source-model units.
 	var bounds:=_node_visual_bounds(meteor_node)
 	if bounds.size.y>0.001:
-		var target_h:=PLAYER_HEIGHT*8.0
+		var target_h:=PLAYER_HEIGHT*4.0
 		meteor_node.scale*=target_h/bounds.size.y
 		_ground_asset_to_terrain(meteor_node,0,0)
 	# Solid meteor collision: player and CharacterBody3D bosses cannot pass through it.
@@ -1118,11 +1118,19 @@ func _make_store_slot(item:Dictionary, use_silver:bool=false) -> Control:
 	button.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
 	button.ignore_texture_size=true
 	button.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	var tex=_load_item_texture(item.path)
+	# Keep every shop cell visible even when the old product icon asset is gone.
+	var slot_style=StyleBoxFlat.new()
+	slot_style.bg_color=Color(0.03,0.03,0.03,0.18)
+	slot_style.border_color=Color(0.85,0.08,0.08,0.95)
+	slot_style.set_border_width_all(2)
+	var frame=Panel.new()
+	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	frame.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	frame.add_theme_stylebox_override("panel",slot_style)
+	button.add_child(frame)
 	if use_silver:
 		var silver_tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png")
 		if silver_tex!=null:
-			# Render the silver card as a real child control so it is always visible in the shop slot.
 			var silver=TextureRect.new()
 			silver.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 			silver.texture=silver_tex
@@ -1130,16 +1138,10 @@ func _make_store_slot(item:Dictionary, use_silver:bool=false) -> Control:
 			silver.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			silver.mouse_filter=Control.MOUSE_FILTER_IGNORE
 			button.add_child(silver)
-		else:
-			push_warning("MISSING SILVER SHOP ICON")
-	elif tex!=null:
-		button.texture_normal=tex
 	else:
-		var missing_style=StyleBoxFlat.new()
-		missing_style.bg_color=Color(0,0,0,0)
-		missing_style.border_color=Color(1,0,0,1)
-		missing_style.set_border_width_all(2)
-		var frame=Panel.new(); frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); frame.mouse_filter=Control.MOUSE_FILTER_IGNORE; frame.add_theme_stylebox_override("panel",missing_style); button.add_child(frame)
+		var tex=_load_item_texture(item.path)
+		if tex!=null:
+			button.texture_normal=tex
 	button.pressed.connect(_open_store_detail.bind(item))
 	return button
 
