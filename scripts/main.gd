@@ -949,7 +949,10 @@ func _build_hud():
 			cheat_button.text="HILE KAPALI"
 		elif actions[i][0]=="UC": fly_button=b
 		elif actions[i][0]=="ALCAL": fly_down_button=b
-		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15); b.pressed.connect(actions[i][1]); layer.add_child(b)
+		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15)
+		if actions[i][0]=="MAĞAZA":
+			_apply_store_button_image(b)
+		b.pressed.connect(actions[i][1]); layer.add_child(b)
 	_update_fly_button_styles()
 	_create_minimap(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
@@ -993,6 +996,7 @@ func _create_store_panel():
 	for i in categories.size():
 		var b=Button.new(); b.text=categories[i]
 		b.position=Vector2(18+i*146,58); b.size=Vector2(140,44); b.add_theme_font_size_override("font_size",14)
+		_apply_store_button_image(b)
 		b.pressed.connect(_store_category.bind(categories[i])); store_panel.add_child(b)
 	_store_category("TÜMÜ")
 	store_panel.visible=true
@@ -1030,6 +1034,18 @@ func _load_item_texture(path:String) -> Texture2D:
 			return ImageTexture.create_from_image(img)
 	push_warning("MISSING ICON: " + path)
 	return null
+
+func _apply_store_button_image(btn:Button) -> void:
+	var st=StyleBoxTexture.new()
+	var tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png")
+	if tex!=null:
+		st.texture=tex
+	st.modulate_color=Color(1,1,1,1)
+	for k in ["normal","hover","pressed","disabled","focus"]:
+		btn.add_theme_stylebox_override(k,st)
+	btn.add_theme_color_override("font_color",Color(.12,.10,.08,1))
+	btn.add_theme_color_override("font_hover_color",Color(0,0,0,1))
+	btn.add_theme_color_override("font_pressed_color",Color(.20,.08,.08,1))
 
 func _make_store_slot(use_silver:bool=false) -> Control:
 	var cell=Panel.new()
@@ -1071,7 +1087,7 @@ func _store_category(category:String):
 	scroll.add_child(grid)
 	var store_items=_store_items(category)
 	for i in store_items.size():
-		grid.add_child(_make_store_slot(i % 5 == 0))
+		grid.add_child(_make_store_slot(true))
 	_flash_message("MAĞAZA: "+category)
 
 func _nearest_poi() -> String:
