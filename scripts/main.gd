@@ -1,7 +1,6 @@
 extends Node3D
 
 const MAP_HALF := 200.0
-const STORE_SILVER_PATH := "res://assets/store/gumus_magaza_136x104.png"
 const PLAYER_HEIGHT := 1.0
 const POI_FLAT_RADIUS := 42.0
 
@@ -90,7 +89,6 @@ var campfire_pos := Vector3.ZERO
 var heal_buffer := 0.0
 var inventory_panel: Control
 var store_panel: Control
-var _store_silver_tex: Texture2D = null
 var craft_panel: Control
 var hotbar: Control
 var selected_tool := ""
@@ -1005,20 +1003,7 @@ func _create_store_panel():
 	# Mağaza içeriği sıfırlandı. Yeni tasarım buradan kurulacak.
 	store_panel.visible=true
 
-func _store_items(category:String) -> Array:
-	# Clean five-column card grid. Old named products, rarity labels and 512 detail pages are removed.
-	var row_counts={"SİLAHLAR":8,"MERMİLER":5,"ZIRHLAR":12}
-	if category=="TÜMÜ":
-		return _blank_store_slots(25)
-	return _blank_store_slots(int(row_counts.get(category,0)))
-
-func _blank_store_slots(count:int) -> Array:
-	var items:Array=[]
-	for i in count:
-		items.append({})
-	return items
-
-func _store_rarity_name(rarity:String) -> String:
+func _rarity_name(rarity:String) -> String:
 	match rarity:
 		"gray": return "Gri"
 		"green": return "Yeşil"
@@ -1026,96 +1011,6 @@ func _store_rarity_name(rarity:String) -> String:
 		"orange": return "Turuncu"
 		"red": return "Kırmızı"
 	return rarity
-
-func _store_silver() -> Texture2D:
-	if _store_silver_tex != null:
-		return _store_silver_tex
-	var t = ResourceLoader.load(STORE_SILVER_PATH)
-	if t is Texture2D:
-		_store_silver_tex = t
-		return _store_silver_tex
-	if FileAccess.file_exists(STORE_SILVER_PATH):
-		var bytes := FileAccess.get_file_as_bytes(STORE_SILVER_PATH)
-		if bytes.size() > 0:
-			var img := Image.new()
-			if img.load_png_from_buffer(bytes) == OK:
-				_store_silver_tex = ImageTexture.create_from_image(img)
-				return _store_silver_tex
-	push_warning("STORE SILVER MISSING: " + STORE_SILVER_PATH)
-	return null
-
-func _load_item_texture(path:String) -> Texture2D:
-	var t = ResourceLoader.load(path)
-	if t is Texture2D:
-		return t
-	if FileAccess.file_exists(path):
-		var bytes := FileAccess.get_file_as_bytes(path)
-		if bytes.size() > 0:
-			var img := Image.new()
-			if img.load_png_from_buffer(bytes) == OK:
-				return ImageTexture.create_from_image(img)
-	push_warning("MISSING ICON: " + path)
-	return null
-
-func _apply_store_button_image(btn:Button) -> void:
-	var st=StyleBoxTexture.new()
-	var tex=_store_silver()
-	if tex!=null:
-		st.texture=tex
-	st.modulate_color=Color(1,1,1,1)
-	for k in ["normal","hover","pressed","disabled","focus"]:
-		btn.add_theme_stylebox_override(k,st)
-	btn.add_theme_color_override("font_color",Color(.12,.10,.08,1))
-	btn.add_theme_color_override("font_hover_color",Color(0,0,0,1))
-	btn.add_theme_color_override("font_pressed_color",Color(.20,.08,.08,1))
-
-func _make_store_slot(use_silver:bool=false) -> Control:
-	# Use the same proven rendering path as the old 128px weapon cards:
-	# a borderless Button icon. It is non-interactive, so only the image is visible.
-	if use_silver:
-		var slot=Button.new()
-		slot.custom_minimum_size=Vector2(136,112)
-		slot.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-		slot.flat=true
-		slot.disabled=true
-		slot.mouse_filter=Control.MOUSE_FILTER_IGNORE
-		slot.expand_icon=true
-		slot.icon_max_width=128
-		if ResourceLoader.exists(STORE_SILVER_PATH):
-			slot.icon=load(STORE_SILVER_PATH)
-		else:
-			push_warning("STORE SILVER MISSING: "+STORE_SILVER_PATH)
-		return slot
-	var empty=Control.new()
-	empty.custom_minimum_size=Vector2(136,112)
-	return empty
-
-func _store_category(category:String):
-	if store_panel==null: return
-	var old=store_panel.get_node_or_null("ItemsScroll")
-	if old:
-		store_panel.remove_child(old)
-		old.queue_free()
-	var scroll=ScrollContainer.new()
-	scroll.name="ItemsScroll"
-	scroll.position=Vector2(20,116)
-	scroll.size=Vector2(740,440)
-	scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
-	store_panel.add_child(scroll)
-	var grid=GridContainer.new()
-	grid.name="ItemGrid"
-	grid.columns=5
-	grid.custom_minimum_size=Vector2(720,0)
-	grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-	scroll.add_child(grid)
-	if category=="TÜMÜ":
-		# Five rows: silver image only in the first column, the other four cells stay empty.
-		for i in 25:
-			grid.add_child(_make_store_slot(i % 5 == 0))
-	else:
-		# Category tabs show one silver card only. No product button, border or text.
-		grid.add_child(_make_store_slot(true))
-	_flash_message("MAĞAZA: "+category)
 
 func _nearest_poi() -> String:
 	return ""
@@ -1609,9 +1504,7 @@ func _open_inventory_item_actions(key:String,title:String) -> void:
 	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(45,72); equip.size=Vector2(210,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
 
 func _inventory_is_stackable(name:String,rarity:String) -> bool:
-	for item in _store_items("MERMİLER"):
-		if str(item.name)==name and str(item.rarity)==rarity: return true
-	return false
+	return name in ["Ok","Tabanca Mermisi","Pompalı Mermisi","Tüfek Mermisi"]
 
 func _refresh_inventory():
 	if inventory_panel==null: return
@@ -1626,7 +1519,7 @@ func _refresh_inventory():
 		if parts.size()<2: continue
 		var name=str(parts[0]); var rarity=str(parts[1])
 		var tex=null
-		var title="%s %s" % [_store_rarity_name(rarity),name]
+		var title="%s %s" % [_rarity_name(rarity),name]
 		var stackable=_inventory_is_stackable(name,rarity)
 		var remaining=count
 		while remaining>0 and shown<25:
@@ -1717,7 +1610,7 @@ func _create_hotbar(layer:CanvasLayer):
 func _hotbar_item_title(key:String) -> String:
 	if key.is_empty(): return ""
 	if "|" in key:
-		var parts=key.split("|"); return "%s %s" % [_store_rarity_name(str(parts[1])),str(parts[0])]
+		var parts=key.split("|"); return "%s %s" % [_rarity_name(str(parts[1])),str(parts[0])]
 	return key
 
 func _refresh_hotbar() -> void:
