@@ -1,7 +1,7 @@
 extends Node3D
 
-const STORE_GRAY_CARD_PATH := "res://assets/store/gumus_magaza_136x104.png"
-const STORE_GRAY_CARD := preload("res://assets/store/gumus_magaza_136x104.png")
+const STORE_GRAY_CARD_PNG_B64 := "iVBORw0KGgoAAAANSUhEUgAAAIgAAABoCAYAAAAq/rjQAAACgklEQVR42u3ZwUobQRzA4d0hjyDioYQSDIhCzqVY6LmXQh+l0FuP3gQfpdBLz4VK6TmgCIqU0IOI72BPW2JqdjfJTjQz33cSsllk98d/NrNFAbCsss1B4/Ore5cqPaP93XKlQIQhlCAO6u51EAd197xcNI6b2ztXc4PtbG8ttNyUbeMQRj6hTEcS2pxMHOlpe09D0/QQR36RTLcQTA6RtJogsFAgpocpYoLQqNfViUYHe67mMzI+u4i7xIhjs3V1T4I4RBItEHGkH0kQh0iiP4OQLoEgEASCQBAIAkEgCIRc9GKd+PuPX67uGr1588oEwRKDQBAIAkEgIBAEgkAQCE8i2lZ7rK1fTBAEgkAQCB5Sl/Z78sfVXaOX/RcmCJYYBIJAEAgCAYEgEASCQHgS0bbaY239YoIgEASCQPCQurQvX7+5umv04f07EwRLDAJBIAgEgYBAEAgCIZaeS1AUp6c/5352ePhaIDHE2vrt0sdPn4uiKIr+YNgYz8nxkUBy0SaMSnVM9Z3cQgk5xtEfDBvFMRtKfzD8F4pAEo5jFblF4lcMAulqeuQ4RUwQBIJAEAgCiejk+KiYXF92cq7J9WU2G2YmCALpcorkND2ynCBVJIuGUn0nt3cxWb6sq25ym5d2VUi5vs0tqz/G51f30x/c3N41fnl0sJfERajbFU0hjPHZReMxO9tbD+/t/m65ciApRZKqNnHUBRLW9Q/wfOOI/pAqkjTj6PQhVSR+5iKQ+Q8tpKvuXpsgLL/EmCJ5T48HgVS/e0UijukWQheVkd7kqPw3NWZ3VGe13WFlM8OYXUkeXVaaIiFNjz1mhLYHkl8ctc8gIhHH3CXGkiMMgNX9BYWGytDaTXISAAAAAElFTkSuQmCC"
+
 
 const MAP_HALF := 200.0
 const PLAYER_HEIGHT := 1.0
@@ -1018,13 +1018,13 @@ func _create_store_panel():
 	store_panel.visible=true
 
 func _store_card_texture() -> Texture2D:
-	if STORE_GRAY_CARD is Texture2D:
-		return STORE_GRAY_CARD
+	var raw := Marshalls.base64_to_raw(STORE_GRAY_CARD_PNG_B64)
 	var img := Image.new()
-	if img.load(STORE_GRAY_CARD_PATH) == OK:
-		return ImageTexture.create_from_image(img)
-	push_warning("GRAY CARD LOAD FAILED: " + STORE_GRAY_CARD_PATH)
-	return null
+	var err := img.load_png_from_buffer(raw)
+	if err != OK:
+		push_warning("GRAY CARD BUFFER LOAD FAILED: %s" % str(err))
+		return null
+	return ImageTexture.create_from_image(img)
 
 func _show_store_category(category:String) -> void:
 	if store_panel==null: return
