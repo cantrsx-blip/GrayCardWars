@@ -2,13 +2,15 @@ extends Node3D
 
 const STORE_GRAY_CARD_PNG_B64 := "iVBORw0KGgoAAAANSUhEUgAAAIgAAABoCAYAAAAq/rjQAAAB2ElEQVR42u3SOXJTURiEUe9/AUSEbAEweJasebAkz2YxcDdA/a/q1nPSJzhZR13f2Zev3/7C/5w5AYEgED4pkMPTH4INCOSDYAKhL5CHNiJXHcjjB8EGBPJOMIHQF8i+jchVB3J6J9iAQN4IVgayayNy1YEc3wgmEATCiIFsj68EqwM5vBJMIPQFsmkjcg0I5IVgdSAPLwQTCH2BrNuIXHUg+2eCCYS+QFZtRC6B0BnI7plgZSDL3RPBBIJAGDOQ7RPBykAW20eCCYTOQDaPBCsDmbcRuQYEciKYQOgMZH0iWBnIrI3INSCQI8EEQl8g96sjwQSCQBgzkOWBYGUg0zYil0AQCCMGMlk8EEwgCIQRA7lrI3LVgcz3BBMIAmHEQG5ne4IJhN5AdgQrA7lpI3LVgdzvCCYQegPZEqwM5LqNyFUHMt0STCD0BXI13RCsDmSyIZhAEAgjBnI5WROsDuRuTTCB0BfIRRuRSyB0BnK7IlgZyO82IpdA6AzkZkWwAYEsCVYG8quNyCUQOgO5XhKsDOT8ekEwgSAQxgzkakGwMpCfbUSuAYHMCVYHcjknWBnIjzYil0DoDWRGsDqQixnBykC+txG5BEJvIPcEKwMBgSAQBMIn+Af/KCrcxGyW2QAAAABJRU5ErkJggg=="
 const STORE_WEAPON1_PATH := "res://Weapon1.png"
+const STORE_WEAPON2_PATH := "res://Weapon2.png"
+const STORE_WEAPON3_PATH := "res://Weapon3.png"
 
-func _store_weapon1_texture() -> Texture2D:
+func _store_png_texture(path:String) -> Texture2D:
 	var img := Image.new()
-	if img.load(STORE_WEAPON1_PATH) == OK:
+	if img.load(path) == OK:
 		return ImageTexture.create_from_image(img)
-	if ResourceLoader.exists(STORE_WEAPON1_PATH):
-		var t = ResourceLoader.load(STORE_WEAPON1_PATH)
+	if ResourceLoader.exists(path):
+		var t = ResourceLoader.load(path)
 		if t is Texture2D:
 			return t
 	return null
@@ -1083,7 +1085,9 @@ func _show_store_category(category:String) -> void:
 	grid.add_theme_constant_override("v_separation",8)
 	wrap.add_child(grid)
 
-	var weapon_tex := _store_weapon1_texture()
+	var weapon1 := _store_png_texture(STORE_WEAPON1_PATH)
+	var weapon2 := _store_png_texture(STORE_WEAPON2_PATH)
+	var weapon3 := _store_png_texture(STORE_WEAPON3_PATH)
 	var show_weapon := category == "TÜMÜ" or category == "SİLAH"
 	var card_colors = [
 		Color(0.75, 0.77, 0.80, 1.0),
@@ -1099,12 +1103,20 @@ func _show_store_category(category:String) -> void:
 		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 		bg.color=card_colors[i % 5]
 		cell.add_child(bg)
-		if show_weapon and i < 5 and weapon_tex != null:
+		var overlay_tex:Texture2D=null
+		if show_weapon:
+			if i < 5:
+				overlay_tex=weapon1
+			elif i < 10:
+				overlay_tex=weapon2
+			elif i < 15:
+				overlay_tex=weapon3
+		if overlay_tex != null:
 			var overlay=TextureRect.new()
 			overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 			overlay.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
 			overlay.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			overlay.texture=weapon_tex
+			overlay.texture=overlay_tex
 			cell.add_child(overlay)
 		grid.add_child(cell)
 
