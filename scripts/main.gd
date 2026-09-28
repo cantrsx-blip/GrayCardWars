@@ -1,6 +1,7 @@
 extends Node3D
 
 const MAP_HALF := 200.0
+const STORE_SILVER_PATH := "res://assets/store/gumus_magaza_136x104.png"
 const PLAYER_HEIGHT := 1.0
 const POI_FLAT_RADIUS := 42.0
 
@@ -89,6 +90,7 @@ var campfire_pos := Vector3.ZERO
 var heal_buffer := 0.0
 var inventory_panel: Control
 var store_panel: Control
+var _store_silver_tex: Texture2D = null
 var craft_panel: Control
 var hotbar: Control
 var selected_tool := ""
@@ -1023,21 +1025,39 @@ func _store_rarity_name(rarity:String) -> String:
 		"red": return "Kırmızı"
 	return rarity
 
+func _store_silver() -> Texture2D:
+	if _store_silver_tex != null:
+		return _store_silver_tex
+	var t = ResourceLoader.load(STORE_SILVER_PATH)
+	if t is Texture2D:
+		_store_silver_tex = t
+		return _store_silver_tex
+	if FileAccess.file_exists(STORE_SILVER_PATH):
+		var bytes := FileAccess.get_file_as_bytes(STORE_SILVER_PATH)
+		if bytes.size() > 0:
+			var img := Image.new()
+			if img.load_png_from_buffer(bytes) == OK:
+				_store_silver_tex = ImageTexture.create_from_image(img)
+				return _store_silver_tex
+	push_warning("STORE SILVER MISSING: " + STORE_SILVER_PATH)
+	return null
+
 func _load_item_texture(path:String) -> Texture2D:
-	if ResourceLoader.exists(path):
-		var t = ResourceLoader.load(path)
-		if t is Texture2D:
-			return t
+	var t = ResourceLoader.load(path)
+	if t is Texture2D:
+		return t
 	if FileAccess.file_exists(path):
-		var img := Image.new()
-		if img.load(path) == OK:
-			return ImageTexture.create_from_image(img)
+		var bytes := FileAccess.get_file_as_bytes(path)
+		if bytes.size() > 0:
+			var img := Image.new()
+			if img.load_png_from_buffer(bytes) == OK:
+				return ImageTexture.create_from_image(img)
 	push_warning("MISSING ICON: " + path)
 	return null
 
 func _apply_store_button_image(btn:Button) -> void:
 	var st=StyleBoxTexture.new()
-	var tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png")
+	var tex=_store_silver()
 	if tex!=null:
 		st.texture=tex
 	st.modulate_color=Color(1,1,1,1)
@@ -1056,7 +1076,7 @@ func _make_store_slot(use_silver:bool=false) -> Control:
 	slot_style.set_border_width_all(2)
 	cell.add_theme_stylebox_override("panel",slot_style)
 	if use_silver:
-		var silver_tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png")
+		var silver_tex=_store_silver()
 		if silver_tex!=null:
 			var silver=TextureRect.new()
 			silver.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
