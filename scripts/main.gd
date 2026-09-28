@@ -1000,7 +1000,16 @@ func _create_store_panel():
 	close.size=Vector2(50,38)
 	close.pressed.connect(_open_store)
 	store_panel.add_child(close)
-	# Mağaza içeriği sıfırlandı. Yeni tasarım buradan kurulacak.
+	# Yeni mağaza kategori çubuğu.
+	var categories=["TÜMÜ","SİLAH","ZIRH","KARTLAR"]
+	for i in categories.size():
+		var category_btn=Button.new()
+		category_btn.name="Category_"+str(i)
+		category_btn.text=categories[i]
+		category_btn.position=Vector2(20+i*185,68)
+		category_btn.size=Vector2(170,48)
+		category_btn.add_theme_font_size_override("font_size",18)
+		store_panel.add_child(category_btn)
 	store_panel.visible=true
 
 func _rarity_name(rarity:String) -> String:
