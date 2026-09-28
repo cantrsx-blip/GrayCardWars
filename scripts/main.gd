@@ -990,14 +990,19 @@ func _create_store_panel():
 	store_panel.position=Vector2(-390,-290)
 	store_panel.size=Vector2(780,580)
 	layers[-1].add_child(store_panel)
-	var title=Label.new(); title.text="MAĞAZA"; title.position=Vector2(20,12); title.size=Vector2(620,38); title.add_theme_font_size_override("font_size",26); store_panel.add_child(title)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(712,10); close.size=Vector2(50,38); close.pressed.connect(_open_store); store_panel.add_child(close)
-	var categories=["TÜMÜ","SİLAHLAR","MERMİLER","ZIRHLAR"]
-	for i in categories.size():
-		var b=Button.new(); b.text=categories[i]
-		b.position=Vector2(18+i*146,58); b.size=Vector2(140,44); b.add_theme_font_size_override("font_size",14)
-		b.pressed.connect(_store_category.bind(categories[i])); store_panel.add_child(b)
-	_store_category("TÜMÜ")
+	var title=Label.new()
+	title.text="MAĞAZA"
+	title.position=Vector2(20,12)
+	title.size=Vector2(620,38)
+	title.add_theme_font_size_override("font_size",26)
+	store_panel.add_child(title)
+	var close=Button.new()
+	close.text="✕"
+	close.position=Vector2(712,10)
+	close.size=Vector2(50,38)
+	close.pressed.connect(_open_store)
+	store_panel.add_child(close)
+	# Mağaza içeriği sıfırlandı. Yeni tasarım buradan kurulacak.
 	store_panel.visible=true
 
 func _store_items(category:String) -> Array:
