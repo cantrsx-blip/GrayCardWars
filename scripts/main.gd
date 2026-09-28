@@ -1112,13 +1112,13 @@ func _open_store_detail(item:Dictionary) -> void:
 	var info=Label.new(); info.position=Vector2(346,92); info.size=Vector2(225,250); info.text=_store_item_details(item); info.add_theme_font_size_override("font_size",18); detail.add_child(info)
 	var hint=Label.new(); hint.text="512px detay görseli"; hint.position=Vector2(24,392); hint.size=Vector2(300,30); hint.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; detail.add_child(hint)
 
-func _make_store_slot(item:Dictionary) -> Control:
+func _make_store_slot(item:Dictionary, use_silver:bool=false) -> Control:
 	var button=TextureButton.new()
 	button.custom_minimum_size=Vector2(136,104)
 	button.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
 	button.ignore_texture_size=true
 	button.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	var tex=_load_item_texture(item.path)
+	var tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png") if use_silver else _load_item_texture(item.path)
 	if tex!=null:
 		button.texture_normal=tex
 	else:
@@ -1157,8 +1157,10 @@ func _store_category(category:String):
 	grid.custom_minimum_size=Vector2(720,0)
 	grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	scroll.add_child(grid)
-	for item in _store_items(category):
-		grid.add_child(_make_store_slot(item))
+	var store_items=_store_items(category)
+	for i in store_items.size():
+		# Five-column shop: the first (leftmost) slot of every row uses the silver card image.
+		grid.add_child(_make_store_slot(store_items[i], i % 5 == 0))
 	_flash_message("MAĞAZA: "+category)
 
 func _nearest_poi() -> String:
