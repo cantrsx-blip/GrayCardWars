@@ -1010,6 +1010,15 @@ func _blank_store_slots(count:int) -> Array:
 		items.append({})
 	return items
 
+func _store_rarity_name(rarity:String) -> String:
+	match rarity:
+		"gray": return "Gri"
+		"green": return "Yeşil"
+		"blue": return "Mavi"
+		"orange": return "Turuncu"
+		"red": return "Kırmızı"
+	return rarity
+
 func _load_item_texture(path:String) -> Texture2D:
 	if ResourceLoader.exists(path):
 		var t = ResourceLoader.load(path)
