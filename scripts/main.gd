@@ -1118,8 +1118,21 @@ func _make_store_slot(item:Dictionary, use_silver:bool=false) -> Control:
 	button.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
 	button.ignore_texture_size=true
 	button.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	var tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png") if use_silver else _load_item_texture(item.path)
-	if tex!=null:
+	var tex=_load_item_texture(item.path)
+	if use_silver:
+		var silver_tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png")
+		if silver_tex!=null:
+			# Render the silver card as a real child control so it is always visible in the shop slot.
+			var silver=TextureRect.new()
+			silver.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			silver.texture=silver_tex
+			silver.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+			silver.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			silver.mouse_filter=Control.MOUSE_FILTER_IGNORE
+			button.add_child(silver)
+		else:
+			push_warning("MISSING SILVER SHOP ICON")
+	elif tex!=null:
 		button.texture_normal=tex
 	else:
 		var missing_style=StyleBoxFlat.new()
