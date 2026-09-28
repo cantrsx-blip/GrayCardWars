@@ -1065,7 +1065,7 @@ func _apply_store_button_image(btn:Button) -> void:
 	btn.add_theme_color_override("font_pressed_color",Color(.20,.08,.08,1))
 
 func _make_store_slot(use_silver:bool=false) -> Control:
-	var cell=Panel.new()
+	var cell=Control.new()
 	cell.custom_minimum_size=Vector2(136,104)
 	if use_silver:
 		var silver_tex=_store_silver()
@@ -1078,11 +1078,6 @@ func _make_store_slot(use_silver:bool=false) -> Control:
 			silver.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
 			silver.stretch_mode=TextureRect.STRETCH_SCALE
 			silver.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	var slot_style=StyleBoxFlat.new()
-	slot_style.bg_color=Color(0.03,0.03,0.03,0.18)
-	slot_style.border_color=Color(0.85,0.08,0.08,0.95)
-	slot_style.set_border_width_all(2)
-	cell.add_theme_stylebox_override("panel",slot_style)
 	return cell
 
 func _store_category(category:String):
@@ -1103,8 +1098,12 @@ func _store_category(category:String):
 	grid.custom_minimum_size=Vector2(720,0)
 	grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	scroll.add_child(grid)
-	var store_items=_store_items(category)
-	for i in store_items.size():
+	if category=="TÜMÜ":
+		# Five rows: silver image only in the first column, the other four cells stay empty.
+		for i in 25:
+			grid.add_child(_make_store_slot(i % 5 == 0))
+	else:
+		# Category tabs show one silver card only. No product button, border or text.
 		grid.add_child(_make_store_slot(true))
 	_flash_message("MAĞAZA: "+category)
 
