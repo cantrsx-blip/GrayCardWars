@@ -1048,9 +1048,15 @@ func _make_store_slot(use_silver:bool=false) -> Control:
 	if use_silver:
 		var silver_tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png")
 		if silver_tex!=null:
-			button.texture_normal=silver_tex
-			button.texture_pressed=silver_tex
-			button.texture_hover=silver_tex
+			var silver=TextureRect.new()
+			silver.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			silver.texture=silver_tex
+			silver.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+			silver.stretch_mode=TextureRect.STRETCH_SCALE
+			silver.mouse_filter=Control.MOUSE_FILTER_IGNORE
+			silver.z_index=1
+			button.add_child(silver)
+			frame.z_index=2
 	return button
 
 func _store_category(category:String):
