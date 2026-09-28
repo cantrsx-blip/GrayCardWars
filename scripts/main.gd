@@ -1,5 +1,7 @@
 extends Node3D
 
+const STORE_GRAY_CARD_PATH := "res://assets/store/gumus_magaza_136x104.png"
+
 const MAP_HALF := 200.0
 const PLAYER_HEIGHT := 1.0
 const POI_FLAT_RADIUS := 42.0
@@ -1009,8 +1011,32 @@ func _create_store_panel():
 		category_btn.position=Vector2(20+i*185,68)
 		category_btn.size=Vector2(170,48)
 		category_btn.add_theme_font_size_override("font_size",18)
+		category_btn.pressed.connect(_show_store_category.bind(categories[i]))
 		store_panel.add_child(category_btn)
+	_show_store_category("TÜMÜ")
 	store_panel.visible=true
+
+func _show_store_category(category:String) -> void:
+	if store_panel==null: return
+	var old=store_panel.get_node_or_null("CategoryItems")
+	if old: old.queue_free()
+	var scroll=ScrollContainer.new()
+	scroll.name="CategoryItems"
+	scroll.position=Vector2(20,130)
+	scroll.size=Vector2(740,425)
+	scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+	store_panel.add_child(scroll)
+	var list=VBoxContainer.new()
+	list.custom_minimum_size=Vector2(700,0)
+	list.add_theme_constant_override("separation",8)
+	scroll.add_child(list)
+	for i in 7:
+		var card=TextureRect.new()
+		card.custom_minimum_size=Vector2(136,104)
+		card.texture=load(STORE_GRAY_CARD_PATH)
+		card.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+		card.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		list.add_child(card)
 
 func _rarity_name(rarity:String) -> String:
 	match rarity:
