@@ -1030,12 +1030,22 @@ func _show_store_category(category:String) -> void:
 	list.custom_minimum_size=Vector2(700,0)
 	list.add_theme_constant_override("separation",8)
 	scroll.add_child(list)
+	var card_texture:Texture2D=null
+	if ResourceLoader.exists(STORE_GRAY_CARD_PATH):
+		card_texture=ResourceLoader.load(STORE_GRAY_CARD_PATH) as Texture2D
+	else:
+		push_warning("GRAY CARD MISSING: "+STORE_GRAY_CARD_PATH)
 	for i in 7:
-		var card=TextureRect.new()
+		var card=Button.new()
 		card.custom_minimum_size=Vector2(136,104)
-		card.texture=load(STORE_GRAY_CARD_PATH)
-		card.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
-		card.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		card.size=Vector2(136,104)
+		card.size_flags_horizontal=Control.SIZE_SHRINK_BEGIN
+		card.flat=true
+		card.disabled=true
+		card.mouse_filter=Control.MOUSE_FILTER_IGNORE
+		card.expand_icon=true
+		card.icon_max_width=136
+		card.icon=card_texture
 		list.add_child(card)
 
 func _rarity_name(rarity:String) -> String:
