@@ -1065,20 +1065,21 @@ func _apply_store_button_image(btn:Button) -> void:
 	btn.add_theme_color_override("font_pressed_color",Color(.20,.08,.08,1))
 
 func _make_store_slot(use_silver:bool=false) -> Control:
-	var cell=Control.new()
-	cell.custom_minimum_size=Vector2(136,104)
+	# The GridContainer receives the image itself, not a wrapper Control.
+	# This lets the container lay out the TextureRect directly on Android.
 	if use_silver:
 		var silver_tex=_store_silver()
 		if silver_tex!=null:
 			var silver=TextureRect.new()
-			cell.add_child(silver)
-			silver.position=Vector2.ZERO
-			silver.size=Vector2(136,104)
+			silver.custom_minimum_size=Vector2(136,104)
 			silver.texture=silver_tex
 			silver.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
 			silver.stretch_mode=TextureRect.STRETCH_SCALE
 			silver.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	return cell
+			return silver
+	var empty=Control.new()
+	empty.custom_minimum_size=Vector2(136,104)
+	return empty
 
 func _store_category(category:String):
 	if store_panel==null: return
