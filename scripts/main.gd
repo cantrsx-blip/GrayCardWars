@@ -1032,19 +1032,13 @@ func _load_item_texture(path:String) -> Texture2D:
 	return null
 
 func _make_store_slot(use_silver:bool=false) -> Control:
-	var button=TextureButton.new()
-	button.custom_minimum_size=Vector2(136,104)
-	button.ignore_texture_size=true
-	button.stretch_mode=TextureButton.STRETCH_SCALE
+	var cell=Panel.new()
+	cell.custom_minimum_size=Vector2(136,104)
 	var slot_style=StyleBoxFlat.new()
 	slot_style.bg_color=Color(0.03,0.03,0.03,0.18)
 	slot_style.border_color=Color(0.85,0.08,0.08,0.95)
 	slot_style.set_border_width_all(2)
-	var frame=Panel.new()
-	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	frame.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	frame.add_theme_stylebox_override("panel",slot_style)
-	button.add_child(frame)
+	cell.add_theme_stylebox_override("panel",slot_style)
 	if use_silver:
 		var silver_tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png")
 		if silver_tex!=null:
@@ -1054,10 +1048,8 @@ func _make_store_slot(use_silver:bool=false) -> Control:
 			silver.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
 			silver.stretch_mode=TextureRect.STRETCH_SCALE
 			silver.mouse_filter=Control.MOUSE_FILTER_IGNORE
-			silver.z_index=1
-			button.add_child(silver)
-			frame.z_index=2
-	return button
+			cell.add_child(silver)
+	return cell
 
 func _store_category(category:String):
 	if store_panel==null: return
