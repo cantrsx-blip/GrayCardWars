@@ -80,6 +80,15 @@ jobs:
           GODOT=/tmp/godot/Godot_v4.5.1-stable_linux.x86_64
           "$GODOT" --headless --editor --path . --quit --verbose
 
+      - name: Verify store silver asset import
+        run: |
+          test -f assets/store/gumus_magaza_136x104.png
+          echo "===== STORE SILVER SOURCE ====="
+          ls -lh assets/store/gumus_magaza_136x104.png
+          echo "===== GODOT IMPORT MATCHES ====="
+          find .godot/imported -maxdepth 1 -type f -name 'gumus_magaza_136x104.png-*' -print | tee /tmp/store-silver-imports.txt
+          test -s /tmp/store-silver-imports.txt
+
       - name: Validate scripts and runtime
         run: |
           GODOT=/tmp/godot/Godot_v4.5.1-stable_linux.x86_64
