@@ -1,6 +1,7 @@
 extends Node3D
 
 const STORE_GRAY_CARD_PATH := "res://assets/store/gumus_magaza_136x104.png"
+const STORE_GRAY_CARD := preload("res://assets/store/gumus_magaza_136x104.png")
 
 const MAP_HALF := 200.0
 const PLAYER_HEIGHT := 1.0
@@ -1016,6 +1017,15 @@ func _create_store_panel():
 	_show_store_category("TÜMÜ")
 	store_panel.visible=true
 
+func _store_card_texture() -> Texture2D:
+	if STORE_GRAY_CARD is Texture2D:
+		return STORE_GRAY_CARD
+	var img := Image.new()
+	if img.load(STORE_GRAY_CARD_PATH) == OK:
+		return ImageTexture.create_from_image(img)
+	push_warning("GRAY CARD LOAD FAILED: " + STORE_GRAY_CARD_PATH)
+	return null
+
 func _show_store_category(category:String) -> void:
 	if store_panel==null: return
 	var old=store_panel.get_node_or_null("CategoryItems")
@@ -1030,39 +1040,15 @@ func _show_store_category(category:String) -> void:
 	list.custom_minimum_size=Vector2(700,0)
 	list.add_theme_constant_override("separation",8)
 	scroll.add_child(list)
-
-	var exists := ResourceLoader.exists(STORE_GRAY_CARD_PATH)
-	var card_texture:Texture2D=null
-	if exists:
-		card_texture=ResourceLoader.load(STORE_GRAY_CARD_PATH) as Texture2D
-	else:
-		push_warning("GRAY CARD MISSING: "+STORE_GRAY_CARD_PATH)
-
-	var status=Label.new()
-	status.text="PNG exists=%s loaded=%s" % [str(exists), str(card_texture!=null)]
-	status.add_theme_font_size_override("font_size",18)
-	status.add_theme_color_override("font_color", Color(1,0.2,0.2,1))
-	list.add_child(status)
-
+	var card_texture := _store_card_texture()
 	for i in 7:
-		var row=Control.new()
-		row.custom_minimum_size=Vector2(700,104)
-
-		var debug_bg=ColorRect.new()
-		debug_bg.color=Color(1,0,0,0.85)
-		debug_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-		row.add_child(debug_bg)
-
 		var tex=TextureRect.new()
-		tex.position=Vector2(0,0)
-		tex.size=Vector2(136,104)
 		tex.custom_minimum_size=Vector2(136,104)
+		tex.size=Vector2(136,104)
 		tex.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
 		tex.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		tex.texture=card_texture
-		row.add_child(tex)
-
-		list.add_child(row)
+		list.add_child(tex)
 
 func _rarity_name(rarity:String) -> String:
 	match rarity:
