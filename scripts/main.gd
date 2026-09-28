@@ -1,6 +1,17 @@
 extends Node3D
 
 const STORE_GRAY_CARD_PNG_B64 := "iVBORw0KGgoAAAANSUhEUgAAAIgAAABoCAYAAAAq/rjQAAAB2ElEQVR42u3SOXJTURiEUe9/AUSEbAEweJasebAkz2YxcDdA/a/q1nPSJzhZR13f2Zev3/7C/5w5AYEgED4pkMPTH4INCOSDYAKhL5CHNiJXHcjjB8EGBPJOMIHQF8i+jchVB3J6J9iAQN4IVgayayNy1YEc3wgmEATCiIFsj68EqwM5vBJMIPQFsmkjcg0I5IVgdSAPLwQTCH2BrNuIXHUg+2eCCYS+QFZtRC6B0BnI7plgZSDL3RPBBIJAGDOQ7RPBykAW20eCCYTOQDaPBCsDmbcRuQYEciKYQOgMZH0iWBnIrI3INSCQI8EEQl8g96sjwQSCQBgzkOWBYGUg0zYil0AQCCMGMlk8EEwgCIQRA7lrI3LVgcz3BBMIAmHEQG5ne4IJhN5AdgQrA7lpI3LVgdzvCCYQegPZEqwM5LqNyFUHMt0STCD0BXI13RCsDmSyIZhAEAgjBnI5WROsDuRuTTCB0BfIRRuRSyB0BnK7IlgZyO82IpdA6AzkZkWwAYEsCVYG8quNyCUQOgO5XhKsDOT8ekEwgSAQxgzkakGwMpCfbUSuAYHMCVYHcjknWBnIjzYil0DoDWRGsDqQixnBykC+txG5BEJvIPcEKwMBgSAQBMIn+Af/KCrcxGyW2QAAAABJRU5ErkJggg=="
+const STORE_WEAPON1_PATH := "res://Weapon1.png"
+
+func _store_weapon1_texture() -> Texture2D:
+	var img := Image.new()
+	if img.load(STORE_WEAPON1_PATH) == OK:
+		return ImageTexture.create_from_image(img)
+	if ResourceLoader.exists(STORE_WEAPON1_PATH):
+		var t = ResourceLoader.load(STORE_WEAPON1_PATH)
+		if t is Texture2D:
+			return t
+	return null
 
 
 const MAP_HALF := 200.0
@@ -1072,6 +1083,8 @@ func _show_store_category(category:String) -> void:
 	grid.add_theme_constant_override("v_separation",8)
 	wrap.add_child(grid)
 
+	var weapon_tex := _store_weapon1_texture()
+	var show_weapon := category == "TÜMÜ" or category == "SİLAH"
 	var card_colors = [
 		Color(0.75, 0.77, 0.80, 1.0),
 		Color(0.02, 0.58, 0.37, 1.0),
@@ -1080,15 +1093,20 @@ func _show_store_category(category:String) -> void:
 		Color(0.86, 0.10, 0.07, 1.0)
 	]
 	for i in 25:
-		var img := Image.create(136, 104, false, Image.FORMAT_RGBA8)
-		img.fill(card_colors[i % 5])
-		var tex=TextureRect.new()
-		tex.custom_minimum_size=Vector2(136,104)
-		tex.size=Vector2(136,104)
-		tex.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
-		tex.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tex.texture=ImageTexture.create_from_image(img)
-		grid.add_child(tex)
+		var cell=Control.new()
+		cell.custom_minimum_size=Vector2(136,104)
+		var bg=ColorRect.new()
+		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		bg.color=card_colors[i % 5]
+		cell.add_child(bg)
+		if show_weapon and i < 5 and weapon_tex != null:
+			var overlay=TextureRect.new()
+			overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+			overlay.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+			overlay.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			overlay.texture=weapon_tex
+			cell.add_child(overlay)
+		grid.add_child(cell)
 
 func _rarity_name(rarity:String) -> String:
 	match rarity:
