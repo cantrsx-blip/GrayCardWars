@@ -1030,23 +1030,39 @@ func _show_store_category(category:String) -> void:
 	list.custom_minimum_size=Vector2(700,0)
 	list.add_theme_constant_override("separation",8)
 	scroll.add_child(list)
+
+	var exists := ResourceLoader.exists(STORE_GRAY_CARD_PATH)
 	var card_texture:Texture2D=null
-	if ResourceLoader.exists(STORE_GRAY_CARD_PATH):
+	if exists:
 		card_texture=ResourceLoader.load(STORE_GRAY_CARD_PATH) as Texture2D
 	else:
 		push_warning("GRAY CARD MISSING: "+STORE_GRAY_CARD_PATH)
+
+	var status=Label.new()
+	status.text="PNG exists=%s loaded=%s" % [str(exists), str(card_texture!=null)]
+	status.add_theme_font_size_override("font_size",18)
+	status.add_theme_color_override("font_color", Color(1,0.2,0.2,1))
+	list.add_child(status)
+
 	for i in 7:
-		var card=Button.new()
-		card.custom_minimum_size=Vector2(136,104)
-		card.size=Vector2(136,104)
-		card.size_flags_horizontal=Control.SIZE_SHRINK_BEGIN
-		card.flat=true
-		card.disabled=true
-		card.mouse_filter=Control.MOUSE_FILTER_IGNORE
-		card.expand_icon=true
-		card.icon_max_width=136
-		card.icon=card_texture
-		list.add_child(card)
+		var row=Control.new()
+		row.custom_minimum_size=Vector2(700,104)
+
+		var debug_bg=ColorRect.new()
+		debug_bg.color=Color(1,0,0,0.85)
+		debug_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		row.add_child(debug_bg)
+
+		var tex=TextureRect.new()
+		tex.position=Vector2(0,0)
+		tex.size=Vector2(136,104)
+		tex.custom_minimum_size=Vector2(136,104)
+		tex.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+		tex.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tex.texture=card_texture
+		row.add_child(tex)
+
+		list.add_child(row)
 
 func _rarity_name(rarity:String) -> String:
 	match rarity:
