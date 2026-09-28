@@ -995,57 +995,20 @@ func _create_store_panel():
 		b.position=Vector2(18+i*146,58); b.size=Vector2(140,44); b.add_theme_font_size_override("font_size",14)
 		b.pressed.connect(_store_category.bind(categories[i])); store_panel.add_child(b)
 	_store_category("TÜMÜ")
-	_validate_shop_icons()
 	store_panel.visible=true
 
 func _store_items(category:String) -> Array:
-	var colors=["gray","green","blue","orange","red"]
-	var bases:Array=[]
+	# Clean five-column card grid. Old named products, rarity labels and 512 detail pages are removed.
+	var row_counts={"SİLAHLAR":8,"MERMİLER":5,"ZIRHLAR":12}
 	if category=="TÜMÜ":
-		var all:Array=[]
-		for cat in ["SİLAHLAR","MERMİLER","ZIRHLAR"]:
-			all.append_array(_store_items(cat))
-		return all
-	if category=="SİLAHLAR":
-		bases=[
-			["spear","Mızrak"],["torch","Meşale"],["bow","Yay"],["crossbow","Arbalet"],
-			["pistol","Tabanca"],["shotgun","Pompalı"],["rifle","Tüfek"],["explosive","Patlayıcı"]
-		]
-	elif category=="MERMİLER":
-		bases=[
-			["pistol_ammo","Tabanca Mermisi"],["shotgun_shell","Pompalı Mermisi"],["rifle_ammo","Tüfek Mermisi"],
-			["arrow","Ok"],["spearhead","Mızrak Ucu"]
-		]
-	elif category=="ZIRHLAR":
-		bases=[
-			["wood_helmet","Ahşap Kask"],["wood_chest","Ahşap Göğüslük"],["wood_pants","Ahşap Pantolon"],["wood_boots","Ahşap Bot"],
-			["stone_helmet","Taş Kask"],["stone_chest","Taş Göğüslük"],["stone_pants","Taş Pantolon"],["stone_boots","Taş Bot"],
-			["metal_helmet","Metal Kask"],["metal_chest","Metal Göğüslük"],["metal_pants","Metal Pantolon"],["metal_boots","Metal Bot"]
-		]
-	var items:Array=[]
-	for base in bases:
-		for rarity in colors:
-			var suffix=rarity
-			if category=="MERMİLER":
-				match rarity:
-					"gray": suffix="normal_gray"
-					"green": suffix="sharp_green"
-					"blue": suffix="piercing_blue"
-					"orange": suffix="incendiary_orange"
-					"red": suffix="explosive_red"
-			var folder="armor-assets-2" if category=="ZIRHLAR" else "weapons-ammo-armor"
-			var path="res://assets/%s/%s_%s_128.png" % [folder,base[0],suffix]
-			items.append({"name":base[1],"rarity":rarity,"path":path})
-	return items
+		return _blank_store_slots(25)
+	return _blank_store_slots(int(row_counts.get(category,0)))
 
-func _store_rarity_name(rarity:String) -> String:
-	match rarity:
-		"gray": return "Gri"
-		"green": return "Yeşil"
-		"blue": return "Mavi"
-		"orange": return "Turuncu"
-		"red": return "Kırmızı"
-	return rarity
+func _blank_store_slots(count:int) -> Array:
+	var items:Array=[]
+	for i in count:
+		items.append({})
+	return items
 
 func _load_item_texture(path:String) -> Texture2D:
 	if ResourceLoader.exists(path):
@@ -1059,62 +1022,11 @@ func _load_item_texture(path:String) -> Texture2D:
 	push_warning("MISSING ICON: " + path)
 	return null
 
-func _store_detail_path(item:Dictionary) -> String:
-	return str(item.path).replace("_128.png","_512.png")
-
-func _store_item_details(item:Dictionary) -> String:
-	var rarity_index=["gray","green","blue","orange","red"].find(str(item.rarity))
-	var name=str(item.name)
-	if name in ["Mızrak","Meşale","Yay","Arbalet","Tabanca","Pompalı","Tüfek","Patlayıcı"]:
-		var weapon_damage={"Mızrak":18,"Meşale":12,"Yay":22,"Arbalet":28,"Tabanca":24,"Pompalı":36,"Tüfek":30,"Patlayıcı":40}
-		var ammo_name={"Mızrak":"Mızrak Ucu","Meşale":"Yok","Yay":"Ok","Arbalet":"Ok","Tabanca":"Tabanca Mermisi","Pompalı":"Pompalı Mermisi","Tüfek":"Tüfek Mermisi","Patlayıcı":"Patlayıcı"}
-		return "HASAR  %d\nMÜHİMMAT  %s\nKALİTE  %s" % [int(weapon_damage[name])+rarity_index*10,ammo_name[name],_store_rarity_name(item.rarity)]
-	if "Mermisi" in name or name in ["Ok","Mızrak Ucu"]:
-		var effects=["Normal","Keskin","Delici","Yanıcı","Patlayıcı"]
-		var weapons={"Tabanca Mermisi":"Tabanca","Pompalı Mermisi":"Pompalı","Tüfek Mermisi":"Tüfek","Ok":"Yay / Arbalet","Mızrak Ucu":"Mızrak"}
-		return "TÜR  %s\nETKİ  %s\nKULLANIM  %s\nKALİTE  %s" % [name,effects[rarity_index],weapons[name],_store_rarity_name(item.rarity)]
-	var protection=25
-	if name.begins_with("Taş"): protection=30
-	elif name.begins_with("Metal"): protection=35
-	protection+=rarity_index*5
-	var part="Zırh"
-	if "Kask" in name: part="Baş"
-	elif "Göğüslük" in name: part="Gövde"
-	elif "Pantolon" in name: part="Bacak"
-	elif "Bot" in name: part="Ayak"
-	return "KORUMA  %d\nPARÇA  %s\nKALİTE  %s" % [protection,part,_store_rarity_name(item.rarity)]
-
-func _close_store_detail() -> void:
-	if store_panel==null: return
-	var detail=store_panel.get_node_or_null("ItemDetail")
-	if detail: detail.queue_free()
-
-func _open_store_detail(item:Dictionary) -> void:
-	if store_panel==null: return
-	_close_store_detail()
-	var detail=Panel.new()
-	detail.name="ItemDetail"
-	detail.position=Vector2(90,72)
-	detail.size=Vector2(600,470)
-	detail.z_index=20
-	store_panel.add_child(detail)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(536,12); close.size=Vector2(48,38); close.pressed.connect(_close_store_detail); detail.add_child(close)
-	var title=Label.new(); title.text="%s  •  %s" % [item.name,_store_rarity_name(item.rarity)]; title.position=Vector2(22,14); title.size=Vector2(500,38); title.add_theme_font_size_override("font_size",24); detail.add_child(title)
-	var preview=TextureRect.new(); preview.position=Vector2(24,70); preview.size=Vector2(300,300); preview.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; preview.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; detail.add_child(preview)
-	var detail_path=_store_detail_path(item)
-	var detail_tex=_load_item_texture(detail_path)
-	if detail_tex==null: detail_tex=_load_item_texture(item.path)
-	preview.texture=detail_tex
-	var info=Label.new(); info.position=Vector2(346,92); info.size=Vector2(225,250); info.text=_store_item_details(item); info.add_theme_font_size_override("font_size",18); detail.add_child(info)
-	var hint=Label.new(); hint.text="512px detay görseli"; hint.position=Vector2(24,392); hint.size=Vector2(300,30); hint.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; detail.add_child(hint)
-
-func _make_store_slot(item:Dictionary, use_silver:bool=false) -> Control:
+func _make_store_slot(use_silver:bool=false) -> Control:
 	var button=TextureButton.new()
 	button.custom_minimum_size=Vector2(136,104)
-	button.tooltip_text="%s • %s" % [item.name,_store_rarity_name(item.rarity)]
 	button.ignore_texture_size=true
-	button.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	# Keep every shop cell visible even when the old product icon asset is gone.
+	button.stretch_mode=TextureButton.STRETCH_SCALE
 	var slot_style=StyleBoxFlat.new()
 	slot_style.bg_color=Color(0.03,0.03,0.03,0.18)
 	slot_style.border_color=Color(0.85,0.08,0.08,0.95)
@@ -1127,28 +1039,10 @@ func _make_store_slot(item:Dictionary, use_silver:bool=false) -> Control:
 	if use_silver:
 		var silver_tex=_load_item_texture("res://assets/store/gumus_magaza_136x104.png")
 		if silver_tex!=null:
-			var silver=TextureRect.new()
-			silver.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-			silver.texture=silver_tex
-			silver.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
-			silver.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			silver.mouse_filter=Control.MOUSE_FILTER_IGNORE
-			button.add_child(silver)
-	else:
-		var tex=_load_item_texture(item.path)
-		if tex!=null:
-			button.texture_normal=tex
-	button.pressed.connect(_open_store_detail.bind(item))
+			button.texture_normal=silver_tex
+			button.texture_pressed=silver_tex
+			button.texture_hover=silver_tex
 	return button
-
-func _validate_shop_icons() -> void:
-	var missing=0
-	for cat in ["SİLAHLAR","MERMİLER","ZIRHLAR"]:
-		for item in _store_items(cat):
-			if _load_item_texture(item.path)==null:
-				missing+=1
-				print("MISSING ",item.path)
-	print("SHOP ICONS MISSING=",missing)
 
 func _store_category(category:String):
 	if store_panel==null: return
@@ -1170,8 +1064,7 @@ func _store_category(category:String):
 	scroll.add_child(grid)
 	var store_items=_store_items(category)
 	for i in store_items.size():
-		# Five-column shop: the first (leftmost) slot of every row uses the silver card image.
-		grid.add_child(_make_store_slot(store_items[i], i % 5 == 0))
+		grid.add_child(_make_store_slot(i % 5 == 0))
 	_flash_message("MAĞAZA: "+category)
 
 func _nearest_poi() -> String:
