@@ -444,10 +444,10 @@ func _build_meteor_encounter() -> void:
 	add_child(meteor_node)
 	meteor_node.position=Vector3(0,0.36,0)
 	_ground_asset_to_terrain(meteor_node,0,0)
-	# Normalize meteor to four player heights regardless of source-model units.
+	# Restore the previous meteor scale.
 	var bounds:=_node_visual_bounds(meteor_node)
 	if bounds.size.y>0.001:
-		var target_h:=PLAYER_HEIGHT*4.0
+		var target_h:=PLAYER_HEIGHT*8.0
 		meteor_node.scale*=target_h/bounds.size.y
 		_ground_asset_to_terrain(meteor_node,0,0)
 	# Solid meteor collision: player and CharacterBody3D bosses cannot pass through it.
