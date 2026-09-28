@@ -1017,14 +1017,32 @@ func _create_store_panel():
 	_show_store_category("TÜMÜ")
 	store_panel.visible=true
 
+var last_store_tex_err := "none"
+var last_store_tex_w := 0
+var last_store_tex_h := 0
+
 func _store_card_texture() -> Texture2D:
+	last_store_tex_err = "none"
+	last_store_tex_w = 0
+	last_store_tex_h = 0
 	var raw := Marshalls.base64_to_raw(STORE_GRAY_CARD_PNG_B64)
-	var img := Image.new()
-	var err := img.load_png_from_buffer(raw)
-	if err != OK:
-		push_warning("GRAY CARD BUFFER LOAD FAILED: %s" % str(err))
-		return null
-	return ImageTexture.create_from_image(img)
+	if raw.is_empty():
+		last_store_tex_err = "b64_empty"
+	else:
+		var img := Image.new()
+		var err := img.load_png_from_buffer(raw)
+		last_store_tex_err = str(err)
+		if err == OK:
+			last_store_tex_w = img.get_width()
+			last_store_tex_h = img.get_height()
+			if last_store_tex_w > 0 and last_store_tex_h > 0:
+				return ImageTexture.create_from_image(img)
+			last_store_tex_err = "decode_ok_but_zero_size"
+	var fallback := Image.create(136, 104, false, Image.FORMAT_RGBA8)
+	fallback.fill(Color(0.72, 0.75, 0.80, 1.0))
+	last_store_tex_w = fallback.get_width()
+	last_store_tex_h = fallback.get_height()
+	return ImageTexture.create_from_image(fallback)
 
 func _show_store_category(category:String) -> void:
 	if store_panel==null: return
@@ -1041,6 +1059,11 @@ func _show_store_category(category:String) -> void:
 	list.add_theme_constant_override("separation",8)
 	scroll.add_child(list)
 	var card_texture := _store_card_texture()
+	var status=Label.new()
+	status.text="err=%s w=%d h=%d tex=%s" % [last_store_tex_err, last_store_tex_w, last_store_tex_h, str(card_texture!=null)]
+	status.add_theme_font_size_override("font_size",18)
+	status.add_theme_color_override("font_color", Color(1,0.15,0.15,1))
+	list.add_child(status)
 	for i in 7:
 		var tex=TextureRect.new()
 		tex.custom_minimum_size=Vector2(136,104)
