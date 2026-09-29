@@ -4,6 +4,11 @@ const STORE_GRAY_CARD_PNG_B64 := "iVBORw0KGgoAAAANSUhEUgAAAIgAAABoCAYAAAAq/rjQAA
 const STORE_WEAPON1_PATH := "res://Weapon1.png"
 const STORE_WEAPON2_PATH := "res://Weapon2.png"
 const STORE_WEAPON3_PATH := "res://Weapon3.png"
+const STORE_WEAPON4_PATH := "res://Weapon4.png"
+const STORE_WEAPON5_PATH := "res://Weapon5.png"
+const STORE_WEAPON6_PATH := "res://Weapon6.png.png"
+const STORE_WEAPON7_PATH := "res://Weapon7.png.png"
+const STORE_WEAPON8_PATH := "res://Weapon8.png"
 
 func _store_png_texture(path:String) -> Texture2D:
 	var img := Image.new()
@@ -1085,9 +1090,16 @@ func _show_store_category(category:String) -> void:
 	grid.add_theme_constant_override("v_separation",8)
 	wrap.add_child(grid)
 
-	var weapon1 := _store_png_texture(STORE_WEAPON1_PATH)
-	var weapon2 := _store_png_texture(STORE_WEAPON2_PATH)
-	var weapon3 := _store_png_texture(STORE_WEAPON3_PATH)
+	var weapons = [
+		_store_png_texture(STORE_WEAPON1_PATH),
+		_store_png_texture(STORE_WEAPON2_PATH),
+		_store_png_texture(STORE_WEAPON3_PATH),
+		_store_png_texture(STORE_WEAPON4_PATH),
+		_store_png_texture(STORE_WEAPON5_PATH),
+		_store_png_texture(STORE_WEAPON6_PATH),
+		_store_png_texture(STORE_WEAPON7_PATH),
+		_store_png_texture(STORE_WEAPON8_PATH)
+	]
 	var show_weapon := category == "TÜMÜ" or category == "SİLAH"
 	var card_colors = [
 		Color(0.75, 0.77, 0.80, 1.0),
@@ -1096,7 +1108,7 @@ func _show_store_category(category:String) -> void:
 		Color(1.00, 0.93, 0.28, 1.0),
 		Color(0.86, 0.10, 0.07, 1.0)
 	]
-	for i in 25:
+	for i in 40:
 		var cell=Control.new()
 		cell.custom_minimum_size=Vector2(136,104)
 		var bg=ColorRect.new()
@@ -1105,12 +1117,8 @@ func _show_store_category(category:String) -> void:
 		cell.add_child(bg)
 		var overlay_tex:Texture2D=null
 		if show_weapon:
-			if i < 5:
-				overlay_tex=weapon1
-			elif i < 10:
-				overlay_tex=weapon2
-			elif i < 15:
-				overlay_tex=weapon3
+			var row := int(i / 5)
+			overlay_tex=weapons[row]
 		if overlay_tex != null:
 			var overlay=TextureRect.new()
 			overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
