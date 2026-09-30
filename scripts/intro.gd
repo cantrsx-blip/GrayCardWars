@@ -13,6 +13,7 @@ var gj_label: Label
 var cheat_button: Button
 var store_panel: Panel
 var lobby_inventory_panel: Panel
+var lobby_inventory: Dictionary = {}
 
 const CHARACTERS := ["KAYA", "S.A.Z", "AKREP"]
 const MAPS := ["KARA KIYI"]
@@ -22,6 +23,7 @@ func _ready():
 	if DisplayServer.get_name() == "headless":
 		get_tree().change_scene_to_file.call_deferred("res://scenes/Main.tscn")
 		return
+	_load_lobby_inventory()
 	_build_lobby()
 
 func _build_lobby():
@@ -168,37 +170,98 @@ func _update_lobby_currency():
 	if gj_label: gj_label.text=str(gj_balance)+" GJ"
 	if cheat_button: cheat_button.text="HILE ACIK" if cheat_mode else "HILE KAPALI"
 
+func _load_lobby_inventory():
+	var cfg=ConfigFile.new()
+	if cfg.load("user://player.cfg")==OK:
+		var saved=cfg.get_value("inventory","crafted",{})
+		if saved is Dictionary: lobby_inventory=saved
+
+func _rarity_name(rarity:String) -> String:
+	match rarity:
+		"gray": return "Gri"
+		"green": return "Yeşil"
+		"blue": return "Mavi"
+		"orange": return "Turuncu"
+		"red": return "Kırmızı"
+	return rarity
+
 func _toggle_lobby_inventory():
 	if lobby_inventory_panel==null:
 		_build_lobby_inventory()
-	lobby_inventory_panel.visible=not lobby_inventory_panel.visible
+	var opening=not lobby_inventory_panel.visible
+	lobby_inventory_panel.visible=opening
+	if opening: _refresh_lobby_inventory()
 
 func _build_lobby_inventory():
 	lobby_inventory_panel=Panel.new()
 	lobby_inventory_panel.set_anchors_preset(Control.PRESET_CENTER)
-	lobby_inventory_panel.position=Vector2(-390,-290)
-	lobby_inventory_panel.size=Vector2(780,580)
+	lobby_inventory_panel.position=Vector2(-360,-290)
+	lobby_inventory_panel.size=Vector2(720,580)
 	add_child(lobby_inventory_panel)
 	var title=Label.new()
 	title.text="ENVANTER"
-	title.position=Vector2(20,12)
-	title.size=Vector2(620,38)
+	title.position=Vector2(24,14)
 	title.add_theme_font_size_override("font_size",26)
 	lobby_inventory_panel.add_child(title)
 	var close=Button.new()
 	close.text="✕"
-	close.position=Vector2(712,10)
-	close.size=Vector2(50,38)
+	close.position=Vector2(650,12)
+	close.size=Vector2(48,42)
 	close.pressed.connect(_toggle_lobby_inventory)
 	lobby_inventory_panel.add_child(close)
-	var info=Label.new()
-	info.text="OYUNCU ENVANTERI"
-	info.position=Vector2(20,80)
-	info.size=Vector2(740,50)
-	info.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-	info.add_theme_font_size_override("font_size",22)
-	lobby_inventory_panel.add_child(info)
-	lobby_inventory_panel.visible=true
+	var scroll=ScrollContainer.new()
+	scroll.name="InvScroll"
+	scroll.position=Vector2(20,58)
+	scroll.size=Vector2(680,500)
+	lobby_inventory_panel.add_child(scroll)
+	var grid=GridContainer.new()
+	grid.name="Grid"
+	grid.columns=5
+	grid.custom_minimum_size=Vector2(650,0)
+	grid.add_theme_constant_override("h_separation",2)
+	grid.add_theme_constant_override("v_separation",6)
+	scroll.add_child(grid)
+	lobby_inventory_panel.visible=false
+
+func _refresh_lobby_inventory():
+	if lobby_inventory_panel==null: return
+	var grid=lobby_inventory_panel.get_node("InvScroll/Grid")
+	for child in grid.get_children(): child.queue_free()
+	var shown:=0
+	for key in lobby_inventory:
+		var count=int(lobby_inventory[key])
+		if count<=0: continue
+		var parts=str(key).split("|")
+		if parts.size()<2: continue
+		var title="%s %s" % [_rarity_name(str(parts[1])),str(parts[0])]
+		var stackable=str(parts[0]) in ["Ok","Tabanca Mermisi","Pompalı Mermisi","Tüfek Mermisi"]
+		var remaining=count
+		while remaining>0 and shown<25:
+			var amount=mini(100,remaining) if stackable else 1
+			var cell=VBoxContainer.new()
+			cell.custom_minimum_size=Vector2(128,142)
+			var image=TextureRect.new()
+			image.custom_minimum_size=Vector2(128,104)
+			image.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+			image.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			cell.add_child(image)
+			var name=Button.new()
+			name.custom_minimum_size=Vector2(128,34)
+			name.text=title+"  "+str(amount)+"x"
+			name.clip_text=true
+			name.add_theme_font_size_override("font_size",10)
+			cell.add_child(name)
+			grid.add_child(cell)
+			remaining-=amount
+			shown+=1
+		if shown>=25: break
+	if shown==0:
+		var empty=Label.new()
+		empty.text="ENVANTER BOŞ"
+		empty.custom_minimum_size=Vector2(650,60)
+		empty.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+		empty.add_theme_font_size_override("font_size",20)
+		grid.add_child(empty)
 
 func _toggle_store():
 	if store_panel==null:
