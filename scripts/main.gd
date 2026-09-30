@@ -9,17 +9,34 @@ const STORE_WEAPON5_PATH := "res://Weapon5.png"
 const STORE_WEAPON6_PATH := "res://Weapon6.png.png"
 const STORE_WEAPON7_PATH := "res://Weapon7.png.png"
 const STORE_WEAPON8_PATH := "res://Weapon8.png"
+const STORE_SLOT_BG := [
+	"res://gumus.png",
+	"res://zehir.png",
+	"res://buz.jpg",
+	"res://gunes.png",
+	"res://lav.png"
+]
 
 func _store_png_texture(path:String) -> Texture2D:
-	var img := Image.new()
-	if img.load(path) == OK:
-		return ImageTexture.create_from_image(img)
-	if ResourceLoader.exists(path):
-		var t = ResourceLoader.load(path)
-		if t is Texture2D:
-			return t
+	var loaded = ResourceLoader.load(path)
+	if loaded is Texture2D:
+		return loaded
+	if FileAccess.file_exists(path):
+		var bytes := FileAccess.get_file_as_bytes(path)
+		if bytes.size() > 0:
+			var img := Image.new()
+			var err := FAILED
+			var low := path.to_lower()
+			if low.ends_with(".jpg") or low.ends_with(".jpeg"):
+				err = img.load_jpg_from_buffer(bytes)
+			else:
+				err = img.load_png_from_buffer(bytes)
+			if err == OK:
+				return ImageTexture.create_from_image(img)
+	var img2 := Image.new()
+	if img2.load(path) == OK:
+		return ImageTexture.create_from_image(img2)
 	return null
-
 
 const MAP_HALF := 200.0
 const PLAYER_HEIGHT := 1.0
@@ -1111,10 +1128,20 @@ func _show_store_category(category:String) -> void:
 	for i in 40:
 		var cell=Control.new()
 		cell.custom_minimum_size=Vector2(136,104)
-		var bg=ColorRect.new()
-		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-		bg.color=card_colors[i % 5]
-		cell.add_child(bg)
+		var bg_tex=_store_png_texture(STORE_SLOT_BG[i % STORE_SLOT_BG.size()])
+		if bg_tex!=null:
+			var bg=TextureRect.new()
+			bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			bg.texture=bg_tex
+			bg.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+			bg.stretch_mode=TextureRect.STRETCH_SCALE
+			bg.mouse_filter=Control.MOUSE_FILTER_IGNORE
+			cell.add_child(bg)
+		else:
+			var bg=ColorRect.new()
+			bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+			bg.color=Color(0.2,0.2,0.2,1)
+			cell.add_child(bg)
 		var overlay_tex:Texture2D=null
 		if show_weapon:
 			var row := int(i / 5)
