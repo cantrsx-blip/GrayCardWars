@@ -15,6 +15,12 @@ var store_panel: Panel
 var lobby_inventory_panel: Panel
 var lobby_inventory: Dictionary = {}
 
+const STORE_WEAPON_PATHS := [
+	"res://Weapon1.png","res://Weapon2.png","res://Weapon3.png","res://Weapon4.png",
+	"res://Weapon5.png","res://Weapon6.png.png","res://Weapon7.png.png","res://Weapon8.png"
+]
+const STORE_SLOT_BG := ["res://gumus.png","res://zehir.png","res://buz.jpg","res://gunes.png","res://lav.png"]
+
 const CHARACTERS := ["KAYA", "S.A.Z", "AKREP"]
 const MAPS := ["KARA KIYI"]
 
@@ -263,10 +269,22 @@ func _refresh_lobby_inventory():
 		empty.add_theme_font_size_override("font_size",20)
 		grid.add_child(empty)
 
+func _store_png_texture(path:String) -> Texture2D:
+	var loaded=ResourceLoader.load(path)
+	if loaded is Texture2D: return loaded
+	if FileAccess.file_exists(path):
+		var bytes=FileAccess.get_file_as_bytes(path)
+		if bytes.size()>0:
+			var img=Image.new()
+			var err=img.load_jpg_from_buffer(bytes) if path.to_lower().ends_with(".jpg") or path.to_lower().ends_with(".jpeg") else img.load_png_from_buffer(bytes)
+			if err==OK: return ImageTexture.create_from_image(img)
+	return null
+
 func _toggle_store():
-	if store_panel==null:
-		_build_store()
-	store_panel.visible=not store_panel.visible
+	if store_panel==null: _build_store()
+	var opening=not store_panel.visible
+	store_panel.visible=opening
+	if opening: _show_store_category("TÜMÜ")
 
 func _build_store():
 	store_panel=Panel.new()
@@ -277,13 +295,14 @@ func _build_store():
 	var title=Label.new()
 	title.text="MAĞAZA"
 	title.position=Vector2(20,12)
-	title.size=Vector2(620,38)
+	title.size=Vector2(500,38)
 	title.add_theme_font_size_override("font_size",26)
 	store_panel.add_child(title)
 	var balance=Label.new()
+	balance.name="GJBalance"
 	balance.text=str(gj_balance)+" GJ"
-	balance.position=Vector2(535,15)
-	balance.size=Vector2(150,34)
+	balance.position=Vector2(520,15)
+	balance.size=Vector2(165,34)
 	balance.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
 	balance.add_theme_font_size_override("font_size",19)
 	store_panel.add_child(balance)
@@ -295,20 +314,71 @@ func _build_store():
 	store_panel.add_child(close)
 	var categories=["TÜMÜ","SİLAH","ZIRH","KARTLAR"]
 	for i in categories.size():
-		var b=Button.new()
-		b.text=categories[i]
-		b.position=Vector2(20+i*185,68)
-		b.size=Vector2(170,48)
-		b.add_theme_font_size_override("font_size",18)
-		store_panel.add_child(b)
-	var note=Label.new()
-	note.text="GJ MAĞAZASI"
-	note.position=Vector2(20,145)
-	note.size=Vector2(740,50)
-	note.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-	note.add_theme_font_size_override("font_size",22)
-	store_panel.add_child(note)
-	store_panel.visible=true
+		var btn=Button.new()
+		btn.text=categories[i]
+		btn.position=Vector2(20+i*185,68)
+		btn.size=Vector2(170,48)
+		btn.add_theme_font_size_override("font_size",18)
+		btn.pressed.connect(_show_store_category.bind(categories[i]))
+		store_panel.add_child(btn)
+	_show_store_category("TÜMÜ")
+	store_panel.visible=false
+
+func _show_store_category(category:String):
+	if store_panel==null: return
+	var old=store_panel.get_node_or_null("CategoryItems")
+	if old: old.queue_free()
+	var scroll=ScrollContainer.new()
+	scroll.name="CategoryItems"
+	scroll.position=Vector2(20,130)
+	scroll.size=Vector2(740,425)
+	scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+	store_panel.add_child(scroll)
+	var grid=GridContainer.new()
+	grid.columns=5
+	grid.add_theme_constant_override("h_separation",8)
+	grid.add_theme_constant_override("v_separation",8)
+	scroll.add_child(grid)
+	var weapons=[]
+	for path in STORE_WEAPON_PATHS: weapons.append(_store_png_texture(path))
+	var show_weapon=category=="TÜMÜ" or category=="SİLAH"
+	var show_cards=category=="TÜMÜ" or category=="KARTLAR"
+	for i in 40:
+		var cell=Control.new()
+		cell.custom_minimum_size=Vector2(136,104)
+		var bg_tex=_store_png_texture(STORE_SLOT_BG[i % STORE_SLOT_BG.size()])
+		if bg_tex!=null:
+			var bg=TextureRect.new()
+			bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			bg.texture=bg_tex
+			bg.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+			bg.stretch_mode=TextureRect.STRETCH_SCALE
+			bg.mouse_filter=Control.MOUSE_FILTER_IGNORE
+			cell.add_child(bg)
+		else:
+			var fallback=ColorRect.new()
+			fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			fallback.color=Color(.2,.2,.2,1)
+			cell.add_child(fallback)
+		if show_weapon:
+			var row=int(i/5)
+			var tex=weapons[row]
+			if tex!=null:
+				var overlay=TextureRect.new()
+				overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+				overlay.texture=tex
+				overlay.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+				overlay.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				cell.add_child(overlay)
+		elif show_cards:
+			var card=Label.new()
+			card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			card.text=["GRİ","YEŞİL","MAVİ","TURUNCU","KIRMIZI"][i%5]+" KART"
+			card.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+			card.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+			card.add_theme_font_size_override("font_size",14)
+			cell.add_child(card)
+		grid.add_child(cell)
 
 func _enter_game():
 	var cfg=ConfigFile.new()
