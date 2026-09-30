@@ -287,6 +287,8 @@ func _ready():
 	var lobby_cfg=ConfigFile.new()
 	if lobby_cfg.load("user://player.cfg")==OK:
 		cheat_mode=bool(lobby_cfg.get_value("game","cheat",false))
+		var saved_inventory=lobby_cfg.get_value("inventory","crafted",{})
+		if saved_inventory is Dictionary: crafted_inventory=saved_inventory
 	zone_label.text="DUNYA YUKLENIYOR..."
 	call_deferred("_build_world_staged")
 
@@ -1661,7 +1663,14 @@ func _open_inventory_item_actions(key:String,title:String) -> void:
 func _inventory_is_stackable(name:String,rarity:String) -> bool:
 	return name in ["Ok","Tabanca Mermisi","Pompalı Mermisi","Tüfek Mermisi"]
 
+func _save_player_inventory() -> void:
+	var cfg=ConfigFile.new()
+	cfg.load("user://player.cfg")
+	cfg.set_value("inventory","crafted",crafted_inventory)
+	cfg.save("user://player.cfg")
+
 func _refresh_inventory():
+	_save_player_inventory()
 	if inventory_panel==null: return
 	_close_inventory_item_actions()
 	var grid=inventory_panel.get_node("InvScroll/Grid")
