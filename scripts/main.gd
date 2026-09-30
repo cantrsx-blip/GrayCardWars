@@ -1110,16 +1110,6 @@ func _show_store_category(category:String) -> void:
 	grid.add_theme_constant_override("v_separation",8)
 	wrap.add_child(grid)
 
-	var weapons = [
-		_store_png_texture(STORE_WEAPON1_PATH),
-		_store_png_texture(STORE_WEAPON2_PATH),
-		_store_png_texture(STORE_WEAPON3_PATH),
-		_store_png_texture(STORE_WEAPON4_PATH),
-		_store_png_texture(STORE_WEAPON5_PATH),
-		_store_png_texture(STORE_WEAPON6_PATH),
-		_store_png_texture(STORE_WEAPON7_PATH),
-		_store_png_texture(STORE_WEAPON8_PATH)
-	]
 	var show_weapon := category == "TÜMÜ" or category == "SİLAH"
 	var card_colors = [
 		Color(0.75, 0.77, 0.80, 1.0),
@@ -1147,8 +1137,9 @@ func _show_store_category(category:String) -> void:
 			cell.add_child(bg)
 		var overlay_tex:Texture2D=null
 		if show_weapon:
-			var row := int(i / 5)
-			overlay_tex=weapons[row]
+			var row := int(i / 5)+1
+			var variants=["gumus","yesil","buz","gunes","lav"]
+			overlay_tex=_store_png_texture("res://weapon%d%s.png" % [row,variants[i % 5]])
 		if overlay_tex != null:
 			var overlay=TextureRect.new()
 			overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
