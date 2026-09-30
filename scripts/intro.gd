@@ -23,6 +23,8 @@ var preview_row := 0
 var preview_variant := ""
 var preview_qty_label: Label
 var preview_cost_label: Label
+var preview_slider: HSlider
+var store_category := "TÜMÜ"
 
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
@@ -313,7 +315,7 @@ func _toggle_store():
 	if store_panel==null: _build_store()
 	var opening=not store_panel.visible
 	store_panel.visible=opening
-	if opening: _show_store_category("TÜMÜ")
+	if opening: _show_store_category(store_category)
 
 func _build_store():
 	store_panel=Panel.new(); store_panel.set_anchors_preset(Control.PRESET_CENTER); store_panel.position=Vector2(-390,-290); store_panel.size=Vector2(780,580); add_child(store_panel)
@@ -322,7 +324,7 @@ func _build_store():
 	var close=Button.new(); close.text="✕"; close.position=Vector2(712,10); close.size=Vector2(50,38); close.pressed.connect(_toggle_store); store_panel.add_child(close)
 	var categories=["TÜMÜ","SİLAH","ZIRH","KART AL"]
 	for i in categories.size():
-		var btn=Button.new(); btn.text=categories[i]; btn.position=Vector2(20+i*185,68); btn.size=Vector2(170,48); btn.add_theme_font_size_override("font_size",18); btn.pressed.connect(_show_store_category.bind(categories[i])); store_panel.add_child(btn)
+		var btn=Button.new(); btn.text=categories[i]; btn.position=Vector2(20+i*185,68); btn.size=Vector2(170,48); btn.add_theme_font_size_override("font_size",18); btn.name="Category_"+str(i); btn.pressed.connect(_show_store_category.bind(categories[i])); store_panel.add_child(btn)
 	_show_store_category("TÜMÜ"); store_panel.visible=false
 
 func _fit_store_name_font(t:String)->int:
@@ -333,60 +335,245 @@ func _fit_store_name_font(t:String)->int:
 
 func _show_store_category(category:String):
 	if store_panel==null: return
+	store_category=category
 	var bal=store_panel.get_node_or_null("GJBalance")
 	if bal: bal.text=str(gj_balance)+" GJ"
-	var old=store_panel.get_node_or_null("CategoryItems"); if old: old.queue_free()
-	var scroll=ScrollContainer.new(); scroll.name="CategoryItems"; scroll.position=Vector2(20,130); scroll.size=Vector2(740,425); scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED; store_panel.add_child(scroll)
-	var grid=GridContainer.new(); grid.columns=5; grid.add_theme_constant_override("h_separation",8); grid.add_theme_constant_override("v_separation",12); scroll.add_child(grid)
+	var old=store_panel.get_node_or_null("CategoryItems")
+	if old: old.free()
+	var scroll=ScrollContainer.new()
+	scroll.name="CategoryItems"
+	scroll.position=Vector2(20,130)
+	scroll.size=Vector2(740,425)
+	scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+	store_panel.add_child(scroll)
+	var grid=GridContainer.new()
+	grid.columns=5
+	grid.custom_minimum_size=Vector2(720,0)
+	grid.add_theme_constant_override("h_separation",8)
+	grid.add_theme_constant_override("v_separation",14)
+	scroll.add_child(grid)
 	if category=="ZIRH":
-		var empty=Label.new(); empty.text="ZIRH ÜRÜNLERİ DAHA SONRA EKLENECEK"; empty.custom_minimum_size=Vector2(720,80); empty.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; grid.add_child(empty); return
+		var empty=Label.new()
+		empty.text="ZIRH ÜRÜNLERİ DAHA SONRA EKLENECEK"
+		empty.custom_minimum_size=Vector2(720,80)
+		empty.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+		grid.add_child(empty)
+		return
 	if category=="KART AL":
 		for col in 5:
 			var variant=STORE_WEAPON_VARIANTS[col]
-			var card_cell=VBoxContainer.new(); card_cell.custom_minimum_size=Vector2(136,150)
-			var card=TextureButton.new(); card.custom_minimum_size=Vector2(136,104); card.ignore_texture_size=true; card.stretch_mode=TextureButton.STRETCH_SCALE; card.texture_normal=_store_png_texture(STORE_SLOT_BG[col]); card.pressed.connect(_open_store_preview.bind("card",0,variant)); card_cell.add_child(card)
-			var cb=Button.new(); cb.text="%s Kart • %d GJ" % [STORE_VARIANT_NAMES[col],CARD_PRICE_GJ]; cb.custom_minimum_size=Vector2(136,40); cb.clip_text=true; cb.add_theme_font_size_override("font_size",10); cb.pressed.connect(_open_store_preview.bind("card",0,variant)); card_cell.add_child(cb); grid.add_child(card_cell)
+			var card_cell=VBoxContainer.new()
+			card_cell.custom_minimum_size=Vector2(136,158)
+			var card=TextureButton.new()
+			card.custom_minimum_size=Vector2(136,104)
+			card.ignore_texture_size=true
+			card.stretch_mode=TextureButton.STRETCH_SCALE
+			card.texture_normal=_store_png_texture(STORE_SLOT_BG[col])
+			card.pressed.connect(_open_store_preview.bind("card",0,variant))
+			card_cell.add_child(card)
+			var cb=Button.new()
+			cb.text="%s Kart • %d GJ" % [STORE_VARIANT_NAMES[col],CARD_PRICE_GJ]
+			cb.custom_minimum_size=Vector2(136,42)
+			cb.clip_text=true
+			cb.add_theme_font_size_override("font_size",10)
+			cb.pressed.connect(_open_store_preview.bind("card",0,variant))
+			card_cell.add_child(cb)
+			grid.add_child(card_cell)
 		return
 	for i in 40:
-		var row=int(i/5)+1; var col=i%5; var variant=STORE_WEAPON_VARIANTS[col]; var product_name="%s %s" % [STORE_VARIANT_NAMES[col],STORE_WEAPON_NAMES[row-1]]
-		var cell=VBoxContainer.new(); cell.custom_minimum_size=Vector2(136,150)
-		var image=TextureButton.new(); image.custom_minimum_size=Vector2(136,104); image.ignore_texture_size=true; image.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED; image.texture_normal=_store_png_texture("res://weapon%d%s.png" % [row,variant]); image.pressed.connect(_open_store_preview.bind("weapon",row,variant)); cell.add_child(image)
-		var name=Button.new(); name.text=product_name; name.custom_minimum_size=Vector2(136,40); name.clip_text=true; name.add_theme_font_size_override("font_size",_fit_store_name_font(product_name)); name.pressed.connect(_open_store_preview.bind("weapon",row,variant)); cell.add_child(name)
+		var row=int(i/5)+1
+		var col=i%5
+		var variant=STORE_WEAPON_VARIANTS[col]
+		var product_name="%s %s" % [STORE_VARIANT_NAMES[col],STORE_WEAPON_NAMES[row-1]]
+		var cell=VBoxContainer.new()
+		cell.custom_minimum_size=Vector2(136,166)
+		cell.add_theme_constant_override("separation",4)
+		var picture=Control.new()
+		picture.custom_minimum_size=Vector2(136,104)
+		picture.clip_contents=true
+		var bg=TextureRect.new()
+		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		bg.texture=_store_png_texture(STORE_SLOT_BG[col])
+		bg.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+		bg.stretch_mode=TextureRect.STRETCH_SCALE
+		bg.mouse_filter=Control.MOUSE_FILTER_IGNORE
+		picture.add_child(bg)
+		var image=TextureButton.new()
+		image.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		image.ignore_texture_size=true
+		image.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		image.texture_normal=_store_png_texture("res://weapon%d%s.png" % [row,variant])
+		image.pressed.connect(_open_store_preview.bind("weapon",row,variant))
+		picture.add_child(image)
+		cell.add_child(picture)
+		var name_area=Control.new()
+		name_area.custom_minimum_size=Vector2(136,46)
+		name_area.clip_contents=true
+		var name_bg=TextureButton.new()
+		name_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		name_bg.ignore_texture_size=true
+		name_bg.stretch_mode=TextureButton.STRETCH_SCALE
+		name_bg.texture_normal=_store_png_texture(STORE_SLOT_BG[col])
+		name_bg.pressed.connect(_open_store_preview.bind("weapon",row,variant))
+		name_area.add_child(name_bg)
+		var label=Label.new()
+		label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		label.text=product_name
+		label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size",_fit_store_name_font(product_name))
+		label.add_theme_color_override("font_color",Color.WHITE)
+		label.add_theme_color_override("font_shadow_color",Color.BLACK)
+		label.add_theme_constant_override("shadow_offset_x",1)
+		label.add_theme_constant_override("shadow_offset_y",1)
+		label.mouse_filter=Control.MOUSE_FILTER_IGNORE
+		name_area.add_child(label)
+		cell.add_child(name_area)
 		grid.add_child(cell)
 
 func _open_store_preview(kind:String,row:int,variant:String):
-	preview_kind=kind; preview_row=row; preview_variant=variant; preview_quantity=1
-	if store_preview: store_preview.queue_free()
-	store_preview=Panel.new(); store_preview.position=Vector2(115,65); store_preview.size=Vector2(550,470); store_preview.z_index=50; store_panel.add_child(store_preview)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(486,10); close.size=Vector2(52,42); close.pressed.connect(_close_store_preview); store_preview.add_child(close)
-	var title=Label.new(); title.position=Vector2(20,14); title.size=Vector2(450,38); title.add_theme_font_size_override("font_size",24); store_preview.add_child(title)
-	var pic=TextureRect.new(); pic.position=Vector2(25,60); pic.size=Vector2(500,245); pic.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; pic.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; store_preview.add_child(pic)
+	preview_kind=kind
+	preview_row=row
+	preview_variant=variant
+	preview_quantity=1
+	if store_preview: store_preview.free()
+	for child in store_panel.get_children():
+		child.visible=false
+	store_preview=Panel.new()
+	store_preview.name="StorePreview"
+	store_preview.position=Vector2.ZERO
+	store_preview.size=Vector2(780,580)
+	store_preview.z_index=50
+	store_panel.add_child(store_preview)
+	var close=Button.new()
+	close.text="✕"
+	close.position=Vector2(708,12)
+	close.size=Vector2(52,42)
+	close.pressed.connect(_close_store_preview)
+	store_preview.add_child(close)
+	var title=Label.new()
+	title.position=Vector2(24,16)
+	title.size=Vector2(650,40)
+	title.add_theme_font_size_override("font_size",24)
+	store_preview.add_child(title)
+	var pic_frame=Control.new()
+	pic_frame.position=Vector2(140,62)
+	pic_frame.size=Vector2(500,245)
+	pic_frame.clip_contents=true
+	store_preview.add_child(pic_frame)
+	var variant_index=STORE_WEAPON_VARIANTS.find(variant)
+	var pic_bg=TextureRect.new()
+	pic_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pic_bg.texture=_store_png_texture(STORE_SLOT_BG[variant_index])
+	pic_bg.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+	pic_bg.stretch_mode=TextureRect.STRETCH_SCALE
+	pic_bg.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	pic_frame.add_child(pic_bg)
+	var pic=TextureRect.new()
+	pic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pic.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic_frame.add_child(pic)
 	if kind=="weapon":
-		title.text="%s %s" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]; pic.texture=_store_png_texture("res://weapon%d%s.png" % [row,variant])
-		var dmg=Label.new(); dmg.text="Normal Hasar: 0     Özel Hasar: 0"; dmg.position=Vector2(25,310); dmg.size=Vector2(500,30); dmg.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; dmg.add_theme_font_size_override("font_size",18); store_preview.add_child(dmg)
+		title.text="%s %s" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]
+		pic.texture=_store_png_texture("res://weapon%d%s.png" % [row,variant])
+		var dmg=Label.new()
+		dmg.text="Normal Hasar: 0     Özel Hasar: 0"
+		dmg.position=Vector2(140,312)
+		dmg.size=Vector2(500,28)
+		dmg.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+		dmg.add_theme_font_size_override("font_size",18)
+		store_preview.add_child(dmg)
 	else:
-		title.text="%s Kart" % _rarity_name(variant); pic.texture=_store_png_texture(STORE_SLOT_BG[STORE_WEAPON_VARIANTS.find(variant)])
-	var minus=Button.new(); minus.text="−"; minus.position=Vector2(150,350); minus.size=Vector2(55,48); minus.pressed.connect(_change_preview_quantity.bind(-1)); store_preview.add_child(minus)
-	preview_qty_label=Label.new(); preview_qty_label.position=Vector2(215,350); preview_qty_label.size=Vector2(120,48); preview_qty_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; preview_qty_label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER; preview_qty_label.add_theme_font_size_override("font_size",20); store_preview.add_child(preview_qty_label)
-	var plus=Button.new(); plus.text="+"; plus.position=Vector2(345,350); plus.size=Vector2(55,48); plus.pressed.connect(_change_preview_quantity.bind(1)); store_preview.add_child(plus)
-	preview_cost_label=Label.new(); preview_cost_label.position=Vector2(25,402); preview_cost_label.size=Vector2(310,45); preview_cost_label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER; preview_cost_label.add_theme_font_size_override("font_size",17); store_preview.add_child(preview_cost_label)
-	var buy=Button.new(); buy.name="BuyButton"; buy.position=Vector2(350,402); buy.size=Vector2(175,45); buy.pressed.connect(_confirm_preview_purchase); store_preview.add_child(buy)
+		title.text="%s Kart" % _rarity_name(variant)
+		pic.texture=_store_png_texture(STORE_SLOT_BG[variant_index])
+	var quick_values=[10,20,40,80,99]
+	for i in quick_values.size():
+		var q=Button.new()
+		q.text=str(quick_values[i])
+		q.position=Vector2(150+i*98,350)
+		q.size=Vector2(82,38)
+		q.pressed.connect(_set_preview_quantity.bind(quick_values[i]))
+		store_preview.add_child(q)
+	preview_slider=HSlider.new()
+	preview_slider.position=Vector2(150,395)
+	preview_slider.size=Vector2(474,34)
+	preview_slider.min_value=1
+	preview_slider.max_value=99
+	preview_slider.step=1
+	preview_slider.value=1
+	preview_slider.value_changed.connect(_preview_slider_changed)
+	store_preview.add_child(preview_slider)
+	var minus=Button.new()
+	minus.text="−"
+	minus.position=Vector2(150,438)
+	minus.size=Vector2(72,52)
+	minus.add_theme_font_size_override("font_size",26)
+	minus.pressed.connect(_change_preview_quantity.bind(-1))
+	store_preview.add_child(minus)
+	preview_qty_label=Label.new()
+	preview_qty_label.position=Vector2(230,438)
+	preview_qty_label.size=Vector2(120,52)
+	preview_qty_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	preview_qty_label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+	preview_qty_label.add_theme_font_size_override("font_size",22)
+	store_preview.add_child(preview_qty_label)
+	var plus=Button.new()
+	plus.text="+"
+	plus.position=Vector2(358,438)
+	plus.size=Vector2(72,52)
+	plus.add_theme_font_size_override("font_size",26)
+	plus.pressed.connect(_change_preview_quantity.bind(1))
+	store_preview.add_child(plus)
+	preview_cost_label=Label.new()
+	preview_cost_label.position=Vector2(24,510)
+	preview_cost_label.size=Vector2(470,48)
+	preview_cost_label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+	preview_cost_label.add_theme_font_size_override("font_size",17)
+	store_preview.add_child(preview_cost_label)
+	var buy=Button.new()
+	buy.name="BuyButton"
+	buy.position=Vector2(540,506)
+	buy.size=Vector2(200,52)
+	buy.pressed.connect(_confirm_preview_purchase)
+	store_preview.add_child(buy)
 	_update_preview_cost()
 
 func _close_store_preview():
-	if store_preview: store_preview.queue_free(); store_preview=null
+	if store_preview:
+		store_preview.free()
+		store_preview=null
+	for child in store_panel.get_children():
+		child.visible=true
+	_show_store_category(store_category)
+
+func _set_preview_quantity(value:int):
+	preview_quantity=clampi(value,1,99)
+	if preview_slider: preview_slider.set_value_no_signal(preview_quantity)
+	_update_preview_cost()
+
+func _preview_slider_changed(value:float):
+	preview_quantity=clampi(int(round(value)),1,99)
+	_update_preview_cost()
 
 func _change_preview_quantity(delta:int):
-	preview_quantity=clampi(preview_quantity+delta,1,99); _update_preview_cost()
+	preview_quantity=clampi(preview_quantity+delta,1,99)
+	if preview_slider: preview_slider.set_value_no_signal(preview_quantity)
+	_update_preview_cost()
 
 func _update_preview_cost():
 	if preview_qty_label==null or preview_cost_label==null: return
 	preview_qty_label.text=str(preview_quantity)+"x"
 	var buy=store_preview.get_node_or_null("BuyButton")
 	if preview_kind=="card":
-		var total=preview_quantity*CARD_PRICE_GJ; preview_cost_label.text="Toplam: %d GJ" % total; if buy: buy.text="SATIN AL"
+		var total=preview_quantity*CARD_PRICE_GJ
+		preview_cost_label.text="Toplam: %d GJ" % total
+		if buy: buy.text="SATIN AL"
 	else:
-		var each=STORE_WEAPON_COSTS[preview_row-1]; var total_cards=each*preview_quantity; preview_cost_label.text="Gerekli: %d %s Kart" % [total_cards,_rarity_name(preview_variant)]; if buy: buy.text="ÜRET"
+		var each=STORE_WEAPON_COSTS[preview_row-1]
+		var total_cards=each*preview_quantity
+		preview_cost_label.text="Gerekli: %d %s Kart" % [total_cards,_rarity_name(preview_variant)]
+		if buy: buy.text="ÜRET"
 
 func _confirm_preview_purchase():
 	if preview_kind=="card":
@@ -407,7 +594,9 @@ func _preview_message(t:String):
 	if preview_cost_label: preview_cost_label.text=t
 
 func _enter_game():
+	_save_lobby_state()
 	var cfg=ConfigFile.new()
+	cfg.load("user://player.cfg")
 	cfg.set_value("player","character",selected_character)
 	cfg.set_value("game","map",selected_map)
 	cfg.set_value("game","cheat",cheat_mode)
