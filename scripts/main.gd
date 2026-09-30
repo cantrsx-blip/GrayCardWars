@@ -284,6 +284,9 @@ func _ready():
 	_build_world_environment()
 	_build_world_light()
 	_build_hud()
+	var lobby_cfg=ConfigFile.new()
+	if lobby_cfg.load("user://player.cfg")==OK:
+		cheat_mode=bool(lobby_cfg.get_value("game","cheat",false))
 	zone_label.text="DUNYA YUKLENIYOR..."
 	call_deferred("_build_world_staged")
 
@@ -979,7 +982,7 @@ func _build_hud():
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(64,64); joystick_knob.size=Vector2(72,72); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
 	for item in [["↑",Vector2(88,4)],["↓",Vector2(88,168)],["←",Vector2(8,86)],["→",Vector2(168,86)]]:
 		var jl=Label.new(); jl.text=item[0]; jl.position=item[1]; jl.size=Vector2(28,28); jl.add_theme_font_size_override("font_size",22); jl.mouse_filter=Control.MOUSE_FILTER_IGNORE; joystick_base.add_child(jl)
-	var actions=[["ENVANTER",_toggle_inventory],["HILE",_toggle_cheat_mode],["UC",_toggle_fly_mode],["ALCAL",_fly_down],["MAĞAZA",_open_store]]
+	var actions=[["ENVANTER",_toggle_inventory],["UC",_toggle_fly_mode],["ALCAL",_fly_down]]
 	for i in actions.size():
 		var b=Button.new(); b.text=actions[i][0]; b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		if actions[i][0]=="HILE":
