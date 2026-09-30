@@ -83,6 +83,15 @@ func _build_lobby():
 	add_child(inventory_button)
 	_update_lobby_currency()
 
+	var choose_character_button=Button.new()
+	choose_character_button.text="KARAKTERİNİ SEÇ"
+	choose_character_button.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	choose_character_button.position=Vector2(20,24)
+	choose_character_button.size=Vector2(210,50)
+	choose_character_button.add_theme_font_size_override("font_size",18)
+	choose_character_button.pressed.connect(_open_character_menu_from_corner)
+	add_child(choose_character_button)
+
 	var panel=VBoxContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.position=Vector2(-210,-115)
@@ -122,6 +131,11 @@ func _build_lobby():
 		map_popup.add_item(MAPS[i],i)
 	map_popup.id_pressed.connect(_map_selected)
 	add_child(map_popup)
+
+func _open_character_menu_from_corner():
+	character_popup.position=Vector2i(20,78)
+	character_popup.size=Vector2i(210,0)
+	character_popup.popup()
 
 func _open_character_menu():
 	var pos:=character_button.get_screen_position()
