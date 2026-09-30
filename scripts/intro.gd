@@ -15,10 +15,7 @@ var store_panel: Panel
 var lobby_inventory_panel: Panel
 var lobby_inventory: Dictionary = {}
 
-const STORE_WEAPON_PATHS := [
-	"res://Weapon1.png","res://Weapon2.png","res://Weapon3.png","res://Weapon4.png",
-	"res://Weapon5.png","res://Weapon6.png.png","res://Weapon7.png.png","res://Weapon8.png"
-]
+const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_SLOT_BG := ["res://gumus.png","res://zehir.png","res://buz.jpg","res://gunes.png","res://lav.png"]
 
 const CHARACTERS := ["KAYA", "S.A.Z", "AKREP"]
@@ -339,8 +336,6 @@ func _show_store_category(category:String):
 	grid.add_theme_constant_override("h_separation",8)
 	grid.add_theme_constant_override("v_separation",8)
 	scroll.add_child(grid)
-	var weapons=[]
-	for path in STORE_WEAPON_PATHS: weapons.append(_store_png_texture(path))
 	var show_weapon=category=="TÜMÜ" or category=="SİLAH"
 	var show_cards=category=="TÜMÜ" or category=="KARTLAR"
 	for i in 40:
@@ -361,8 +356,9 @@ func _show_store_category(category:String):
 			fallback.color=Color(.2,.2,.2,1)
 			cell.add_child(fallback)
 		if show_weapon:
-			var row=int(i/5)
-			var tex=weapons[row]
+			var row=int(i/5)+1
+			var variant=STORE_WEAPON_VARIANTS[i % STORE_WEAPON_VARIANTS.size()]
+			var tex=_store_png_texture("res://weapon%d%s.png" % [row,variant])
 			if tex!=null:
 				var overlay=TextureRect.new()
 				overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
