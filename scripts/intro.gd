@@ -12,6 +12,7 @@ var gj_balance := 0
 var gj_label: Label
 var cheat_button: Button
 var store_panel: Panel
+var lobby_inventory_panel: Panel
 
 const CHARACTERS := ["KAYA", "S.A.Z", "AKREP"]
 const MAPS := ["KARA KIYI"]
@@ -71,6 +72,15 @@ func _build_lobby():
 	store_button.add_theme_font_size_override("font_size",18)
 	store_button.pressed.connect(_toggle_store)
 	add_child(store_button)
+
+	var inventory_button=Button.new()
+	inventory_button.text="ENVANTER"
+	inventory_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	inventory_button.position=Vector2(-195,136)
+	inventory_button.size=Vector2(175,48)
+	inventory_button.add_theme_font_size_override("font_size",18)
+	inventory_button.pressed.connect(_toggle_lobby_inventory)
+	add_child(inventory_button)
 	_update_lobby_currency()
 
 	var panel=VBoxContainer.new()
@@ -143,6 +153,38 @@ func _toggle_cheat():
 func _update_lobby_currency():
 	if gj_label: gj_label.text=str(gj_balance)+" GJ"
 	if cheat_button: cheat_button.text="HILE ACIK" if cheat_mode else "HILE KAPALI"
+
+func _toggle_lobby_inventory():
+	if lobby_inventory_panel==null:
+		_build_lobby_inventory()
+	lobby_inventory_panel.visible=not lobby_inventory_panel.visible
+
+func _build_lobby_inventory():
+	lobby_inventory_panel=Panel.new()
+	lobby_inventory_panel.set_anchors_preset(Control.PRESET_CENTER)
+	lobby_inventory_panel.position=Vector2(-390,-290)
+	lobby_inventory_panel.size=Vector2(780,580)
+	add_child(lobby_inventory_panel)
+	var title=Label.new()
+	title.text="ENVANTER"
+	title.position=Vector2(20,12)
+	title.size=Vector2(620,38)
+	title.add_theme_font_size_override("font_size",26)
+	lobby_inventory_panel.add_child(title)
+	var close=Button.new()
+	close.text="✕"
+	close.position=Vector2(712,10)
+	close.size=Vector2(50,38)
+	close.pressed.connect(_toggle_lobby_inventory)
+	lobby_inventory_panel.add_child(close)
+	var info=Label.new()
+	info.text="OYUNCU ENVANTERI"
+	info.position=Vector2(20,80)
+	info.size=Vector2(740,50)
+	info.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	info.add_theme_font_size_override("font_size",22)
+	lobby_inventory_panel.add_child(info)
+	lobby_inventory_panel.visible=true
 
 func _toggle_store():
 	if store_panel==null:
