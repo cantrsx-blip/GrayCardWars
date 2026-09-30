@@ -7,6 +7,11 @@ var map_button: Button
 var login_button: Button
 var character_popup: PopupMenu
 var map_popup: PopupMenu
+var cheat_mode := false
+var gj_balance := 0
+var gj_label: Label
+var cheat_button: Button
+var store_panel: Panel
 
 const CHARACTERS := ["KAYA", "S.A.Z", "AKREP"]
 const MAPS := ["KARA KIYI"]
@@ -42,6 +47,31 @@ func _build_lobby():
 	sub.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_font_size_override("font_size",20)
 	add_child(sub)
+
+	gj_label=Label.new()
+	gj_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	gj_label.position=Vector2(-360,28)
+	gj_label.size=Vector2(150,42)
+	gj_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
+	gj_label.add_theme_font_size_override("font_size",22)
+	add_child(gj_label)
+
+	cheat_button=Button.new()
+	cheat_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	cheat_button.position=Vector2(-195,24)
+	cheat_button.size=Vector2(175,44)
+	cheat_button.pressed.connect(_toggle_cheat)
+	add_child(cheat_button)
+
+	var store_button=Button.new()
+	store_button.text="MAĞAZA"
+	store_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	store_button.position=Vector2(-195,78)
+	store_button.size=Vector2(175,48)
+	store_button.add_theme_font_size_override("font_size",18)
+	store_button.pressed.connect(_toggle_store)
+	add_child(store_button)
+	_update_lobby_currency()
 
 	var panel=VBoxContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
@@ -105,10 +135,68 @@ func _map_selected(id:int):
 		selected_map=MAPS[id]
 		map_button.text="HARITA SEC: "+selected_map
 
+func _toggle_cheat():
+	cheat_mode=!cheat_mode
+	gj_balance=9999 if cheat_mode else 0
+	_update_lobby_currency()
+
+func _update_lobby_currency():
+	if gj_label: gj_label.text=str(gj_balance)+" GJ"
+	if cheat_button: cheat_button.text="HILE ACIK" if cheat_mode else "HILE KAPALI"
+
+func _toggle_store():
+	if store_panel==null:
+		_build_store()
+	store_panel.visible=not store_panel.visible
+
+func _build_store():
+	store_panel=Panel.new()
+	store_panel.set_anchors_preset(Control.PRESET_CENTER)
+	store_panel.position=Vector2(-390,-290)
+	store_panel.size=Vector2(780,580)
+	add_child(store_panel)
+	var title=Label.new()
+	title.text="MAĞAZA"
+	title.position=Vector2(20,12)
+	title.size=Vector2(620,38)
+	title.add_theme_font_size_override("font_size",26)
+	store_panel.add_child(title)
+	var balance=Label.new()
+	balance.text=str(gj_balance)+" GJ"
+	balance.position=Vector2(535,15)
+	balance.size=Vector2(150,34)
+	balance.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
+	balance.add_theme_font_size_override("font_size",19)
+	store_panel.add_child(balance)
+	var close=Button.new()
+	close.text="✕"
+	close.position=Vector2(712,10)
+	close.size=Vector2(50,38)
+	close.pressed.connect(_toggle_store)
+	store_panel.add_child(close)
+	var categories=["TÜMÜ","SİLAH","ZIRH","KARTLAR"]
+	for i in categories.size():
+		var b=Button.new()
+		b.text=categories[i]
+		b.position=Vector2(20+i*185,68)
+		b.size=Vector2(170,48)
+		b.add_theme_font_size_override("font_size",18)
+		store_panel.add_child(b)
+	var note=Label.new()
+	note.text="GJ MAĞAZASI"
+	note.position=Vector2(20,145)
+	note.size=Vector2(740,50)
+	note.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	note.add_theme_font_size_override("font_size",22)
+	store_panel.add_child(note)
+	store_panel.visible=true
+
 func _enter_game():
 	var cfg=ConfigFile.new()
 	cfg.set_value("player","character",selected_character)
 	cfg.set_value("game","map",selected_map)
+	cfg.set_value("game","cheat",cheat_mode)
+	cfg.set_value("currency","gj",gj_balance)
 	cfg.save("user://player.cfg")
 	get_tree().change_scene_to_file.call_deferred("res://scenes/Main.tscn")
 
