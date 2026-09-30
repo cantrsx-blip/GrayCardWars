@@ -19,9 +19,12 @@ func _ready():
 	_build_lobby()
 
 func _build_lobby():
-	var bg=ColorRect.new()
+	var bg=TextureRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color=Color(.035,.04,.035,1.0)
+	bg.texture=load("res://lobiarkaplan.jpg")
+	bg.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
 	var title=Label.new()
