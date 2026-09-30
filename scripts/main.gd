@@ -1612,9 +1612,22 @@ func _inventory_item_cell(key:String,title:String,count:int,texture:Texture2D=nu
 	cell.add_theme_constant_override("separation",4)
 	var frame=Panel.new()
 	frame.custom_minimum_size=Vector2(128,104)
+	cell.add_child(frame)
+	var key_parts=key.split("|")
+	if key_parts.size()>=2:
+		var inv_variant=str(key_parts[1])
+		var inv_variants=["gumus","yesil","buz","gunes","lav"]
+		var inv_col=inv_variants.find(inv_variant)
+		if inv_col>=0:
+			var bg=TextureRect.new()
+			bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			bg.texture=_store_png_texture(STORE_SLOT_BG[inv_col])
+			bg.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+			bg.stretch_mode=TextureRect.STRETCH_SCALE
+			bg.mouse_filter=Control.MOUSE_FILTER_IGNORE
+			frame.add_child(bg)
 	if key in hotbar_items:
 		var active_style=StyleBoxFlat.new(); active_style.bg_color=Color(.08,.55,.16,.24); active_style.border_color=Color(.18,1.0,.32,.95); active_style.set_border_width_all(3); frame.add_theme_stylebox_override("panel",active_style)
-	cell.add_child(frame)
 	var image_button=TextureButton.new()
 	image_button.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	image_button.custom_minimum_size=Vector2(128,104)
@@ -1656,7 +1669,8 @@ func _open_inventory_item_actions(key:String,title:String) -> void:
 	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(45,72); equip.size=Vector2(210,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
 
 func _inventory_is_stackable(name:String,rarity:String) -> bool:
-	return name in ["Ok","Tabanca Mermisi","Pompalı Mermisi","Tüfek Mermisi"]
+	var store_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	return name in ["Ok","Tabanca Mermisi","Pompalı Mermisi","Tüfek Mermisi"] or (name in store_names and rarity in ["gumus","yesil","buz","gunes","lav"])
 
 func _save_player_inventory() -> void:
 	var cfg=ConfigFile.new()
@@ -1778,6 +1792,8 @@ func _hotbar_item_title(key:String) -> String:
 
 func _refresh_hotbar() -> void:
 	if hotbar==null: return
+	var variants=["gumus","yesil","buz","gunes","lav"]
+	var names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
 	for i in range(mini(6,hotbar.get_child_count())):
 		var b=hotbar.get_child(i) as TextureButton
 		if b==null: continue
@@ -1788,7 +1804,26 @@ func _refresh_hotbar() -> void:
 		for child in b.get_children(): child.queue_free()
 		if "|" in key:
 			var parts=key.split("|")
-			b.texture_normal=null
+			var item_name=str(parts[0])
+			var variant=str(parts[1])
+			var col=variants.find(variant)
+			var row=names.find(item_name)+1
+			if col>=0:
+				var bg=TextureRect.new()
+				bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+				bg.texture=_store_png_texture(STORE_SLOT_BG[col])
+				bg.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+				bg.stretch_mode=TextureRect.STRETCH_SCALE
+				bg.mouse_filter=Control.MOUSE_FILTER_IGNORE
+				b.add_child(bg)
+			if row>0 and col>=0:
+				var icon=TextureRect.new()
+				icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+				icon.texture=_store_png_texture("res://weapon%d%s.png" % [row,variant])
+				icon.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+				icon.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				icon.mouse_filter=Control.MOUSE_FILTER_IGNORE
+				b.add_child(icon)
 		if not key.is_empty() and _hotbar_item_title(key)==selected_tool:
 			var selected=Panel.new()
 			selected.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1799,6 +1834,7 @@ func _refresh_hotbar() -> void:
 			st.set_border_width_all(3)
 			selected.add_theme_stylebox_override("panel",st)
 			b.add_child(selected)
+
 func _equip_inventory_item(key:String) -> void:
 	if key.is_empty(): return
 	var existing=hotbar_items.find(key)
