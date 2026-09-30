@@ -1,14 +1,6 @@
 extends Node3D
 
 const STORE_GRAY_CARD_PNG_B64 := "iVBORw0KGgoAAAANSUhEUgAAAIgAAABoCAYAAAAq/rjQAAAB2ElEQVR42u3SOXJTURiEUe9/AUSEbAEweJasebAkz2YxcDdA/a/q1nPSJzhZR13f2Zev3/7C/5w5AYEgED4pkMPTH4INCOSDYAKhL5CHNiJXHcjjB8EGBPJOMIHQF8i+jchVB3J6J9iAQN4IVgayayNy1YEc3wgmEATCiIFsj68EqwM5vBJMIPQFsmkjcg0I5IVgdSAPLwQTCH2BrNuIXHUg+2eCCYS+QFZtRC6B0BnI7plgZSDL3RPBBIJAGDOQ7RPBykAW20eCCYTOQDaPBCsDmbcRuQYEciKYQOgMZH0iWBnIrI3INSCQI8EEQl8g96sjwQSCQBgzkOWBYGUg0zYil0AQCCMGMlk8EEwgCIQRA7lrI3LVgcz3BBMIAmHEQG5ne4IJhN5AdgQrA7lpI3LVgdzvCCYQegPZEqwM5LqNyFUHMt0STCD0BXI13RCsDmSyIZhAEAgjBnI5WROsDuRuTTCB0BfIRRuRSyB0BnK7IlgZyO82IpdA6AzkZkWwAYEsCVYG8quNyCUQOgO5XhKsDOT8ekEwgSAQxgzkakGwMpCfbUSuAYHMCVYHcjknWBnIjzYil0DoDWRGsDqQixnBykC+txG5BEJvIPcEKwMBgSAQBMIn+Af/KCrcxGyW2QAAAABJRU5ErkJggg=="
-const STORE_WEAPON1_PATH := "res://Weapon1.png"
-const STORE_WEAPON2_PATH := "res://Weapon2.png"
-const STORE_WEAPON3_PATH := "res://Weapon3.png"
-const STORE_WEAPON4_PATH := "res://Weapon4.png"
-const STORE_WEAPON5_PATH := "res://Weapon5.png"
-const STORE_WEAPON6_PATH := "res://Weapon6.png.png"
-const STORE_WEAPON7_PATH := "res://Weapon7.png.png"
-const STORE_WEAPON8_PATH := "res://Weapon8.png"
 const STORE_SLOT_BG := [
 	"res://gumus.png",
 	"res://zehir.png",
@@ -289,6 +281,10 @@ func _ready():
 		cheat_mode=bool(lobby_cfg.get_value("game","cheat",false))
 		var saved_inventory=lobby_cfg.get_value("inventory","crafted",{})
 		if saved_inventory is Dictionary: crafted_inventory=saved_inventory
+		var saved_hotbar=lobby_cfg.get_value("inventory","hotbar",[])
+		if saved_hotbar is Array:
+			for i in range(mini(6,saved_hotbar.size())): hotbar_items[i]=str(saved_hotbar[i])
+	_refresh_hotbar()
 	zone_label.text="DUNYA YUKLENIYOR..."
 	call_deferred("_build_world_staged")
 
@@ -1011,6 +1007,8 @@ func _build_hud():
 	facing_label=Label.new(); facing_label.set_anchors_preset(Control.PRESET_TOP_WIDE); facing_label.position=Vector2(0,48); facing_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; facing_label.add_theme_font_size_override("font_size",22); layer.add_child(facing_label)
 	waypoint_label=Label.new(); waypoint_label.set_anchors_preset(Control.PRESET_TOP_WIDE); waypoint_label.position=Vector2(0,76); waypoint_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; waypoint_label.add_theme_font_size_override("font_size",20); layer.add_child(waypoint_label)
 	_update_cheat_button_style()
+	_create_hotbar(layer)
+	_refresh_hotbar()
 	_setup_sfx(); fx_root=Node3D.new(); fx_root.name="Effects"; add_child(fx_root)
 
 func _open_store():
@@ -1162,11 +1160,11 @@ func _show_store_category(category:String) -> void:
 
 func _rarity_name(rarity:String) -> String:
 	match rarity:
-		"gray": return "Gri"
-		"green": return "Yeşil"
-		"blue": return "Mavi"
-		"orange": return "Turuncu"
-		"red": return "Kırmızı"
+		"gray","gumus": return "Gümüş"
+		"green","yesil": return "Zehir"
+		"blue","buz": return "Buz"
+		"orange","gunes": return "Güneş"
+		"red","lav": return "Lav"
 	return rarity
 
 func _nearest_poi() -> String:
@@ -1621,14 +1619,20 @@ func _inventory_item_cell(key:String,title:String,count:int,texture:Texture2D=nu
 	var cell=VBoxContainer.new()
 	cell.custom_minimum_size=Vector2(128,142)
 	cell.add_theme_constant_override("separation",4)
+	var frame=Panel.new()
+	frame.custom_minimum_size=Vector2(128,104)
+	if key in hotbar_items:
+		var active_style=StyleBoxFlat.new(); active_style.bg_color=Color(.08,.55,.16,.24); active_style.border_color=Color(.18,1.0,.32,.95); active_style.set_border_width_all(3); frame.add_theme_stylebox_override("panel",active_style)
+	cell.add_child(frame)
 	var image_button=TextureButton.new()
+	image_button.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	image_button.custom_minimum_size=Vector2(128,104)
 	image_button.ignore_texture_size=true
 	image_button.stretch_mode=TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	image_button.texture_normal=texture
 	image_button.tooltip_text=title
 	image_button.pressed.connect(_open_inventory_item_actions.bind(key,title))
-	cell.add_child(image_button)
+	frame.add_child(image_button)
 	var name_button=Button.new()
 	name_button.custom_minimum_size=Vector2(128,34)
 	name_button.text=title
@@ -1683,6 +1687,10 @@ func _refresh_inventory():
 		if parts.size()<2: continue
 		var name=str(parts[0]); var rarity=str(parts[1])
 		var tex=null
+		var store_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+		var store_row=store_names.find(name)+1
+		if store_row>0 and rarity in ["gumus","yesil","buz","gunes","lav"]:
+			tex=_store_png_texture("res://weapon%d%s.png" % [store_row,rarity])
 		var title="%s %s" % [_rarity_name(rarity),name]
 		var stackable=_inventory_is_stackable(name,rarity)
 		var remaining=count
@@ -1739,10 +1747,10 @@ func _take_resource(key:String,amount:int)->void:
 func _create_hotbar(layer:CanvasLayer):
 	hotbar=HBoxContainer.new()
 	hotbar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	hotbar.position=Vector2(-476,-116)
-	hotbar.size=Vector2(952,106)
+	hotbar.position=Vector2(-408,-116)
+	hotbar.size=Vector2(816,106)
 	hotbar.alignment=BoxContainer.ALIGNMENT_CENTER
-	for i in 7:
+	for i in 6:
 		var b=TextureButton.new()
 		b.name="HotbarSlot_%d" % i
 		b.custom_minimum_size=Vector2(132,100)
@@ -1757,8 +1765,8 @@ func _create_hotbar(layer:CanvasLayer):
 	var eye=Button.new()
 	eye.name="HotbarEye"
 	eye.text="👁"
-	eye.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	eye.position=Vector2(-476,-146)
+	eye.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	eye.position=Vector2(230,-250)
 	eye.size=Vector2(34,28)
 	eye.add_theme_font_size_override("font_size",13)
 	eye.pressed.connect(_toggle_hotbar_visibility.bind(eye))
@@ -1779,7 +1787,7 @@ func _hotbar_item_title(key:String) -> String:
 
 func _refresh_hotbar() -> void:
 	if hotbar==null: return
-	for i in range(mini(7,hotbar.get_child_count())):
+	for i in range(mini(6,hotbar.get_child_count())):
 		var b=hotbar.get_child(i) as TextureButton
 		if b==null: continue
 		var key=str(hotbar_items[i])
@@ -1811,9 +1819,14 @@ func _equip_inventory_item(key:String) -> void:
 				break
 	if target<0: target=0
 	hotbar_items[target]=key
+	_save_hotbar_state()
 	_select_hotbar(target)
+	_refresh_inventory()
 	_close_inventory_item_actions()
 
+
+func _save_hotbar_state() -> void:
+	var cfg=ConfigFile.new(); cfg.load("user://player.cfg"); cfg.set_value("inventory","hotbar",hotbar_items); cfg.save("user://player.cfg")
 
 func _toggle_hotbar_visibility(eye:Button) -> void:
 	hotbar_hidden=not hotbar_hidden
@@ -1864,6 +1877,7 @@ func _drop_hotbar_stack(slot:int,key:String) -> void:
 	if amount<=0: return
 	crafted_inventory.erase(key)
 	hotbar_items[slot]=""
+	_save_hotbar_state()
 	selected_tool=""
 	if hotbar_label: hotbar_label.text=""
 	_spawn_dropped_item(key,amount)
