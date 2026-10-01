@@ -103,6 +103,8 @@ var camera: Camera3D
 var player_visual: Node3D
 var player_anim: AnimationPlayer
 var player_anim_name: StringName = &""
+var player_action_locked := false
+var player_action_token := 0
 var player_anim_scene: Node3D
 var player_anim_cache: Dictionary = {}
 var player_skeleton: Skeleton3D
@@ -550,10 +552,13 @@ func _node_visual_bounds(root:Node3D) -> AABB:
 	return result
 
 func _finish_attack_animation(delay:float=.65) -> void:
-	var attack_token:=Time.get_ticks_msec()
-	set_meta("last_player_attack",attack_token)
+	player_action_token+=1
+	var attack_token:=player_action_token
+	player_action_locked=true
 	await get_tree().create_timer(delay).timeout
-	if int(get_meta("last_player_attack",0))==attack_token: player_anim_name=&""
+	if player_action_token==attack_token:
+		player_action_locked=false
+		player_anim_name=&""
 
 func _is_sword_equipped() -> bool:
 	var item:=selected_tool.to_lower()
@@ -1132,6 +1137,7 @@ func _play_ybot_anim(wanted:String)->void:
 
 func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
 	if player_visual==null: return
+	if player_action_locked: return
 	var item=selected_tool.to_lower()
 	var firearm=("pompal" in item or "tüfek" in item or "tufek" in item or "nişancı" in item or "nisanci" in item)
 	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
@@ -1579,19 +1585,25 @@ func _apply_crouch_pose() -> void:
 	var left_leg:=_find_bone_fuzzy(player_skeleton,["leftleg","left_leg"])
 	var right_leg:=_find_bone_fuzzy(player_skeleton,["rightleg","right_leg"])
 	if hips>=0:
-		var hp:=player_skeleton.get_bone_pose_position(hips); hp.y-=.20; player_skeleton.set_bone_pose_position(hips,hp)
+		var hp:=player_skeleton.get_bone_pose_position(hips)
+		hp.y-=.38
+		player_skeleton.set_bone_pose_position(hips,hp)
 	for bone in [left_up,right_up]:
-		if bone>=0: player_skeleton.set_bone_pose_rotation(bone,player_skeleton.get_bone_pose_rotation(bone)*Quaternion(Vector3.RIGHT,deg_to_rad(-42.0)))
+		if bone>=0:
+			var q:=player_skeleton.get_bone_pose_rotation(bone)
+			player_skeleton.set_bone_pose_rotation(bone,Quaternion(Vector3.RIGHT,deg_to_rad(-58.0))*q)
 	for bone in [left_leg,right_leg]:
-		if bone>=0: player_skeleton.set_bone_pose_rotation(bone,player_skeleton.get_bone_pose_rotation(bone)*Quaternion(Vector3.RIGHT,deg_to_rad(72.0)))
+		if bone>=0:
+			var q:=player_skeleton.get_bone_pose_rotation(bone)
+			player_skeleton.set_bone_pose_rotation(bone,Quaternion(Vector3.RIGHT,deg_to_rad(92.0))*q)
 
 func _toggle_crouch():
 	if _panel_open(): return
 	if player==null or camera==null: return
 	crouched=not crouched
 	if camera_pivot: camera_pivot.position.y=.48 if crouched else .72
-	if player_visual: player_visual.position.y=-PLAYER_HEIGHT
-	player_move_speed=4.8 if crouched else 6.8
+	if player_visual: player_visual.position.y=-PLAYER_HEIGHT+.18 if crouched else -PLAYER_HEIGHT
+	# Keep the normal movement speed untouched; crouch only changes pose/camera.
 	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
 
 func _input(event):
