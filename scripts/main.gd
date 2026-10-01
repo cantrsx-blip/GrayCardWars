@@ -1206,8 +1206,32 @@ func _show_store_category(category:String) -> void:
 			overlay.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
 			overlay.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			overlay.texture=overlay_tex
+			overlay.mouse_filter=Control.MOUSE_FILTER_IGNORE
 			cell.add_child(overlay)
+		if show_weapon:
+			var buy=Button.new()
+			buy.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			buy.flat=true
+			buy.tooltip_text="Hile açıkken ücretsiz al"
+			buy.pressed.connect(_store_take_weapon.bind(int(i / 5),i % 5))
+			cell.add_child(buy)
 		grid.add_child(cell)
+
+func _store_take_weapon(row:int,col:int) -> void:
+	var names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	var variants=["gumus","yesil","buz","gunes","lav"]
+	if row<0 or row>=names.size() or col<0 or col>=variants.size(): return
+	if not cheat_mode:
+		if gather_label:
+			gather_label.text="Bu mağaza alımı testte yalnızca HİLE AÇIK iken kullanılabilir."
+			gather_label.visible=true; message_time=1.5
+		return
+	var key="%s|%s" % [names[row],variants[col]]
+	crafted_inventory[key]=int(crafted_inventory.get(key,0))+1
+	_save_player_inventory()
+	if gather_label:
+		gather_label.text="%s envantere eklendi" % _hotbar_item_title(key)
+		gather_label.visible=true; message_time=1.5
 
 func _rarity_name(rarity:String) -> String:
 	match rarity:
