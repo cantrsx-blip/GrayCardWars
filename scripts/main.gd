@@ -1426,7 +1426,7 @@ func _toggle_crouch():
 	if _panel_open(): return
 	if player==null or camera==null: return
 	crouched=not crouched
-if camera_pivot: camera_pivot.position.y=.35 if crouched else .65
+	if camera_pivot: camera_pivot.position.y=.35 if crouched else .65
 	player_move_speed=4.8 if crouched else 6.8
 	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
 
