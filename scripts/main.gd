@@ -275,9 +275,6 @@ const GOD_WATCHER_DISTANCE := 230.0
 const GOD_WATCHER_VISIBLE_HEIGHT := 65.0
 var god_watchers: Array[Node3D] = []
 
-func _process(_delta:float) -> void:
-	pass
-
 func _ready():
 	# Keep scene entry light on Android: show the camera/HUD first, then build the
 	# expensive world over several frames instead of blocking the first render.
