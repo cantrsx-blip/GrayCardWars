@@ -105,6 +105,7 @@ var player_anim: AnimationPlayer
 var player_anim_name: StringName = &""
 var player_action_locked := false
 var player_action_token := 0
+var player_action_duration := 0.0
 var player_anim_scene: Node3D
 var player_anim_cache: Dictionary = {}
 var player_skeleton: Skeleton3D
@@ -551,11 +552,12 @@ func _node_visual_bounds(root:Node3D) -> AABB:
 		for c in n.get_children(): stack.append(c)
 	return result
 
-func _finish_attack_animation(delay:float=.65) -> void:
+func _finish_attack_animation(_delay:float=.65) -> void:
 	player_action_token+=1
 	var attack_token:=player_action_token
 	player_action_locked=true
-	await get_tree().create_timer(delay).timeout
+	var real_duration:=maxf(player_action_duration,0.10)
+	await get_tree().create_timer(real_duration).timeout
 	if player_action_token==attack_token:
 		player_action_locked=false
 		player_anim_name=&""
@@ -1132,7 +1134,8 @@ func _play_ybot_anim(wanted:String)->void:
 	var animation:=ap.get_animation(chosen)
 	if animation and wanted not in ["Jump","Falling To Landing","Firing Rifle","Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One","Reloading"]:
 		animation.loop_mode=Animation.LOOP_LINEAR
-	ap.play(chosen,0.15)
+	player_action_duration=animation.length if animation else 0.75
+	ap.play(chosen,0.05)
 
 
 func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
