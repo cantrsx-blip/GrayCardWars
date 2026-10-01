@@ -1405,17 +1405,9 @@ func _toggle_crouch():
 	if _panel_open(): return
 	if player==null or camera==null: return
 	crouched=not crouched
-	if camera_pivot: camera_pivot.position.y=.48 if crouched else .78
+	if camera_pivot: camera_pivot.position.y=.48 if crouched else .72
 	player_move_speed=4.8 if crouched else 6.8
 	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
-
-func _look_pad_input(event):
-	if event is InputEventScreenDrag and player and camera_pivot:
-		var vw=get_viewport().get_visible_rect().size.x
-		if event.position.x < vw*.32 or event.position.x > vw*.78: return
-		camera_yaw-=event.relative.x*look_sensitivity
-		look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-35.0,25.0)
-		camera_pivot.rotation_degrees=Vector3(look_pitch,camera_yaw,0)
 
 func _input(event):
 	if _panel_open(): return
