@@ -975,19 +975,21 @@ func _build_player():
 		var bounds:=_node_visual_bounds(player_visual)
 		if bounds.size.y>0.001:
 			player_visual.scale*=1.75/bounds.size.y
-		var scaled_bounds:=_node_visual_bounds(player_visual)
-		player_visual.position.y=-PLAYER_HEIGHT-scaled_bounds.position.y
+		# Mixamo Y Bot pivot is at the feet. Keep it fixed to the CharacterBody ground level.
+		player_visual.position=Vector3(0,-PLAYER_HEIGHT,0)
+		player_visual.rotation_degrees=Vector3(0,180,0)
 		player_anim=_find_animation_player(player_visual)
+		player_visual.set_meta("anim_source","res://Y Bot.fbx")
 
 	# Real third-person shoulder rig. The pivot rotates around the player so the
 	# camera stays behind the Y Bot instead of behaving like the old FPS camera.
 	camera_pivot=Node3D.new()
 	camera_pivot.name="ThirdPersonPivot"
-	camera_pivot.position=Vector3(0,.78,0)
+	camera_pivot.position=Vector3(0,.72,0)
 	player.add_child(camera_pivot)
 	camera = Camera3D.new()
 	camera.name = "ThirdPersonCamera"
-	camera.position = Vector3(.35,.72,2.35)
+	camera.position = Vector3(.25,.62,2.20)
 	camera.rotation_degrees=Vector3.ZERO
 	camera.fov = 72
 	camera.current = true
@@ -1006,32 +1008,9 @@ func _ybot_anim_source(anim_name:String)->String:
 	return "res://"+str(files.get(anim_name,""))
 
 func _play_ybot_anim(wanted:String)->void:
+	# Keep the validated Y Bot instance stable. Animation retargeting is added only
+	# after the base character/camera framing is confirmed on Android.
 	if player_visual==null: return
-	var path:=_ybot_anim_source(wanted)
-	if path.is_empty() or not ResourceLoader.exists(path): return
-	# Mixamo FBX files carry the same Y Bot rig. Swap only the visible animated scene;
-	# collision/player state stays on CharacterBody3D.
-	if str(player_visual.get_meta("anim_source",""))==path: return
-	var next=_load_asset(path)
-	if next==null: return
-	var old_scale=player_visual.scale
-	var old_pos=player_visual.position
-	var old_rot=player_visual.rotation
-	next.name="YBotVisual"
-	next.scale=old_scale; next.position=old_pos; next.rotation=old_rot
-	next.set_meta("anim_source",path)
-	player.add_child(next)
-	var ap=_find_animation_player(next)
-	if ap:
-		var names:Array[StringName]=[]
-		for lib_name in ap.get_animation_library_list():
-			var lib=ap.get_animation_library(lib_name)
-			if lib:
-				for an in lib.get_animation_list(): names.append(an)
-		if not names.is_empty(): ap.play(names[0],.18)
-	player_visual.queue_free()
-	player_visual=next
-	player_anim=ap
 	player_anim_name=StringName(wanted)
 
 func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
