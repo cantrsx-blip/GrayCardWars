@@ -105,6 +105,8 @@ var player_anim: AnimationPlayer
 var player_anim_name: StringName = &""
 var player_anim_scene: Node3D
 var player_anim_cache: Dictionary = {}
+var player_skeleton: Skeleton3D
+var player_anim_skeleton: Skeleton3D
 var camera_yaw := 0.0
 var camera_pivot: Node3D
 var hud: Label
@@ -365,6 +367,27 @@ func _add_static_box(pos: Vector3, size: Vector3, col: Color) -> void:
 	colshape.shape = sh
 	body.add_child(colshape)
 	add_child(body)
+
+func _find_skeleton(node:Node) -> Skeleton3D:
+	if node is Skeleton3D:
+		return node as Skeleton3D
+	for child in node.get_children():
+		var found:=_find_skeleton(child)
+		if found!=null: return found
+	return null
+
+func _copy_ybot_pose() -> void:
+	if player_skeleton==null or player_anim_skeleton==null: return
+	for i in range(player_skeleton.get_bone_count()):
+		var bone_name:=player_skeleton.get_bone_name(i)
+		var source_i:=player_anim_skeleton.find_bone(bone_name)
+		if source_i<0: continue
+		player_skeleton.set_bone_pose_position(i,player_anim_skeleton.get_bone_pose_position(source_i))
+		player_skeleton.set_bone_pose_rotation(i,player_anim_skeleton.get_bone_pose_rotation(source_i))
+		player_skeleton.set_bone_pose_scale(i,player_anim_skeleton.get_bone_pose_scale(source_i))
+
+func _process(_delta:float) -> void:
+	_copy_ybot_pose()
 
 func _find_animation_player(node:Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
@@ -981,6 +1004,8 @@ func _build_player():
 		player_visual.position=Vector3(0,-PLAYER_HEIGHT,0)
 		player_visual.rotation_degrees=Vector3(0,180,0)
 		player_anim=_find_animation_player(player_visual)
+		player_skeleton=_find_skeleton(player_visual)
+		if player_anim: player_anim.stop()
 		player_visual.set_meta("anim_source","res://Y Bot.fbx")
 
 	# Real third-person shoulder rig. The pivot rotates around the player so the
@@ -1024,6 +1049,7 @@ func _play_ybot_anim(wanted:String)->void:
 	if player_anim_scene and is_instance_valid(player_anim_scene):
 		player_anim_scene.queue_free()
 		player_anim_scene=null
+		player_anim_skeleton=null
 	var carrier=_load_asset(path)
 	if carrier==null: return
 	carrier.name="YBotAnimationCarrier"
@@ -1050,6 +1076,11 @@ func _play_ybot_anim(wanted:String)->void:
 		return
 	player_anim_scene=carrier
 	player_anim=ap
+	player_anim_skeleton=_find_skeleton(carrier)
+	if player_anim_skeleton==null:
+		carrier.queue_free()
+		player_anim_scene=null
+		return
 	player_anim_name=StringName(wanted)
 	ap.play(anims[0],0.15)
 
