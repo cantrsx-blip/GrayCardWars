@@ -228,6 +228,7 @@ var metal_parts := 0
 var scope_stage := 0
 var crouched := false
 var crouch_button: Button
+var sword_attack_buttons: Array[Button] = []
 var waypoint_ground_arrow: Node3D
 var waypoint_ground_arrows: Array[Node3D] = []
 var weather_root: Node3D
@@ -382,6 +383,7 @@ func _copy_ybot_pose() -> void:
 		player_skeleton.set_bone_pose_position(i,player_anim_skeleton.get_bone_pose_position(source_i))
 		player_skeleton.set_bone_pose_rotation(i,player_anim_skeleton.get_bone_pose_rotation(source_i))
 		player_skeleton.set_bone_pose_scale(i,player_anim_skeleton.get_bone_pose_scale(source_i))
+	_apply_crouch_pose()
 
 func _process(_delta:float) -> void:
 	_copy_ybot_pose()
@@ -547,6 +549,30 @@ func _node_visual_bounds(root:Node3D) -> AABB:
 		for c in n.get_children(): stack.append(c)
 	return result
 
+func _finish_attack_animation(delay:float=.65) -> void:
+	var attack_token:=Time.get_ticks_msec()
+	set_meta("last_player_attack",attack_token)
+	await get_tree().create_timer(delay).timeout
+	if int(get_meta("last_player_attack",0))==attack_token: player_anim_name=&""
+
+func _is_sword_equipped() -> bool:
+	var item:=selected_tool.to_lower()
+	return ("kılıç" in item or "kilic" in item or "katana" in item)
+
+func _sword_attack(anim_name:String) -> void:
+	if _panel_open() or player==null or not _is_sword_equipped(): return
+	_play_ybot_anim(anim_name)
+	_meteor_strike()
+	_finish_attack_animation(.75)
+
+func _sword_attack_1() -> void: _sword_attack("Great Sword Slash (1)")
+func _sword_attack_2() -> void: _sword_attack("Stable Sword Outward Slash")
+func _sword_attack_3() -> void: _sword_attack("Sword Fight One")
+
+func _update_sword_attack_buttons(show_buttons:bool) -> void:
+	for button in sword_attack_buttons:
+		if is_instance_valid(button): button.visible=show_buttons
+
 func _player_attack() -> void:
 	if _panel_open() or player==null: return
 	var item:=selected_tool.to_lower()
@@ -554,20 +580,11 @@ func _player_attack() -> void:
 	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
 	var sword=("kılıç" in item or "kilic" in item or "katana" in item)
 	if firearm:
-		_play_ybot_anim("Firing Rifle")
-		_play_sfx("gun")
-		_muzzle_flash()
-	elif knife:
-		_play_ybot_anim("Stabbing")
-	elif sword:
-		_play_ybot_anim("Great Sword Slash")
-	# Preserve the existing meteor combat interaction while making VUR responsive everywhere.
+		_play_ybot_anim("Firing Rifle"); _play_sfx("gun"); _muzzle_flash()
+	elif knife: _play_ybot_anim("Stabbing")
+	elif sword: _play_ybot_anim("Great Sword Slash")
 	_meteor_strike()
-	var attack_token:=Time.get_ticks_msec()
-	set_meta("last_player_attack",attack_token)
-	await get_tree().create_timer(.55).timeout
-	if int(get_meta("last_player_attack",0))==attack_token:
-		player_anim_name=&""
+	_finish_attack_animation(.65)
 
 func _meteor_strike() -> void:
 	if _panel_open() or player==null or meteor_node==null or not is_instance_valid(meteor_node): return
@@ -1054,7 +1071,8 @@ func _ybot_anim_source(anim_name:String)->String:
 		"Backwards Rifle Walk":"Backwards Rifle Walk.fbx","Rifle Side Step":"Rifle Side Step.fbx",
 		"Rifle Aiming Idle":"Rifle Aiming Idle.fbx","Firing Rifle":"Firing Rifle.fbx","Reloading":"Reloading.fbx",
 		"Knife Idle":"Knife Idle.fbx","Stabbing":"Stabbing.fbx","Great Sword Idle":"Great Sword Idle.fbx",
-		"Great Sword Slash":"Great Sword Slash.fbx","Stable Sword Outward Slash":"Stable Sword Outward Slash.fbx"
+		"Great Sword Slash":"Great Sword Slash.fbx","Great Sword Slash (1)":"Great Sword Slash (1).fbx",
+		"Stable Sword Outward Slash":"Stable Sword Outward Slash.fbx","Sword Fight One":"Sword Fight One.fbx"
 	}
 	return "res://"+str(files.get(anim_name,""))
 
@@ -1107,7 +1125,7 @@ func _play_ybot_anim(wanted:String)->void:
 			chosen=candidate
 			break
 	var animation:=ap.get_animation(chosen)
-	if animation and wanted not in ["Jump","Falling To Landing","Firing Rifle","Stabbing","Great Sword Slash","Stable Sword Outward Slash","Reloading"]:
+	if animation and wanted not in ["Jump","Falling To Landing","Firing Rifle","Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One","Reloading"]:
 		animation.loop_mode=Animation.LOOP_LINEAR
 	ap.play(chosen,0.15)
 
@@ -1119,6 +1137,7 @@ func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
 	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
 	var great_sword=("büyük kılıç" in item or "buyuk kilic" in item)
 	var sword=(great_sword or "kılıç" in item or "kilic" in item or "katana" in item)
+	_update_sword_attack_buttons(sword)
 	var wanted="Rifle Idle" if firearm else ("Knife Idle" if knife else ("Great Sword Idle" if sword else "Standing Idle"))
 	if fly_mode:
 		wanted="Falling Idle"
@@ -1165,6 +1184,11 @@ func _build_hud():
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
 	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.mouse_filter=Control.MOUSE_FILTER_STOP; action_btn.pressed.connect(_player_attack); layer.add_child(action_btn)
+	var sword_actions=[["1",_sword_attack_1,Vector2(-430,-199)],["2",_sword_attack_2,Vector2(-340,-199)],["3",_sword_attack_3,Vector2(-136,-199)]]
+	for sword_action in sword_actions:
+		var sword_btn=Button.new(); sword_btn.text=sword_action[0]; sword_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); sword_btn.position=sword_action[2]; sword_btn.size=Vector2(72,72); sword_btn.add_theme_font_size_override("font_size",22)
+		var sword_style=StyleBoxFlat.new(); sword_style.bg_color=Color(.72,.72,.72,.30); sword_style.corner_radius_top_left=36; sword_style.corner_radius_top_right=36; sword_style.corner_radius_bottom_left=36; sword_style.corner_radius_bottom_right=36
+		sword_btn.add_theme_stylebox_override("normal",sword_style); sword_btn.add_theme_stylebox_override("pressed",sword_style); sword_btn.mouse_filter=Control.MOUSE_FILTER_STOP; sword_btn.pressed.connect(sword_action[1]); sword_btn.visible=false; layer.add_child(sword_btn); sword_attack_buttons.append(sword_btn)
 	var jump_btn=Button.new(); jump_btn.text="↑ Zıpla"; jump_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); jump_btn.position=Vector2(-238,-310); jump_btn.size=Vector2(92,76); jump_btn.add_theme_font_size_override("font_size",18); jump_btn.pressed.connect(_jump); layer.add_child(jump_btn)
 	var scope_btn=Button.new(); scope_btn.text="🔭"; scope_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); scope_btn.position=Vector2(-350,-320); scope_btn.size=Vector2(82,82); scope_btn.add_theme_font_size_override("font_size",28)
 	var scope_style=StyleBoxFlat.new(); scope_style.bg_color=Color(.10,.10,.10,.30); scope_style.corner_radius_top_left=41; scope_style.corner_radius_top_right=41; scope_style.corner_radius_bottom_left=41; scope_style.corner_radius_bottom_right=41
@@ -1540,14 +1564,33 @@ func _update_weather(_delta:float):
 		env.ambient_light_energy=1.0
 		env.fog_enabled=false
 
+func _find_bone_fuzzy(skeleton:Skeleton3D, needles:Array[String]) -> int:
+	for i in range(skeleton.get_bone_count()):
+		var bone_name:=str(skeleton.get_bone_name(i)).to_lower()
+		for needle in needles:
+			if needle.to_lower() in bone_name: return i
+	return -1
+
+func _apply_crouch_pose() -> void:
+	if not crouched or player_skeleton==null: return
+	var hips:=_find_bone_fuzzy(player_skeleton,["hips"])
+	var left_up:=_find_bone_fuzzy(player_skeleton,["leftupleg","left_up_leg"])
+	var right_up:=_find_bone_fuzzy(player_skeleton,["rightupleg","right_up_leg"])
+	var left_leg:=_find_bone_fuzzy(player_skeleton,["leftleg","left_leg"])
+	var right_leg:=_find_bone_fuzzy(player_skeleton,["rightleg","right_leg"])
+	if hips>=0:
+		var hp:=player_skeleton.get_bone_pose_position(hips); hp.y-=.20; player_skeleton.set_bone_pose_position(hips,hp)
+	for bone in [left_up,right_up]:
+		if bone>=0: player_skeleton.set_bone_pose_rotation(bone,player_skeleton.get_bone_pose_rotation(bone)*Quaternion(Vector3.RIGHT,deg_to_rad(-42.0)))
+	for bone in [left_leg,right_leg]:
+		if bone>=0: player_skeleton.set_bone_pose_rotation(bone,player_skeleton.get_bone_pose_rotation(bone)*Quaternion(Vector3.RIGHT,deg_to_rad(72.0)))
+
 func _toggle_crouch():
 	if _panel_open(): return
 	if player==null or camera==null: return
 	crouched=not crouched
 	if camera_pivot: camera_pivot.position.y=.48 if crouched else .72
-	if player_visual:
-		# Never squash the character mesh to fake crouching.
-		player_visual.position.y=-PLAYER_HEIGHT if not crouched else -PLAYER_HEIGHT+.32
+	if player_visual: player_visual.position.y=-PLAYER_HEIGHT
 	player_move_speed=4.8 if crouched else 6.8
 	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
 
