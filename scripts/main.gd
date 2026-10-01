@@ -201,7 +201,7 @@ var map_hint: Label
 var touch_moved := false
 var look_touch_id := -1
 var look_pitch := 0.0
-var look_sensitivity := 0.075
+var look_sensitivity := 0.028
 var chest_storage: Dictionary = {"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0,"ammo":0}
 var minimap_dot: Control
 var minimap_dir: Control
@@ -983,17 +983,17 @@ func _build_player():
 	# camera stays behind the Y Bot instead of behaving like the old FPS camera.
 	camera_pivot=Node3D.new()
 	camera_pivot.name="ThirdPersonPivot"
-	camera_pivot.position=Vector3(0,.65,0)
+	camera_pivot.position=Vector3(0,.78,0)
 	player.add_child(camera_pivot)
 	camera = Camera3D.new()
 	camera.name = "ThirdPersonCamera"
-	camera.position = Vector3(1.05,.80,4.25)
+	camera.position = Vector3(.35,.72,2.35)
 	camera.rotation_degrees=Vector3.ZERO
-	camera.fov = 68
+	camera.fov = 72
 	camera.current = true
 	camera_pivot.add_child(camera)
 	camera_yaw=0.0
-	look_pitch=-8.0
+	look_pitch=-5.0
 	camera_pivot.rotation_degrees=Vector3(look_pitch,camera_yaw,0)
 
 func _ybot_anim_source(anim_name:String)->String:
@@ -1426,19 +1426,17 @@ func _toggle_crouch():
 	if _panel_open(): return
 	if player==null or camera==null: return
 	crouched=not crouched
-	if camera_pivot: camera_pivot.position.y=.35 if crouched else .65
+	if camera_pivot: camera_pivot.position.y=.48 if crouched else .78
 	player_move_speed=4.8 if crouched else 6.8
 	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
 
 func _look_pad_input(event):
-	if event is InputEventScreenDrag and player and camera:
-		# Preserve the left movement zone and right-side button column.
+	if event is InputEventScreenDrag and player and camera_pivot:
 		var vw=get_viewport().get_visible_rect().size.x
 		if event.position.x < vw*.32 or event.position.x > vw*.78: return
-		player.rotation_degrees.y -= event.relative.x * look_sensitivity
-		look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-72.0,72.0)
-		camera.rotation_degrees.x=look_pitch
-		player_facing=-player.global_transform.basis.z
+		camera_yaw-=event.relative.x*look_sensitivity
+		look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-35.0,25.0)
+		camera_pivot.rotation_degrees=Vector3(look_pitch,camera_yaw,0)
 
 func _input(event):
 	if _panel_open(): return
@@ -1467,7 +1465,7 @@ func _input(event):
 			if joystick_knob: joystick_knob.position=Vector2(64,64)+move_touch*26.0
 		elif event.index == look_touch_id and player and camera:
 			camera_yaw-=event.relative.x*look_sensitivity
-			look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-45.0,35.0)
+			look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-35.0,25.0)
 			if camera_pivot:
 				camera_pivot.rotation_degrees=Vector3(look_pitch,camera_yaw,0)
 			player_facing=Vector3(-sin(deg_to_rad(camera_yaw)),0,-cos(deg_to_rad(camera_yaw))).normalized()
