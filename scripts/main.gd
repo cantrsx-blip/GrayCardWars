@@ -201,7 +201,7 @@ var map_hint: Label
 var touch_moved := false
 var look_touch_id := -1
 var look_pitch := 0.0
-var look_sensitivity := 0.028
+var look_sensitivity := 0.012
 var chest_storage: Dictionary = {"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0,"ammo":0}
 var minimap_dot: Control
 var minimap_dir: Control
@@ -1318,9 +1318,12 @@ func _physics_process(delta):
 	var dir = right*v.x + forward*(-v.y)
 	if dir.length() > 1.0: dir = dir.normalized()
 	if dir.length()>0.05:
-		var target_yaw=atan2(-forward.x,-forward.z)
-		player.rotation.y=lerp_angle(player.rotation.y,target_yaw,clampf(delta*8.0,0.0,1.0))
-		player_facing=-player.global_transform.basis.z
+		# Keep the camera rig independent. Rotating the CharacterBody also rotates its
+		# child camera pivot and causes the fast/double-turn feeling on mobile.
+		player_facing=forward
+		if player_visual:
+			var target_visual_yaw=atan2(-forward.x,-forward.z)+PI
+			player_visual.rotation.y=lerp_angle(player_visual.rotation.y,target_visual_yaw,clampf(delta*6.0,0.0,1.0))
 	var speed = player_move_speed * (.70 if in_pit else 1.0)
 	if fly_mode: speed*=6.0
 	elif v.length()>0.10 and v.length()<0.72: speed*=0.55
