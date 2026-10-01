@@ -205,7 +205,7 @@ var map_hint: Label
 var touch_moved := false
 var look_touch_id := -1
 var look_pitch := 0.0
-var look_sensitivity := 0.012
+var look_sensitivity := 0.060
 var chest_storage: Dictionary = {"wood":0,"stone":0,"grass":0,"wheat":0,"mushroom":0,"ammo":0}
 var minimap_dot: Control
 var minimap_dir: Control
@@ -546,6 +546,28 @@ func _node_visual_bounds(root:Node3D) -> AABB:
 			result=b if first else result.merge(b); first=false
 		for c in n.get_children(): stack.append(c)
 	return result
+
+func _player_attack() -> void:
+	if _panel_open() or player==null: return
+	var item:=selected_tool.to_lower()
+	var firearm=("pompal" in item or "tüfek" in item or "tufek" in item or "nişancı" in item or "nisanci" in item)
+	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
+	var sword=("kılıç" in item or "kilic" in item or "katana" in item)
+	if firearm:
+		_play_ybot_anim("Firing Rifle")
+		_play_sfx("gun")
+		_muzzle_flash()
+	elif knife:
+		_play_ybot_anim("Stabbing")
+	elif sword:
+		_play_ybot_anim("Great Sword Slash")
+	# Preserve the existing meteor combat interaction while making VUR responsive everywhere.
+	_meteor_strike()
+	var attack_token:=Time.get_ticks_msec()
+	set_meta("last_player_attack",attack_token)
+	await get_tree().create_timer(.55).timeout
+	if int(get_meta("last_player_attack",0))==attack_token:
+		player_anim_name=&""
 
 func _meteor_strike() -> void:
 	if _panel_open() or player==null or meteor_node==null or not is_instance_valid(meteor_node): return
@@ -1079,7 +1101,15 @@ func _play_ybot_anim(wanted:String)->void:
 		player_anim_scene=null
 		return
 	player_anim_name=StringName(wanted)
-	ap.play(anims[0],0.15)
+	var chosen:=anims[0]
+	for candidate in anims:
+		if str(candidate).to_lower()!="reset":
+			chosen=candidate
+			break
+	var animation:=ap.get_animation(chosen)
+	if animation and wanted not in ["Jump","Falling To Landing","Firing Rifle","Stabbing","Great Sword Slash","Stable Sword Outward Slash","Reloading"]:
+		animation.loop_mode=Animation.LOOP_LINEAR
+	ap.play(chosen,0.15)
 
 
 func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
@@ -1134,7 +1164,7 @@ func _build_hud():
 	_create_minimap(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
-	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.mouse_filter=Control.MOUSE_FILTER_STOP; action_btn.pressed.connect(_meteor_strike); layer.add_child(action_btn)
+	action_btn.add_theme_stylebox_override("normal",action_style); action_btn.add_theme_stylebox_override("pressed",action_style); action_btn.mouse_filter=Control.MOUSE_FILTER_STOP; action_btn.pressed.connect(_player_attack); layer.add_child(action_btn)
 	var jump_btn=Button.new(); jump_btn.text="↑ Zıpla"; jump_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); jump_btn.position=Vector2(-238,-310); jump_btn.size=Vector2(92,76); jump_btn.add_theme_font_size_override("font_size",18); jump_btn.pressed.connect(_jump); layer.add_child(jump_btn)
 	var scope_btn=Button.new(); scope_btn.text="🔭"; scope_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); scope_btn.position=Vector2(-350,-320); scope_btn.size=Vector2(82,82); scope_btn.add_theme_font_size_override("font_size",28)
 	var scope_style=StyleBoxFlat.new(); scope_style.bg_color=Color(.10,.10,.10,.30); scope_style.corner_radius_top_left=41; scope_style.corner_radius_top_right=41; scope_style.corner_radius_bottom_left=41; scope_style.corner_radius_bottom_right=41
@@ -1516,8 +1546,8 @@ func _toggle_crouch():
 	crouched=not crouched
 	if camera_pivot: camera_pivot.position.y=.48 if crouched else .72
 	if player_visual:
-		player_visual.scale.y*=0.72 if crouched else (1.0/0.72)
-		player_visual.position.y=-PLAYER_HEIGHT if not crouched else -PLAYER_HEIGHT+.02
+		# Never squash the character mesh to fake crouching.
+		player_visual.position.y=-PLAYER_HEIGHT if not crouched else -PLAYER_HEIGHT+.32
 	player_move_speed=4.8 if crouched else 6.8
 	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
 
@@ -2139,7 +2169,7 @@ func _hide_hotbar_feedback_later(token:int) -> void:
 	await get_tree().create_timer(4.0).timeout
 	if token!=hotbar_feedback_token: return
 	if hotbar_label: hotbar_label.text=""
-	selected_tool=""
+	# Keep the equipped item selected; only the temporary name label expires.
 	_refresh_hotbar()
 
 
