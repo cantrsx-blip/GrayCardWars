@@ -573,7 +573,7 @@ func _sword_attack(anim_name:String) -> void:
 	_finish_attack_animation(.75)
 
 func _sword_attack_1() -> void: _sword_attack("Great Sword Slash (1)")
-func _sword_attack_2() -> void: _sword_attack("Stable Sword Outward Slash")
+func _sword_attack_2() -> void: _sword_attack("Great Sword Slash")
 func _sword_attack_3() -> void: _sword_attack("Sword Fight One")
 
 func _update_sword_attack_buttons(show_buttons:bool) -> void:
@@ -589,7 +589,7 @@ func _player_attack() -> void:
 	if firearm:
 		_play_ybot_anim("Firing Rifle"); _play_sfx("gun"); _muzzle_flash()
 	elif knife: _play_ybot_anim("Stabbing")
-	elif sword: _play_ybot_anim("Great Sword Slash")
+	elif sword: _play_ybot_anim("Stable Sword Outward Slash")
 	_meteor_strike()
 	_finish_attack_animation(.65)
 
