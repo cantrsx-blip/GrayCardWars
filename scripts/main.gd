@@ -103,6 +103,8 @@ var camera: Camera3D
 var player_visual: Node3D
 var player_anim: AnimationPlayer
 var player_anim_name: StringName = &""
+var player_anim_scene: Node3D
+var player_anim_cache: Dictionary = {}
 var camera_yaw := 0.0
 var camera_pivot: Node3D
 var hud: Label
@@ -1003,19 +1005,63 @@ func _ybot_anim_source(anim_name:String)->String:
 		"Standing Idle":"Standing Idle.fbx","Walking":"Walking.fbx","Run":"Run.fbx",
 		"Walking Backwards":"Walking Backwards.fbx","Left Strafe Walk":"Left Strafe Walk.fbx",
 		"Right Strafe Walking":"Right Strafe Walking.fbx","Jump":"Jump.fbx",
-		"Falling Idle":"Falling Idle.fbx","Falling To Landing":"Falling To Landing.fbx"
+		"Falling Idle":"Falling Idle.fbx","Falling To Landing":"Falling To Landing.fbx",
+		"Rifle Idle":"Rifle Idle.fbx","Rifle Walk":"Rifle Walk.fbx","Rifle Run":"Rifle Run.fbx",
+		"Backwards Rifle Walk":"Backwards Rifle Walk.fbx","Rifle Side Step":"Rifle Side Step.fbx",
+		"Rifle Aiming Idle":"Rifle Aiming Idle.fbx","Firing Rifle":"Firing Rifle.fbx","Reloading":"Reloading.fbx",
+		"Knife Idle":"Knife Idle.fbx","Stabbing":"Stabbing.fbx","Great Sword Idle":"Great Sword Idle.fbx",
+		"Great Sword Slash":"Great Sword Slash.fbx","Stable Sword Outward Slash":"Stable Sword Outward Slash.fbx"
 	}
 	return "res://"+str(files.get(anim_name,""))
 
 func _play_ybot_anim(wanted:String)->void:
-	# Keep the validated Y Bot instance stable. Animation retargeting is added only
-	# after the base character/camera framing is confirmed on Android.
 	if player_visual==null: return
+	var path:=_ybot_anim_source(wanted)
+	if path.is_empty() or not ResourceLoader.exists(path): return
+	if StringName(wanted)==player_anim_name and player_anim_scene!=null: return
+	# Mixamo animation FBXs are animation carriers. Keep the visible Y Bot mesh,
+	# hide carrier meshes, and play their compatible skeleton tracks.
+	if player_anim_scene and is_instance_valid(player_anim_scene):
+		player_anim_scene.queue_free()
+		player_anim_scene=null
+	var carrier=_load_asset(path)
+	if carrier==null: return
+	carrier.name="YBotAnimationCarrier"
+	carrier.position=player_visual.position
+	carrier.scale=player_visual.scale
+	carrier.rotation=player_visual.rotation
+	player.add_child(carrier)
+	var stack:Array[Node]=[carrier]
+	while not stack.is_empty():
+		var n=stack.pop_back()
+		if n is MeshInstance3D: (n as MeshInstance3D).visible=false
+		for child in n.get_children(): stack.append(child)
+	var ap=_find_animation_player(carrier)
+	if ap==null:
+		carrier.queue_free()
+		return
+	var anims:Array[StringName]=[]
+	for lib_name in ap.get_animation_library_list():
+		var lib=ap.get_animation_library(lib_name)
+		if lib:
+			for an in lib.get_animation_list(): anims.append(an)
+	if anims.is_empty():
+		carrier.queue_free()
+		return
+	player_anim_scene=carrier
+	player_anim=ap
 	player_anim_name=StringName(wanted)
+	ap.play(anims[0],0.15)
+
 
 func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
 	if player_visual==null: return
-	var wanted="Standing Idle"
+	var item=selected_tool.to_lower()
+	var firearm=("pompal" in item or "tüfek" in item or "tufek" in item or "nişancı" in item or "nisanci" in item)
+	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
+	var great_sword=("büyük kılıç" in item or "buyuk kilic" in item)
+	var sword=(great_sword or "kılıç" in item or "kilic" in item or "katana" in item)
+	var wanted="Rifle Idle" if firearm else ("Knife Idle" if knife else ("Great Sword Idle" if sword else "Standing Idle"))
 	if fly_mode:
 		wanted="Falling Idle"
 	elif not player.is_on_floor() and player.velocity.y>0.25:
@@ -1023,10 +1069,16 @@ func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
 	elif not player.is_on_floor() and player.velocity.y<-.25:
 		wanted="Falling Idle"
 	elif v.length()>0.10:
-		if v.y>0.35: wanted="Walking Backwards"
-		elif absf(v.x)>.62 and absf(v.y)<.45: wanted="Right Strafe Walking" if v.x>0 else "Left Strafe Walk"
-		elif v.length()>.72: wanted="Run"
-		else: wanted="Walking"
+		if firearm:
+			if v.y>0.35: wanted="Backwards Rifle Walk"
+			elif absf(v.x)>.62 and absf(v.y)<.45: wanted="Rifle Side Step"
+			elif v.length()>.72: wanted="Rifle Run"
+			else: wanted="Rifle Walk"
+		else:
+			if v.y>0.35: wanted="Walking Backwards"
+			elif absf(v.x)>.62 and absf(v.y)<.45: wanted="Right Strafe Walking" if v.x>0 else "Left Strafe Walk"
+			elif v.length()>.72: wanted="Run"
+			else: wanted="Walking"
 	if StringName(wanted)!=player_anim_name: _play_ybot_anim(wanted)
 
 func _build_hud():
