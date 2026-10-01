@@ -1229,6 +1229,7 @@ func _store_take_weapon(row:int,col:int) -> void:
 	var key="%s|%s" % [names[row],variants[col]]
 	crafted_inventory[key]=int(crafted_inventory.get(key,0))+1
 	_save_player_inventory()
+	if inventory_panel: _refresh_inventory()
 	if gather_label:
 		gather_label.text="%s envantere eklendi" % _hotbar_item_title(key)
 		gather_label.visible=true; message_time=1.5
@@ -1368,6 +1369,7 @@ func _physics_process(delta):
 		if not floor_under and player.position.y<=terrain_y and player.velocity.y<=0.0:
 			player.position.y=terrain_y
 			player.velocity.y=0.0
+			if player_visual: player_visual.rotation_degrees.x=0.0
 	elif player.position.y < hy+3.0: player.position.y=hy+3.0
 	in_pit = hy < -2.0
 	in_dry = _near_poi(player.position.x, player.position.z)
@@ -1433,6 +1435,9 @@ func _toggle_crouch():
 	if player==null or camera==null: return
 	crouched=not crouched
 	if camera_pivot: camera_pivot.position.y=.48 if crouched else .72
+	if player_visual:
+		player_visual.scale.y*=0.72 if crouched else (1.0/0.72)
+		player_visual.position.y=-PLAYER_HEIGHT if not crouched else -PLAYER_HEIGHT+.02
 	player_move_speed=4.8 if crouched else 6.8
 	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
 
@@ -1813,6 +1818,7 @@ func _armor_recipe(name:String) -> Dictionary:
 	return {"cat":"ZIRHLAR","mat":{"demir":4,"kulce_demir":2,"deri":2,"ip":1}}
 
 func _resource_amount(key:String)->int:
+	if cheat_mode: return 999999
 	match key:
 		"wood": return wood
 		"stone": return stone
@@ -2260,6 +2266,7 @@ func _jump():
 	if player.is_on_floor() or standing_on_terrain:
 		player.position.y=maxf(player.position.y,ground_y+0.02)
 		player.velocity.y=7.2
+		if player_visual: player_visual.rotation_degrees.x=-8.0
 		_play_sfx("jump")
 
 func _death_feedback():
