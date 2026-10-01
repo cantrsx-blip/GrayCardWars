@@ -1872,19 +1872,19 @@ func _hotbar_hold_start(slot:int) -> void:
 
 func _hotbar_hold_cancel(slot:int) -> void:
 	hotbar_hold_started.erase(slot)
-	if hotbar_label and hotbar_label.text=="Ürün bırakılıyor...": hotbar_label.text=""
+	if hotbar_label and hotbar_label.text=="Envantere gönderiliyor...": hotbar_label.text=""
 
 func _hotbar_drop_countdown(slot:int,key:String,token:int) -> void:
-	if hotbar_label: hotbar_label.text="Ürün bırakılıyor..."
+	if hotbar_label: hotbar_label.text="Envantere gönderiliyor..."
 	var b=hotbar.get_child(slot) as TextureButton
 	var overlay=ProgressBar.new()
-	overlay.name="DropProgress"
+	overlay.name="ReturnProgress"
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	overlay.min_value=0; overlay.max_value=3; overlay.value=0
 	overlay.show_percentage=false
 	var bg=StyleBoxFlat.new(); bg.bg_color=Color(0,0,0,0)
-	var fill=StyleBoxFlat.new(); fill.bg_color=Color(.85,.08,.08,.55)
+	var fill=StyleBoxFlat.new(); fill.bg_color=Color(.20,.72,.28,.55)
 	overlay.add_theme_stylebox_override("background",bg); overlay.add_theme_stylebox_override("fill",fill)
 	b.add_child(overlay)
 	var elapsed:=0.0
@@ -1897,7 +1897,17 @@ func _hotbar_drop_countdown(slot:int,key:String,token:int) -> void:
 		overlay.value=minf(elapsed,3.0)
 	hotbar_hold_started.erase(slot)
 	if is_instance_valid(overlay): overlay.queue_free()
-	_drop_hotbar_stack(slot,key)
+	_return_hotbar_to_inventory(slot,key)
+
+func _return_hotbar_to_inventory(slot:int,key:String) -> void:
+	if slot<0 or slot>=hotbar_items.size(): return
+	if str(hotbar_items[slot])!=key: return
+	hotbar_items[slot]=""
+	_save_hotbar_state()
+	selected_tool=""
+	if hotbar_label: hotbar_label.text="Envantere gönderildi"
+	_refresh_hotbar()
+	_refresh_inventory()
 
 func _drop_hotbar_stack(slot:int,key:String) -> void:
 	var amount=int(crafted_inventory.get(key,0))
