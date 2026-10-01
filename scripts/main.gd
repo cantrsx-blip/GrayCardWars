@@ -104,6 +104,7 @@ var player_visual: Node3D
 var player_anim: AnimationPlayer
 var player_anim_name: StringName = &""
 var camera_yaw := 0.0
+var camera_pivot: Node3D
 var hud: Label
 var move_touch := Vector2.ZERO
 var touch_start := Vector2.ZERO
@@ -978,14 +979,22 @@ func _build_player():
 		player_visual.position.y=-PLAYER_HEIGHT-scaled_bounds.position.y
 		player_anim=_find_animation_player(player_visual)
 
-	# Shoulder camera: character sits slightly left of screen.
+	# Real third-person shoulder rig. The pivot rotates around the player so the
+	# camera stays behind the Y Bot instead of behaving like the old FPS camera.
+	camera_pivot=Node3D.new()
+	camera_pivot.name="ThirdPersonPivot"
+	camera_pivot.position=Vector3(0,.65,0)
+	player.add_child(camera_pivot)
 	camera = Camera3D.new()
 	camera.name = "ThirdPersonCamera"
-	camera.position = Vector3(1.05, 1.45, 4.25)
+	camera.position = Vector3(1.05,.80,4.25)
+	camera.rotation_degrees=Vector3.ZERO
 	camera.fov = 68
 	camera.current = true
-	player.add_child(camera)
-	camera.look_at_from_position(camera.position,Vector3(0,.65,0),Vector3.UP)
+	camera_pivot.add_child(camera)
+	camera_yaw=0.0
+	look_pitch=-8.0
+	camera_pivot.rotation_degrees=Vector3(look_pitch,camera_yaw,0)
 
 func _ybot_anim_source(anim_name:String)->String:
 	var files={
@@ -1297,11 +1306,18 @@ func _physics_process(delta):
 	# Mobile movement follows what the camera/player is facing: up=forward, down=back.
 	var forward=Vector3(0,0,-1)
 	var right=Vector3(1,0,0)
-	if camera:
+	if camera_pivot:
+		forward=-camera_pivot.global_transform.basis.z; forward.y=0.0; forward=forward.normalized()
+		right=camera_pivot.global_transform.basis.x; right.y=0.0; right=right.normalized()
+	elif camera:
 		forward=-camera.global_transform.basis.z; forward.y=0.0; forward=forward.normalized()
 		right=camera.global_transform.basis.x; right.y=0.0; right=right.normalized()
 	var dir = right*v.x + forward*(-v.y)
 	if dir.length() > 1.0: dir = dir.normalized()
+	if dir.length()>0.05:
+		var target_yaw=atan2(-forward.x,-forward.z)
+		player.rotation.y=lerp_angle(player.rotation.y,target_yaw,clampf(delta*8.0,0.0,1.0))
+		player_facing=-player.global_transform.basis.z
 	var speed = player_move_speed * (.70 if in_pit else 1.0)
 	if fly_mode: speed*=6.0
 	elif v.length()>0.10 and v.length()<0.72: speed*=0.55
@@ -1410,7 +1426,7 @@ func _toggle_crouch():
 	if _panel_open(): return
 	if player==null or camera==null: return
 	crouched=not crouched
-	camera.position.y=.34 if crouched else .72
+if camera_pivot: camera_pivot.position.y=.35 if crouched else .65
 	player_move_speed=4.8 if crouched else 6.8
 	if crouch_button: crouch_button.text="↑ Kalk" if crouched else "↓ Çömel"
 
@@ -1450,13 +1466,11 @@ func _input(event):
 			else: move_touch=move_touch.limit_length(1.0)
 			if joystick_knob: joystick_knob.position=Vector2(64,64)+move_touch*26.0
 		elif event.index == look_touch_id and player and camera:
-			# Free orbit camera. Character only turns when movement starts.
 			camera_yaw-=event.relative.x*look_sensitivity
-			look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-55.0,48.0)
-			camera.rotation_degrees=Vector3(look_pitch,camera_yaw,0)
-			if move_touch.length()>0.10:
-				player.rotation_degrees.y=camera_yaw
-			player_facing=-player.global_transform.basis.z
+			look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-45.0,35.0)
+			if camera_pivot:
+				camera_pivot.rotation_degrees=Vector3(look_pitch,camera_yaw,0)
+			player_facing=Vector3(-sin(deg_to_rad(camera_yaw)),0,-cos(deg_to_rad(camera_yaw))).normalized()
 
 func _enemy_visual(color: Color, scale_v := Vector3.ONE) -> Node3D:
 	var root=Node3D.new(); root.scale=scale_v
