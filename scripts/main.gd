@@ -1598,7 +1598,8 @@ func _apply_crouch_pose() -> void:
 	for bone in [left_leg,right_leg]:
 		if bone>=0:
 			var q:=player_skeleton.get_bone_pose_rotation(bone)
-			player_skeleton.set_bone_pose_rotation(bone,Quaternion(Vector3.RIGHT,deg_to_rad(92.0))*q)
+			# Bend the knees backward in the Y Bot local leg axis instead of folding the shins toward the camera.
+			player_skeleton.set_bone_pose_rotation(bone,Quaternion(Vector3.RIGHT,deg_to_rad(-72.0))*q)
 
 func _toggle_crouch():
 	if _panel_open(): return
