@@ -100,6 +100,10 @@ var hunger := 100.0
 var thirst := 100.0
 var player: CharacterBody3D
 var camera: Camera3D
+var player_visual: Node3D
+var player_anim: AnimationPlayer
+var player_anim_name: StringName = &""
+var camera_yaw := 0.0
 var hud: Label
 var move_touch := Vector2.ZERO
 var touch_start := Vector2.ZERO
@@ -961,13 +965,81 @@ func _build_player():
 	col.shape = capshape
 	player.add_child(col)
 	add_child(player)
-	# First-person KARA KIYI camera. No third-person body/head is rendered.
+
+	# Third-person Y Bot test character.
+	player_visual=_load_asset("res://Y Bot.fbx")
+	if player_visual:
+		player_visual.name="YBotVisual"
+		player.add_child(player_visual)
+		var bounds:=_node_visual_bounds(player_visual)
+		if bounds.size.y>0.001:
+			player_visual.scale*=1.75/bounds.size.y
+		var scaled_bounds:=_node_visual_bounds(player_visual)
+		player_visual.position.y=-PLAYER_HEIGHT-scaled_bounds.position.y
+		player_anim=_find_animation_player(player_visual)
+
+	# Shoulder camera: character sits slightly left of screen.
 	camera = Camera3D.new()
-	camera.name = "FirstPersonCamera"
-	camera.position = Vector3(0, 0.72, 0)
-	camera.fov = 72
+	camera.name = "ThirdPersonCamera"
+	camera.position = Vector3(1.05, 1.45, 4.25)
+	camera.fov = 68
 	camera.current = true
 	player.add_child(camera)
+	camera.look_at_from_position(camera.position,Vector3(0,.65,0),Vector3.UP)
+
+func _ybot_anim_source(anim_name:String)->String:
+	var files={
+		"Standing Idle":"Standing Idle.fbx","Walking":"Walking.fbx","Run":"Run.fbx",
+		"Walking Backwards":"Walking Backwards.fbx","Left Strafe Walk":"Left Strafe Walk.fbx",
+		"Right Strafe Walking":"Right Strafe Walking.fbx","Jump":"Jump.fbx",
+		"Falling Idle":"Falling Idle.fbx","Falling To Landing":"Falling To Landing.fbx"
+	}
+	return "res://"+str(files.get(anim_name,""))
+
+func _play_ybot_anim(wanted:String)->void:
+	if player_visual==null: return
+	var path:=_ybot_anim_source(wanted)
+	if path.is_empty() or not ResourceLoader.exists(path): return
+	# Mixamo FBX files carry the same Y Bot rig. Swap only the visible animated scene;
+	# collision/player state stays on CharacterBody3D.
+	if str(player_visual.get_meta("anim_source",""))==path: return
+	var next=_load_asset(path)
+	if next==null: return
+	var old_scale=player_visual.scale
+	var old_pos=player_visual.position
+	var old_rot=player_visual.rotation
+	next.name="YBotVisual"
+	next.scale=old_scale; next.position=old_pos; next.rotation=old_rot
+	next.set_meta("anim_source",path)
+	player.add_child(next)
+	var ap=_find_animation_player(next)
+	if ap:
+		var names:Array[StringName]=[]
+		for lib_name in ap.get_animation_library_list():
+			var lib=ap.get_animation_library(lib_name)
+			if lib:
+				for an in lib.get_animation_list(): names.append(an)
+		if not names.is_empty(): ap.play(names[0],.18)
+	player_visual.queue_free()
+	player_visual=next
+	player_anim=ap
+	player_anim_name=StringName(wanted)
+
+func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
+	if player_visual==null: return
+	var wanted="Standing Idle"
+	if fly_mode:
+		wanted="Falling Idle"
+	elif not player.is_on_floor() and player.velocity.y>0.25:
+		wanted="Jump"
+	elif not player.is_on_floor() and player.velocity.y<-.25:
+		wanted="Falling Idle"
+	elif v.length()>0.10:
+		if v.y>0.35: wanted="Walking Backwards"
+		elif absf(v.x)>.62 and absf(v.y)<.45: wanted="Right Strafe Walking" if v.x>0 else "Left Strafe Walk"
+		elif v.length()>.72: wanted="Run"
+		else: wanted="Walking"
+	if StringName(wanted)!=player_anim_name: _play_ybot_anim(wanted)
 
 func _build_hud():
 	var layer = CanvasLayer.new()
@@ -1232,6 +1304,8 @@ func _physics_process(delta):
 	if dir.length() > 1.0: dir = dir.normalized()
 	var speed = player_move_speed * (.70 if in_pit else 1.0)
 	if fly_mode: speed*=6.0
+	elif v.length()>0.10 and v.length()<0.72: speed*=0.55
+	_update_ybot_animation(v,dir)
 	# FPS view direction is controlled by right-side look drag, not movement stick.
 	player.velocity.x=dir.x*speed; player.velocity.z=dir.z*speed
 	if fly_mode:
@@ -1376,10 +1450,12 @@ func _input(event):
 			else: move_touch=move_touch.limit_length(1.0)
 			if joystick_knob: joystick_knob.position=Vector2(64,64)+move_touch*26.0
 		elif event.index == look_touch_id and player and camera:
-			# Slow, controlled FPS look. Horizontal drag turns the facing direction.
-			player.rotation_degrees.y -= event.relative.x * look_sensitivity
-			look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-72.0,72.0)
-			camera.rotation_degrees.x=look_pitch
+			# Free orbit camera. Character only turns when movement starts.
+			camera_yaw-=event.relative.x*look_sensitivity
+			look_pitch=clampf(look_pitch-event.relative.y*look_sensitivity,-55.0,48.0)
+			camera.rotation_degrees=Vector3(look_pitch,camera_yaw,0)
+			if move_touch.length()>0.10:
+				player.rotation_degrees.y=camera_yaw
 			player_facing=-player.global_transform.basis.z
 
 func _enemy_visual(color: Color, scale_v := Vector3.ONE) -> Node3D:
