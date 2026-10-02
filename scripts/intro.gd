@@ -25,6 +25,8 @@ var preview_qty_label: Label
 var preview_cost_label: Label
 var preview_slider: HSlider
 var store_category := "TÜMÜ"
+var weapon_inspect_panel: Panel
+var weapon_inspect_model: Node3D
 
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
@@ -431,6 +433,45 @@ func _show_store_category(category:String):
 		cell.add_child(name_area)
 		grid.add_child(cell)
 
+func _store_weapon_glb_path(row:int,variant:String) -> String:
+	if row<1 or row>STORE_WEAPON_NAMES.size(): return ""
+	var rarity=variant
+	if rarity=="yesil": rarity="zehir"
+	var names=["bicak","karambit","kilic","buyuk_kilic","katana","pompali","cift_pompali","nisanci"]
+	return "res://assets/weapons3d/%s_%s.glb" % [rarity,names[row-1]]
+
+func _open_weapon_inspector(row:int,variant:String):
+	if weapon_inspect_panel: weapon_inspect_panel.free()
+	weapon_inspect_panel=Panel.new()
+	weapon_inspect_panel.position=Vector2(70,55)
+	weapon_inspect_panel.size=Vector2(640,470)
+	weapon_inspect_panel.z_index=100
+	store_preview.add_child(weapon_inspect_panel)
+	var title=Label.new(); title.text="%s %s • 3D İNCELEME" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]; title.position=Vector2(18,12); title.size=Vector2(520,36); title.add_theme_font_size_override("font_size",20); weapon_inspect_panel.add_child(title)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(574,8); close.size=Vector2(48,40); close.pressed.connect(_close_weapon_inspector); weapon_inspect_panel.add_child(close)
+	var sub=SubViewport.new(); sub.size=Vector2i(600,390); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; weapon_inspect_panel.add_child(sub)
+	var world=Node3D.new(); sub.add_child(world)
+	var env=WorldEnvironment.new(); var e=Environment.new(); e.background_mode=Environment.BG_COLOR; e.background_color=Color(.055,.065,.08); e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; e.ambient_light_color=Color.WHITE; e.ambient_light_energy=1.2; env.environment=e; world.add_child(env)
+	var light=DirectionalLight3D.new(); light.rotation_degrees=Vector3(-35,-30,0); light.light_energy=2.2; world.add_child(light)
+	var cam=Camera3D.new(); cam.position=Vector3(0,0.2,3.2); cam.look_at_from_position(cam.position,Vector3.ZERO); world.add_child(cam)
+	var path=_store_weapon_glb_path(row,variant)
+	if ResourceLoader.exists(path):
+		var packed=load(path)
+		if packed is PackedScene:
+			weapon_inspect_model=packed.instantiate()
+			world.add_child(weapon_inspect_model)
+			weapon_inspect_model.position=Vector3.ZERO
+			weapon_inspect_model.rotation_degrees=Vector3(0,-25,0)
+	else:
+		var missing=Label.new(); missing.text="3D DOSYA BULUNAMADI"; missing.position=Vector2(200,220); weapon_inspect_panel.add_child(missing)
+	var view=TextureRect.new(); view.position=Vector2(20,60); view.size=Vector2(600,390); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_IGNORE; weapon_inspect_panel.add_child(view)
+
+func _close_weapon_inspector():
+	if weapon_inspect_panel:
+		weapon_inspect_panel.free()
+		weapon_inspect_panel=null
+		weapon_inspect_model=null
+
 func _open_store_preview(kind:String,row:int,variant:String):
 	preview_kind=kind
 	preview_row=row
@@ -484,6 +525,13 @@ func _open_store_preview(kind:String,row:int,variant:String):
 		dmg.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 		dmg.add_theme_font_size_override("font_size",18)
 		store_preview.add_child(dmg)
+		var inspect=Button.new()
+		inspect.text="3D İNCELE"
+		inspect.position=Vector2(580,308)
+		inspect.size=Vector2(150,40)
+		inspect.add_theme_font_size_override("font_size",16)
+		inspect.pressed.connect(_open_weapon_inspector.bind(row,variant))
+		store_preview.add_child(inspect)
 	else:
 		title.text="%s Kart" % _rarity_name(variant)
 		pic.texture=_store_png_texture(STORE_SLOT_BG[variant_index])
@@ -540,6 +588,7 @@ func _open_store_preview(kind:String,row:int,variant:String):
 	_update_preview_cost()
 
 func _close_store_preview():
+	if weapon_inspect_panel: _close_weapon_inspector()
 	if store_preview:
 		store_preview.free()
 		store_preview=null
