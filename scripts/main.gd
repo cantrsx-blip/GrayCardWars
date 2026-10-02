@@ -653,23 +653,32 @@ func _spawn_meteor_boss() -> void:
 	var model=_load_asset("res://1.sv.boss.glb")
 	if model==null: return
 	var boss=CharacterBody3D.new(); boss.name="MeteorBoss_%d" % (meteor_boss_spawn_count+1)
-	# Spawn order around the center foundation: North, South, East, West, then repeat.
-	var spawn_positions=[
+	# Keep N/S/E/W order, but fan repeated spawns sideways so bosses never stack inside each other.
+	var direction_index:int=meteor_boss_spawn_count%4
+	var wave:int=meteor_boss_spawn_count/4
+	var lateral:float=0.0
+	if wave>0:
+		var step:int=(wave+1)/2
+		lateral=float(step)*3.5*(1.0 if wave%2==1 else -1.0)
+	var base_positions=[
 		Vector3(0,PLAYER_HEIGHT,-BOSS_SPAWN_DISTANCE),
 		Vector3(0,PLAYER_HEIGHT,BOSS_SPAWN_DISTANCE),
 		Vector3(BOSS_SPAWN_DISTANCE,PLAYER_HEIGHT,0),
 		Vector3(-BOSS_SPAWN_DISTANCE,PLAYER_HEIGHT,0)
 	]
-	boss.position=spawn_positions[meteor_boss_spawn_count%4]
+	var spawn_pos:Vector3=base_positions[direction_index]
+	if direction_index<2: spawn_pos.x+=lateral
+	else: spawn_pos.z+=lateral
+	boss.position=spawn_pos
 	meteor_boss_spawn_count+=1
 	var cs=CollisionShape3D.new(); var shape=CapsuleShape3D.new(); shape.radius=.55; shape.height=1.9; cs.shape=shape; boss.add_child(cs)
 	boss.add_child(model); model.position=Vector3.ZERO
-	# Imported boss faces the opposite local direction. Turn only the visual model so
-	# CharacterBody movement remains toward the player while the boss faces forward.
 	model.rotation_degrees.y=180.0
-	var b=_node_visual_bounds(model)
-	if b.size.y>0.001: model.scale*=2.0/b.size.y
-	boss.set_meta("hp",10); add_child(boss); meteor_bosses.append(boss); boss_attack_cooldowns[boss.get_instance_id()]=0.0; boss_targets[boss.get_instance_id()]=null
+	var bounds=_node_visual_bounds(model)
+	if bounds.size.y>0.001: model.scale*=2.0/bounds.size.y
+	boss.set_meta("hp",10); add_child(boss); meteor_bosses.append(boss)
+	boss_attack_cooldowns[boss.get_instance_id()]=0.0
+	boss_targets[boss.get_instance_id()]=null
 	_play_boss_anim(boss,"Idle")
 
 func _play_boss_anim(boss:Node3D,wanted:String) -> void:
@@ -684,9 +693,22 @@ func _update_meteor_bosses(delta:float) -> void:
 		if not is_instance_valid(boss): meteor_bosses.erase(boss); continue
 		var id:int=boss.get_instance_id()
 		var cd:float=maxf(0.0,float(boss_attack_cooldowns.get(id,0.0))-delta); boss_attack_cooldowns[id]=cd
-		var target:Node3D=boss_targets.get(id,null)
-		if target==null or not is_instance_valid(target):
-			target=player
+		# Bosses are hostile to everyone currently inside the meteor arena.
+		# Re-evaluate every frame instead of permanently locking onto the player or first attacker.
+		var target:Node3D=null
+		var best:float=INF
+		var player_flat:=Vector2(player.global_position.x,player.global_position.z)
+		if player_flat.length()<=METEOR_ARENA_RADIUS:
+			best=boss.global_position.distance_to(player.global_position); target=player
+		for candidate in combat_bots:
+			if not is_instance_valid(candidate): continue
+			var cf:=Vector2(candidate.global_position.x,candidate.global_position.z)
+			if cf.length()>METEOR_ARENA_RADIUS: continue
+			var d_to:float=boss.global_position.distance_to(candidate.global_position)
+			if d_to<best: best=d_to; target=candidate
+		boss_targets[id]=target
+		if target==null:
+			boss.velocity=Vector3.ZERO; _play_boss_anim(boss,"Idle"); continue
 		var d:Vector3=target.global_position-boss.global_position; d.y=0.0
 		var dist:float=d.length()
 		if dist>0.01: boss.look_at(Vector3(target.global_position.x,boss.global_position.y,target.global_position.z),Vector3.UP)
