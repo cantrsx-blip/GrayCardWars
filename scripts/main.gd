@@ -590,6 +590,7 @@ func _player_attack() -> void:
 		_play_ybot_anim("Firing Rifle"); _play_sfx("gun"); _muzzle_flash()
 	elif knife: _play_ybot_anim("Stabbing")
 	elif sword: _play_ybot_anim("Stable Sword Outward Slash")
+	else: _play_ybot_anim("Stabbing")
 	_meteor_strike()
 	_finish_attack_animation(.65)
 
@@ -1151,9 +1152,9 @@ func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
 	if fly_mode:
 		wanted="Falling Idle"
 	elif not player.is_on_floor() and player.velocity.y>0.25:
-		wanted="Jump"
+		wanted="Rifle Idle" if firearm else ("Knife Idle" if knife else ("Great Sword Idle" if sword else "Jump"))
 	elif not player.is_on_floor() and player.velocity.y<-.25:
-		wanted="Falling Idle"
+		wanted="Rifle Idle" if firearm else ("Knife Idle" if knife else ("Great Sword Idle" if sword else "Falling Idle"))
 	elif v.length()>0.10:
 		if firearm:
 			if v.y>0.35: wanted="Backwards Rifle Walk"
