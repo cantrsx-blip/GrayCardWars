@@ -292,6 +292,9 @@ var bot_anim_names: Dictionary = {}
 var bot_hp: Dictionary = {}
 var bot_aggro_player: Dictionary = {}
 var bot_spawn_index: Dictionary = {}
+var bot_roles: Dictionary = {}
+var bot_wander_targets: Dictionary = {}
+var boss_targets: Dictionary = {}
 const BOT_SPEED := 3.4
 const BOT_ATTACK_RANGE := 2.2
 const BOT_ATTACK_COOLDOWN := 0.85
@@ -666,7 +669,7 @@ func _spawn_meteor_boss() -> void:
 	model.rotation_degrees.y=180.0
 	var b=_node_visual_bounds(model)
 	if b.size.y>0.001: model.scale*=2.0/b.size.y
-	boss.set_meta("hp",10); add_child(boss); meteor_bosses.append(boss); boss_attack_cooldowns[boss.get_instance_id()]=0.0
+	boss.set_meta("hp",10); add_child(boss); meteor_bosses.append(boss); boss_attack_cooldowns[boss.get_instance_id()]=0.0; boss_targets[boss.get_instance_id()]=null
 	_play_boss_anim(boss,"Idle")
 
 func _play_boss_anim(boss:Node3D,wanted:String) -> void:
@@ -679,31 +682,28 @@ func _update_meteor_bosses(delta:float) -> void:
 	if player==null: return
 	for boss in meteor_bosses.duplicate():
 		if not is_instance_valid(boss): meteor_bosses.erase(boss); continue
-		var id=boss.get_instance_id(); var cd:float=float(boss_attack_cooldowns.get(id,0.0)); cd=maxf(0.0,cd-delta); boss_attack_cooldowns[id]=cd
-		var d=player.global_position-boss.global_position; d.y=0.0; var dist=d.length()
-		# Keep every boss facing the player, even while attacking or standing still.
-		if dist>0.01:
-			boss.look_at(Vector3(player.global_position.x,boss.global_position.y,player.global_position.z),Vector3.UP)
+		var id:int=boss.get_instance_id()
+		var cd:float=maxf(0.0,float(boss_attack_cooldowns.get(id,0.0))-delta); boss_attack_cooldowns[id]=cd
+		var target:Node3D=boss_targets.get(id,null)
+		if target==null or not is_instance_valid(target):
+			target=player
+		var d:Vector3=target.global_position-boss.global_position; d.y=0.0
+		var dist:float=d.length()
+		if dist>0.01: boss.look_at(Vector3(target.global_position.x,boss.global_position.y,target.global_position.z),Vector3.UP)
 		if dist>BOSS_ATTACK_RANGE:
 			boss.velocity=d.normalized()*BOSS_SPEED if dist>0.01 else Vector3.ZERO
 			boss.velocity.y=0.0; boss.move_and_slide()
-			# Boss is confined to the circular concrete meteor arena.
 			var arena_pos:=Vector2(boss.global_position.x,boss.global_position.z)
 			if arena_pos.length()>METEOR_ARENA_RADIUS:
 				arena_pos=arena_pos.normalized()*METEOR_ARENA_RADIUS
 				boss.global_position.x=arena_pos.x; boss.global_position.z=arena_pos.y
-			# Bosses obey the same square center exclusion as the player.
-			if absf(boss.global_position.x)<CENTER_FORBIDDEN_HALF and absf(boss.global_position.z)<CENTER_FORBIDDEN_HALF:
-				var bax:=absf(boss.global_position.x)
-				var baz:=absf(boss.global_position.z)
-				if bax>baz:
-					boss.global_position.x=signf(boss.global_position.x)*CENTER_FORBIDDEN_HALF
-				else:
-					boss.global_position.z=signf(boss.global_position.z)*CENTER_FORBIDDEN_HALF
 			_play_boss_anim(boss,"Run" if dist>6.0 else "Walk")
 		else:
 			boss.velocity=Vector3.ZERO; _play_boss_anim(boss,"Attack")
-			if cd<=0.0: _apply_damage(1.0); boss_attack_cooldowns[id]=BOSS_ATTACK_COOLDOWN
+			if cd<=0.0:
+				if target==player: _apply_damage(1.0)
+				elif target in combat_bots: _damage_combat_bot(target,1)
+				boss_attack_cooldowns[id]=BOSS_ATTACK_COOLDOWN
 
 func _build_world_environment() -> void:
 	if world_env != null:
@@ -798,6 +798,10 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 	bot_hp[bid]=2
 	bot_aggro_player[bid]=false
 	bot_spawn_index[bid]=index
+	# Stable mixed personalities: meteor hunters, boss fighters, roamers, bot fighters and boss avoiders.
+	var roles=["meteor","meteor","boss","roam","fight","avoid"]
+	bot_roles[bid]=roles[index%roles.size()]
+	bot_wander_targets[bid]=Vector3.ZERO
 	bot_attack_cooldowns[bid]=randf_range(.0,BOT_ATTACK_COOLDOWN)
 
 func _update_combat_bots(delta:float) -> void:
@@ -806,65 +810,101 @@ func _update_combat_bots(delta:float) -> void:
 		if not is_instance_valid(bot): combat_bots.erase(bot); continue
 		var id:int=bot.get_instance_id()
 		var weapon_type:int=int(bot_weapon_types.get(id,0))
-		var cd:=maxf(0.0,float(bot_attack_cooldowns.get(id,0.0))-delta)
-		bot_attack_cooldowns[id]=cd
+		var role:String=str(bot_roles.get(id,"roam"))
+		var cd:float=maxf(0.0,float(bot_attack_cooldowns.get(id,0.0))-delta); bot_attack_cooldowns[id]=cd
 		var target:Node3D=null
-		var best:=INF
-		# A bot only targets the human after that human has attacked it.
+		var flee_from:Node3D=null
 		if bool(bot_aggro_player.get(id,false)) and player!=null:
 			target=player
-			best=bot.global_position.distance_to(player.global_position)
-		# Otherwise bosses have priority, then the meteor.
-		for boss in meteor_bosses:
-			if target==player: break
-			if is_instance_valid(boss):
-				var d:float=bot.global_position.distance_to(boss.global_position)
-				if d<best: best=d; target=boss
-		if target==null and meteor_node!=null and is_instance_valid(meteor_node):
-			target=meteor_node; best=bot.global_position.distance_to(meteor_node.global_position)
-		# Nearby bots may visually fight each other, but bot-vs-bot attacks never deal damage.
-		if target==null:
+		elif role=="meteor" and meteor_node!=null and is_instance_valid(meteor_node):
+			target=meteor_node
+		elif role=="boss" and not meteor_bosses.is_empty():
+			var best:=INF
+			for boss in meteor_bosses:
+				if is_instance_valid(boss):
+					var bd:float=bot.global_position.distance_to(boss.global_position)
+					if bd<best: best=bd; target=boss
+		elif role=="avoid" and not meteor_bosses.is_empty():
+			var best:=INF
+			for boss in meteor_bosses:
+				if is_instance_valid(boss):
+					var bd:float=bot.global_position.distance_to(boss.global_position)
+					if bd<best: best=bd; flee_from=boss
+		elif role=="fight":
+			var best:=INF
 			for other in combat_bots:
 				if other!=bot and is_instance_valid(other):
-					var d:float=bot.global_position.distance_to(other.global_position)
-					if d<best and d<12.0: best=d; target=other
-		if target==null: continue
-		var dir:Vector3=target.global_position-bot.global_position; dir.y=0.0
-		var attack_range:=BOT_METEOR_RANGE if target==meteor_node else BOT_ATTACK_RANGE
+					var od:float=bot.global_position.distance_to(other.global_position)
+					if od<best: best=od; target=other
+		# Roamers and boss avoiders without immediate danger wander independently.
+		if target==null and flee_from==null:
+			var wp:Vector3=bot_wander_targets.get(id,Vector3.ZERO)
+			if wp==Vector3.ZERO or bot.global_position.distance_to(wp)<3.0:
+				wp=Vector3(randf_range(-145.0,145.0),0,randf_range(-145.0,145.0)); wp.y=height_at(wp.x,wp.z)+PLAYER_HEIGHT
+				bot_wander_targets[id]=wp
+			var wd:Vector3=wp-bot.global_position; wd.y=0.0
+			_bot_move_smart(bot,wd,weapon_type,delta)
+			continue
+		var dir:Vector3=(bot.global_position-flee_from.global_position) if flee_from!=null else (target.global_position-bot.global_position)
+		dir.y=0.0
+		if flee_from!=null:
+			_bot_move_smart(bot,dir,weapon_type,delta)
+			continue
+		var attack_range:float=BOT_METEOR_RANGE if target==meteor_node else BOT_ATTACK_RANGE
 		if dir.length()>attack_range:
-			bot.velocity=dir.normalized()*BOT_SPEED
-			bot.velocity.y=0.0
-			bot.move_and_slide()
-			# If a wall/obstacle blocks the direct route, slide around it instead of pushing forever.
-			if bot.get_slide_collision_count()>0:
-				var tangent:=Vector3(-dir.z,0,dir.x).normalized()
-				if id%2==0: tangent=-tangent
-				bot.velocity=tangent*BOT_SPEED
-				bot.move_and_slide()
-			if dir.length()>0.01: bot.look_at(Vector3(target.global_position.x,bot.global_position.y,target.global_position.z),Vector3.UP)
-			_bot_play_animation(bot,"Rifle Run" if weapon_type==2 else "Run")
-			_bot_copy_pose(bot)
+			_bot_move_smart(bot,dir,weapon_type,delta)
 		else:
 			bot.velocity=Vector3.ZERO
-			_bot_play_animation(bot,"Rifle Idle" if weapon_type==2 else ("Great Sword Idle" if weapon_type==1 else "Knife Idle"))
+			# Varied combat posture instead of every bot using the same stance.
+			if id%4==0:
+				_bot_play_animation(bot,"Rifle Aiming Idle" if weapon_type==2 else ("Great Sword Idle" if weapon_type==1 else "Knife Idle"))
+			else:
+				_bot_play_animation(bot,"Rifle Idle" if weapon_type==2 else ("Great Sword Idle" if weapon_type==1 else "Knife Idle"))
 			_bot_copy_pose(bot)
 			if cd<=0.0:
 				_bot_play_animation(bot,"Firing Rifle" if weapon_type==2 else ("Stable Sword Outward Slash" if weapon_type==1 else "Stabbing"))
-				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN
-				if target==player:
-					_apply_damage(1.0)
+				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.55)
+				if target==player: _apply_damage(1.0)
 				elif target in meteor_bosses:
-					var hp:=int(target.get_meta("hp",10))-1
-					target.set_meta("hp",hp)
+					boss_targets[target.get_instance_id()]=bot
+					var hp:=int(target.get_meta("hp",10))-1; target.set_meta("hp",hp)
 					if hp<=0:
-						meteor_bosses.erase(target)
-						boss_attack_cooldowns.erase(target.get_instance_id())
-						target.queue_free()
+						boss_targets.erase(target.get_instance_id()); meteor_bosses.erase(target); boss_attack_cooldowns.erase(target.get_instance_id()); target.queue_free()
 				elif target==meteor_node:
-					# Bots attack the meteor encounter without harming the human player.
 					meteor_hits+=1
 					if meteor_hits%METEOR_HITS_PER_BOSS==0: _spawn_meteor_boss()
-				# Bot-vs-bot intentionally has no HP/damage operation.
+				elif target in combat_bots:
+					_damage_combat_bot(target,1)
+
+func _bot_move_smart(bot:CharacterBody3D,dir:Vector3,weapon_type:int,delta:float) -> void:
+	if dir.length()<0.05: return
+	var desired:=dir.normalized()
+	# Gravity plus a small automatic hop lets bots climb low lips around the meteor arena.
+	if not bot.is_on_floor(): bot.velocity.y-=18.0*delta
+	elif bot.velocity.y<0.0: bot.velocity.y=0.0
+	bot.velocity.x=desired.x*BOT_SPEED; bot.velocity.z=desired.z*BOT_SPEED
+	bot.move_and_slide()
+	if bot.get_slide_collision_count()>0:
+		var low_block:=false
+		for i in range(bot.get_slide_collision_count()):
+			var col:=bot.get_slide_collision(i)
+			if absf(col.get_normal().y)<0.45: low_block=true
+		if low_block and bot.is_on_floor():
+			bot.velocity.y=6.0
+		else:
+			var tangent:=Vector3(-desired.z,0,desired.x)
+			if bot.get_instance_id()%2==0: tangent=-tangent
+			bot.velocity.x=tangent.x*BOT_SPEED; bot.velocity.z=tangent.z*BOT_SPEED
+			bot.move_and_slide()
+	bot.look_at(Vector3(bot.global_position.x+desired.x,bot.global_position.y,bot.global_position.z+desired.z),Vector3.UP)
+	_bot_play_animation(bot,"Rifle Run" if weapon_type==2 else "Run")
+	_bot_copy_pose(bot)
+
+func _damage_combat_bot(bot:Node3D,amount:int) -> void:
+	if bot==null or not is_instance_valid(bot): return
+	var id:int=bot.get_instance_id()
+	bot_hp[id]=int(bot_hp.get(id,2))-amount
+	if int(bot_hp[id])<=0: _respawn_combat_bot(bot as CharacterBody3D)
 
 func _hit_nearby_combat_bot() -> void:
 	if player==null: return
@@ -881,15 +921,14 @@ func _hit_nearby_combat_bot() -> void:
 	if victim==null: return
 	var id:int=victim.get_instance_id()
 	bot_aggro_player[id]=true
-	bot_hp[id]=int(bot_hp.get(id,2))-1
-	if int(bot_hp[id])<=0: _respawn_combat_bot(victim)
+	_damage_combat_bot(victim,1)
 
 func _respawn_combat_bot(bot:CharacterBody3D) -> void:
 	if not is_instance_valid(bot): return
 	var old_id:int=bot.get_instance_id()
 	var index:int=int(bot_spawn_index.get(old_id,1))
 	combat_bots.erase(bot)
-	bot_attack_cooldowns.erase(old_id); bot_weapon_types.erase(old_id); bot_hp.erase(old_id); bot_aggro_player.erase(old_id); bot_spawn_index.erase(old_id)
+	bot_attack_cooldowns.erase(old_id); bot_weapon_types.erase(old_id); bot_hp.erase(old_id); bot_aggro_player.erase(old_id); bot_spawn_index.erase(old_id); bot_roles.erase(old_id); bot_wander_targets.erase(old_id)
 	bot_anim_players.erase(old_id); bot_visual_skeletons.erase(old_id); bot_anim_skeletons.erase(old_id); bot_anim_names.erase(old_id); bot_anim_scenes.erase(old_id)
 	bot.queue_free()
 	if index>=0 and index<spawn_points.size(): _spawn_combat_bot(spawn_points[index],index)
