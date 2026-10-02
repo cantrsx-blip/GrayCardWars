@@ -426,6 +426,8 @@ func _weapon_glb_path(key:String) -> String:
 	var parts=key.split("|")
 	if parts.size()<2: return ""
 	var item=str(parts[0]); var rarity=str(parts[1])
+	# Store/inventory uses "yesil" internally; the final 3D weapon files use "zehir".
+	if rarity=="yesil": rarity="zehir"
 	var names={
 		"Bıçak":"bicak","Karambit":"karambit","Kılıç":"kilic","Büyük Kılıç":"buyuk_kilic","Katana":"katana",
 		"Pompalı Tüfek":"pompali","Çift Namlulu Pompalı":"cift_pompali","Keskin Nişancı Tüfeği":"nisanci"
