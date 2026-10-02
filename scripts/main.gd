@@ -179,6 +179,7 @@ var minimap_marks: Array = []
 var has_bed_spawn := false
 var bed_spawn := Vector3.ZERO
 var held_item: Node3D
+var player_weapon_node: Node3D
 var viewmodel_root: Node3D
 var viewmodel_right_hand: Node3D
 var viewmodel_left_hand: Node3D
@@ -285,6 +286,8 @@ var combat_bots: Array[CharacterBody3D] = []
 var bot_attack_cooldowns: Dictionary = {}
 var bot_anim_players: Dictionary = {}
 var bot_weapon_types: Dictionary = {}
+var bot_weapon_keys: Dictionary = {}
+var bot_weapon_nodes: Dictionary = {}
 var bot_visual_skeletons: Dictionary = {}
 var bot_anim_scenes: Dictionary = {}
 var bot_anim_skeletons: Dictionary = {}
@@ -417,6 +420,57 @@ func _add_static_box(pos: Vector3, size: Vector3, col: Color) -> void:
 	colshape.shape = sh
 	body.add_child(colshape)
 	add_child(body)
+
+func _weapon_glb_path(key:String) -> String:
+	if "|" not in key: return ""
+	var parts=key.split("|")
+	if parts.size()<2: return ""
+	var item=str(parts[0]); var rarity=str(parts[1])
+	var names={
+		"Bıçak":"bicak","Karambit":"karambit","Kılıç":"kilic","Büyük Kılıç":"buyuk_kilic","Katana":"katana",
+		"Pompalı Tüfek":"pompali","Çift Namlulu Pompalı":"cift_pompali","Keskin Nişancı Tüfeği":"nisanci"
+	}
+	if not names.has(item): return ""
+	return "res://assets/weapons3d/%s_%s.glb" % [rarity,str(names[item])]
+
+func _right_hand_attachment(skeleton:Skeleton3D) -> BoneAttachment3D:
+	if skeleton==null: return null
+	var old=skeleton.get_node_or_null("WeaponRightHand")
+	if old is BoneAttachment3D: return old
+	var bone_name:=""
+	for candidate in ["mixamorig_RightHand","RightHand","right_hand","hand_r","Hand.R"]:
+		if skeleton.find_bone(candidate)>=0: bone_name=candidate; break
+	if bone_name.is_empty(): return null
+	var attachment=BoneAttachment3D.new()
+	attachment.name="WeaponRightHand"
+	attachment.bone_name=bone_name
+	skeleton.add_child(attachment)
+	return attachment
+
+func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
+	var path:=_weapon_glb_path(key)
+	if path.is_empty() or not ResourceLoader.exists(path): return null
+	var attachment:=_right_hand_attachment(skeleton)
+	if attachment==null: return null
+	for child in attachment.get_children(): child.queue_free()
+	var weapon:=_load_asset(path)
+	if weapon==null: return null
+	attachment.add_child(weapon)
+	weapon.position=Vector3.ZERO
+	weapon.rotation=Vector3.ZERO
+	weapon.scale=Vector3.ONE
+	return weapon
+
+func _refresh_player_weapon_model() -> void:
+	if player_skeleton==null: return
+	var key:=""
+	for hotkey in hotbar_items:
+		if _hotbar_item_title(str(hotkey))==selected_tool:
+			key=str(hotkey); break
+	var attachment:=_right_hand_attachment(player_skeleton)
+	if attachment:
+		for child in attachment.get_children(): child.queue_free()
+	player_weapon_node=_attach_weapon_to_skeleton(player_skeleton,key) if not key.is_empty() else null
 
 func _find_skeleton(node:Node) -> Skeleton3D:
 	if node is Skeleton3D:
@@ -815,11 +869,19 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 		model.rotation_degrees.y=180.0
 	add_child(bot)
 	bot.set_meta("harmless_to_player",true)
-	var weapon_type:=index%3 # 0 knife, 1 sword, 2 firearm
+	var weapon_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	var rarities=["gumus","yesil","buz","gunes","lav"]
+	var weapon_name:String=weapon_names[index%weapon_names.size()]
+	var weapon_key:String="%s|%s" % [weapon_name,rarities[index%rarities.size()]]
+	var weapon_type:=2 if weapon_name in ["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"] else (1 if weapon_name in ["Kılıç","Büyük Kılıç","Katana"] else 0)
 	bot_weapon_types[bot.get_instance_id()]=weapon_type
+	bot_weapon_keys[bot.get_instance_id()]=weapon_key
 	if model:
 		var sk:=_find_skeleton(model)
-		if sk: bot_visual_skeletons[bot.get_instance_id()]=sk
+		if sk:
+			bot_visual_skeletons[bot.get_instance_id()]=sk
+			var wn:=_attach_weapon_to_skeleton(sk,weapon_key)
+			if wn: bot_weapon_nodes[bot.get_instance_id()]=wn
 	combat_bots.append(bot)
 	var bid:int=bot.get_instance_id()
 	bot_hp[bid]=COMBAT_MAX_HP
@@ -973,7 +1035,7 @@ func _respawn_combat_bot(bot:CharacterBody3D) -> void:
 	var old_id:int=bot.get_instance_id()
 	var index:int=int(bot_spawn_index.get(old_id,1))
 	combat_bots.erase(bot)
-	bot_attack_cooldowns.erase(old_id); bot_weapon_types.erase(old_id); bot_hp.erase(old_id); bot_aggro_player.erase(old_id); bot_spawn_index.erase(old_id); bot_roles.erase(old_id); bot_wander_targets.erase(old_id)
+	bot_attack_cooldowns.erase(old_id); bot_weapon_types.erase(old_id); bot_weapon_keys.erase(old_id); bot_weapon_nodes.erase(old_id); bot_hp.erase(old_id); bot_aggro_player.erase(old_id); bot_spawn_index.erase(old_id); bot_roles.erase(old_id); bot_wander_targets.erase(old_id)
 	bot_anim_players.erase(old_id); bot_visual_skeletons.erase(old_id); bot_anim_skeletons.erase(old_id); bot_anim_names.erase(old_id); bot_anim_scenes.erase(old_id)
 	bot.queue_free()
 	if index>=0 and index<spawn_points.size(): _spawn_combat_bot(spawn_points[index],index)
@@ -2541,6 +2603,7 @@ func _select_hotbar(slot:int):
 
 	build_mode=key=="YAPI CEKICI"
 	if build_preview: build_preview.visible=false
+	_refresh_player_weapon_model()
 	_refresh_hotbar()
 
 
