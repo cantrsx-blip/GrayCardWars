@@ -283,6 +283,8 @@ var god_watchers: Array[Node3D] = []
 var spawn_points: Array[Vector3] = []
 var combat_bots: Array[CharacterBody3D] = []
 var bot_attack_cooldowns: Dictionary = {}
+var bot_anim_players: Dictionary = {}
+var bot_weapon_types: Dictionary = {}
 const BOT_SPEED := 3.4
 const BOT_ATTACK_RANGE := 2.2
 const BOT_ATTACK_COOLDOWN := 0.85
@@ -715,8 +717,8 @@ func _build_world_base():
 func _build_spawn_system() -> void:
 	if not spawn_points.is_empty(): return
 	# Five pads per side, kept inside the mountain boundary and spread evenly.
-	var edge:=145.0
-	var lanes=[-116.0,-58.0,0.0,58.0,116.0]
+	var edge:=164.0
+	var lanes=[-132.0,-66.0,0.0,66.0,132.0]
 	for x in lanes: spawn_points.append(Vector3(x,0,-edge))
 	for z in lanes: spawn_points.append(Vector3(edge,0,z))
 	for x in lanes: spawn_points.append(Vector3(-x,0,edge))
@@ -759,6 +761,11 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 		model.rotation_degrees.y=180.0
 	add_child(bot)
 	bot.set_meta("harmless_to_player",true)
+	var weapon_type:=index%3 # 0 knife, 1 sword, 2 firearm
+	bot_weapon_types[bot.get_instance_id()]=weapon_type
+	if model:
+		var ap:=_find_animation_player(model)
+		if ap: bot_anim_players[bot.get_instance_id()]=ap
 	combat_bots.append(bot)
 	bot_attack_cooldowns[bot.get_instance_id()]=randf_range(.0,BOT_ATTACK_COOLDOWN)
 
@@ -767,6 +774,7 @@ func _update_combat_bots(delta:float) -> void:
 	for bot in combat_bots.duplicate():
 		if not is_instance_valid(bot): combat_bots.erase(bot); continue
 		var id:int=bot.get_instance_id()
+		var weapon_type:int=int(bot_weapon_types.get(id,0))
 		var cd:=maxf(0.0,float(bot_attack_cooldowns.get(id,0.0))-delta)
 		bot_attack_cooldowns[id]=cd
 		var target:Node3D=null
@@ -792,9 +800,12 @@ func _update_combat_bots(delta:float) -> void:
 			bot.velocity.y=0.0
 			bot.move_and_slide()
 			if dir.length()>0.01: bot.look_at(Vector3(target.global_position.x,bot.global_position.y,target.global_position.z),Vector3.UP)
+			_bot_play_animation(bot,"Rifle Run" if weapon_type==2 else "Run")
 		else:
 			bot.velocity=Vector3.ZERO
+			_bot_play_animation(bot,"Rifle Idle" if weapon_type==2 else ("Great Sword Idle" if weapon_type==1 else "Knife Idle"))
 			if cd<=0.0:
+				_bot_play_animation(bot,"Firing Rifle" if weapon_type==2 else ("Stable Sword Outward Slash" if weapon_type==1 else "Stabbing"))
 				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN
 				if target in meteor_bosses:
 					var hp:=int(target.get_meta("hp",10))-1
@@ -808,6 +819,13 @@ func _update_combat_bots(delta:float) -> void:
 					meteor_hits+=1
 					if meteor_hits%METEOR_HITS_PER_BOSS==0: _spawn_meteor_boss()
 				# Bot-vs-bot intentionally has no HP/damage operation.
+
+func _bot_play_animation(bot:CharacterBody3D,wanted:String) -> void:
+	var id:int=bot.get_instance_id()
+	var ap:AnimationPlayer=bot_anim_players.get(id,null)
+	if ap==null: return
+	var anim:=_find_animation_name(ap,wanted)
+	if anim!=&"" and ap.current_animation!=str(anim): ap.play(anim)
 
 func _build_god_watchers() -> void:
 	if not god_watchers.is_empty(): return
@@ -2445,6 +2463,12 @@ func _toggle_scope():
 		elif scope_stage==2: camera.fov=30.0
 		else: camera.fov=72.0
 	if scope_overlay: scope_overlay.visible=scoped
+	# Firearm scope also drives the Y Bot aiming stance.
+	var item:=selected_tool.to_lower()
+	var firearm=("pompal" in item or "tüfek" in item or "tufek" in item or "nişancı" in item or "nisanci" in item)
+	if firearm:
+		if scoped: _play_ybot_anim("Rifle Aiming Idle")
+		else: _play_ybot_anim("Rifle Idle")
 
 func _update_aim_marker():
 	if aim_marker==null or camera==null: return
