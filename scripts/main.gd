@@ -279,6 +279,15 @@ const GOD_WATCHER_DISTANCE := 230.0
 const GOD_WATCHER_VISIBLE_HEIGHT := 65.0
 var god_watchers: Array[Node3D] = []
 
+# 20 perimeter spawn pads: one human player + 19 harmless combat bots.
+var spawn_points: Array[Vector3] = []
+var combat_bots: Array[CharacterBody3D] = []
+var bot_attack_cooldowns: Dictionary = {}
+const BOT_SPEED := 3.4
+const BOT_ATTACK_RANGE := 2.2
+const BOT_ATTACK_COOLDOWN := 0.85
+const BOT_METEOR_RANGE := 4.0
+
 func _ready():
 	# Keep scene entry light on Android: show the camera/HUD first, then build the
 	# expensive world over several frames instead of blocking the first render.
@@ -699,8 +708,106 @@ func _build_world_base():
 	_build_terrain_mesh()
 	_build_center_settlement_mound()
 	_build_meteor_encounter()
+	_build_spawn_system()
 	_build_map_edge_mountains()
 	_build_god_watchers()
+
+func _build_spawn_system() -> void:
+	if not spawn_points.is_empty(): return
+	# Five pads per side, kept inside the mountain boundary and spread evenly.
+	var edge:=145.0
+	var lanes=[-116.0,-58.0,0.0,58.0,116.0]
+	for x in lanes: spawn_points.append(Vector3(x,0,-edge))
+	for z in lanes: spawn_points.append(Vector3(edge,0,z))
+	for x in lanes: spawn_points.append(Vector3(-x,0,edge))
+	for z in lanes: spawn_points.append(Vector3(-edge,0,-z))
+	for i in spawn_points.size():
+		var p:=spawn_points[i]
+		p.y=height_at(p.x,p.z)
+		spawn_points[i]=p
+		# Gray concrete platform.
+		_add_static_box(p+Vector3(0,.18,0),Vector3(8.0,.36,8.0),Color(.38,.39,.40))
+		# Two wooden sight-blocking walls, angled toward the map center.
+		var inward:=Vector3(-p.x,0,-p.z).normalized()
+		var side:=Vector3(-inward.z,0,inward.x)
+		var wall_center:=p+inward*1.7
+		var wall_yaw:=atan2(inward.x,inward.z)
+		for s in [-1.0,1.0]:
+			var wall=StaticBody3D.new()
+			wall.position=wall_center+side*(s*2.05)+Vector3(0,1.25,0)
+			wall.rotation.y=wall_yaw
+			var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(3.6,2.5,.28); mi.mesh=bm
+			var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.38,.23,.11); mat.roughness=1.0; mi.material_override=mat; wall.add_child(mi)
+			var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=bm.size; cs.shape=sh; wall.add_child(cs)
+			add_child(wall)
+	# Human starts on pad 1. Bots occupy the remaining 19 pads.
+	if player:
+		var pp:=spawn_points[0]; player.position=Vector3(pp.x,pp.y+PLAYER_HEIGHT+.38,pp.z)
+	for i in range(1,spawn_points.size()): _spawn_combat_bot(spawn_points[i],i)
+
+func _spawn_combat_bot(p:Vector3,index:int) -> void:
+	var bot=CharacterBody3D.new()
+	bot.name="CombatBot_%02d" % index
+	bot.position=Vector3(p.x,p.y+PLAYER_HEIGHT+.38,p.z)
+	var cs=CollisionShape3D.new(); var cap=CapsuleShape3D.new(); cap.radius=.42; cap.height=1.7; cs.shape=cap; bot.add_child(cs)
+	var model=_load_asset("res://Y Bot.fbx")
+	if model:
+		bot.add_child(model)
+		var b:=_node_visual_bounds(model)
+		if b.size.y>0.001: model.scale*=1.75/b.size.y
+		model.position=Vector3(0,-PLAYER_HEIGHT,0)
+		model.rotation_degrees.y=180.0
+	add_child(bot)
+	bot.set_meta("harmless_to_player",true)
+	combat_bots.append(bot)
+	bot_attack_cooldowns[bot.get_instance_id()]=randf_range(.0,BOT_ATTACK_COOLDOWN)
+
+func _update_combat_bots(delta:float) -> void:
+	if combat_bots.is_empty(): return
+	for bot in combat_bots.duplicate():
+		if not is_instance_valid(bot): combat_bots.erase(bot); continue
+		var id:=bot.get_instance_id()
+		var cd:=maxf(0.0,float(bot_attack_cooldowns.get(id,0.0))-delta)
+		bot_attack_cooldowns[id]=cd
+		var target:Node3D=null
+		var best:=INF
+		# Bosses have priority, then the meteor. The real player is never a target.
+		for boss in meteor_bosses:
+			if is_instance_valid(boss):
+				var d:=bot.global_position.distance_to(boss.global_position)
+				if d<best: best=d; target=boss
+		if target==null and meteor_node!=null and is_instance_valid(meteor_node):
+			target=meteor_node; best=bot.global_position.distance_to(meteor_node.global_position)
+		# Nearby bots may visually fight each other, but bot-vs-bot attacks never deal damage.
+		if target==null:
+			for other in combat_bots:
+				if other!=bot and is_instance_valid(other):
+					var d:=bot.global_position.distance_to(other.global_position)
+					if d<best and d<12.0: best=d; target=other
+		if target==null: continue
+		var dir:=target.global_position-bot.global_position; dir.y=0.0
+		var attack_range:=BOT_METEOR_RANGE if target==meteor_node else BOT_ATTACK_RANGE
+		if dir.length()>attack_range:
+			bot.velocity=dir.normalized()*BOT_SPEED
+			bot.velocity.y=0.0
+			bot.move_and_slide()
+			if dir.length()>0.01: bot.look_at(Vector3(target.global_position.x,bot.global_position.y,target.global_position.z),Vector3.UP)
+		else:
+			bot.velocity=Vector3.ZERO
+			if cd<=0.0:
+				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN
+				if target in meteor_bosses:
+					var hp:=int(target.get_meta("hp",10))-1
+					target.set_meta("hp",hp)
+					if hp<=0:
+						meteor_bosses.erase(target)
+						boss_attack_cooldowns.erase(target.get_instance_id())
+						target.queue_free()
+				elif target==meteor_node:
+					# Bots attack the meteor encounter without harming the human player.
+					meteor_hits+=1
+					if meteor_hits%METEOR_HITS_PER_BOSS==0: _spawn_meteor_boss()
+				# Bot-vs-bot intentionally has no HP/damage operation.
 
 func _build_god_watchers() -> void:
 	if not god_watchers.is_empty(): return
@@ -1527,6 +1634,7 @@ func _physics_process(delta):
 	_update_footsteps(delta)
 	_update_damage_effect(delta)
 	_update_meteor_bosses(delta)
+	_update_combat_bots(delta)
 	_update_god_watchers()
 	if health <= 0:
 		_death_feedback()
