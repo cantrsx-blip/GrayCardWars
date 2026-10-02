@@ -289,6 +289,9 @@ var bot_visual_skeletons: Dictionary = {}
 var bot_anim_scenes: Dictionary = {}
 var bot_anim_skeletons: Dictionary = {}
 var bot_anim_names: Dictionary = {}
+var bot_hp: Dictionary = {}
+var bot_aggro_player: Dictionary = {}
+var bot_spawn_index: Dictionary = {}
 const BOT_SPEED := 3.4
 const BOT_ATTACK_RANGE := 2.2
 const BOT_ATTACK_COOLDOWN := 0.85
@@ -331,7 +334,26 @@ func _build_world_staged() -> void:
 	zone_label.text=""
 
 func height_at(_x: float, _z: float) -> float:
-	return 0.0
+	var h:=0.0
+	var edge:=164.0
+	var lanes=[-132.0,-66.0,0.0,66.0,132.0]
+	var sites:Array[Vector2]=[]
+	for x in lanes: sites.append(Vector2(x,-edge))
+	for z in lanes: sites.append(Vector2(edge,z))
+	for x in lanes: sites.append(Vector2(-x,edge))
+	for z in lanes: sites.append(Vector2(-edge,-z))
+	var here:=Vector2(_x,_z)
+	for site in sites:
+		var d:=here.distance_to(site)
+		# Smooth bowl in the middle, then an irregular natural earth ring around it.
+		if d<15.0:
+			var bowl:float=-2.2*(1.0-smoothstep(0.0,9.0,d))
+			var ring:float=0.0
+			if d>7.0:
+				var rt:float=1.0-absf(d-11.0)/4.0
+				ring=maxf(0.0,rt)*(1.15+0.35*sin(_x*.31+_z*.23))
+			h+=bowl+ring
+	return h
 
 func _near_poi(x: float, z: float) -> bool:
 	for b in pois:
@@ -610,6 +632,7 @@ func _player_attack() -> void:
 	_finish_attack_animation(.65)
 
 func _meteor_strike() -> void:
+	_hit_nearby_combat_bot()
 	if _panel_open() or player==null or meteor_node==null or not is_instance_valid(meteor_node): return
 	if player.global_position.distance_to(meteor_node.global_position)>METEOR_HIT_RANGE: return
 	meteor_hits+=1
@@ -731,16 +754,10 @@ func _build_spawn_system() -> void:
 		var p:=spawn_points[i]
 		p.y=height_at(p.x,p.z)
 		spawn_points[i]=p
-		# Gray concrete platform sits in a shallow spawn hollow.
-		_add_static_box(p+Vector3(0,-.62,0),Vector3(8.0,.36,8.0),Color(.38,.39,.40))
+		# Concrete is only the spawn floor. The hollow and surrounding cover come from the terrain itself.
+		_add_static_box(p+Vector3(0,-.18,0),Vector3(8.0,.36,8.0),Color(.38,.39,.40))
 		var inward:=Vector3(-p.x,0,-p.z).normalized()
 		var side:=Vector3(-inward.z,0,inward.x)
-		# Low uneven earth/rock banks reduce sight lines while keeping an inward escape gap.
-		for ridge in [[side*7.0,Vector3(5.5,2.4,10.0)],[side*-7.0,Vector3(5.5,3.0,9.0)],[-inward*7.0,Vector3(11.0,2.7,4.5)]]:
-			var rp:Vector3=p+ridge[0]+Vector3(0,.55,0)
-			_add_static_box(rp,ridge[1],Color(.31,.29,.24))
-		p.y-=.80
-		spawn_points[i]=p
 		# Two wooden sight-blocking walls, angled toward the map center.
 		var wall_center:=p+inward*1.7
 		var wall_yaw:=atan2(inward.x,inward.z)
@@ -777,7 +794,11 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 		var sk:=_find_skeleton(model)
 		if sk: bot_visual_skeletons[bot.get_instance_id()]=sk
 	combat_bots.append(bot)
-	bot_attack_cooldowns[bot.get_instance_id()]=randf_range(.0,BOT_ATTACK_COOLDOWN)
+	var bid:int=bot.get_instance_id()
+	bot_hp[bid]=2
+	bot_aggro_player[bid]=false
+	bot_spawn_index[bid]=index
+	bot_attack_cooldowns[bid]=randf_range(.0,BOT_ATTACK_COOLDOWN)
 
 func _update_combat_bots(delta:float) -> void:
 	if combat_bots.is_empty(): return
@@ -789,8 +810,13 @@ func _update_combat_bots(delta:float) -> void:
 		bot_attack_cooldowns[id]=cd
 		var target:Node3D=null
 		var best:=INF
-		# Bosses have priority, then the meteor. The real player is never a target.
+		# A bot only targets the human after that human has attacked it.
+		if bool(bot_aggro_player.get(id,false)) and player!=null:
+			target=player
+			best=bot.global_position.distance_to(player.global_position)
+		# Otherwise bosses have priority, then the meteor.
 		for boss in meteor_bosses:
+			if target==player: break
 			if is_instance_valid(boss):
 				var d:float=bot.global_position.distance_to(boss.global_position)
 				if d<best: best=d; target=boss
@@ -809,6 +835,12 @@ func _update_combat_bots(delta:float) -> void:
 			bot.velocity=dir.normalized()*BOT_SPEED
 			bot.velocity.y=0.0
 			bot.move_and_slide()
+			# If a wall/obstacle blocks the direct route, slide around it instead of pushing forever.
+			if bot.get_slide_collision_count()>0:
+				var tangent:=Vector3(-dir.z,0,dir.x).normalized()
+				if id%2==0: tangent=-tangent
+				bot.velocity=tangent*BOT_SPEED
+				bot.move_and_slide()
 			if dir.length()>0.01: bot.look_at(Vector3(target.global_position.x,bot.global_position.y,target.global_position.z),Vector3.UP)
 			_bot_play_animation(bot,"Rifle Run" if weapon_type==2 else "Run")
 			_bot_copy_pose(bot)
@@ -819,7 +851,9 @@ func _update_combat_bots(delta:float) -> void:
 			if cd<=0.0:
 				_bot_play_animation(bot,"Firing Rifle" if weapon_type==2 else ("Stable Sword Outward Slash" if weapon_type==1 else "Stabbing"))
 				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN
-				if target in meteor_bosses:
+				if target==player:
+					_apply_damage(1.0)
+				elif target in meteor_bosses:
 					var hp:=int(target.get_meta("hp",10))-1
 					target.set_meta("hp",hp)
 					if hp<=0:
@@ -831,6 +865,34 @@ func _update_combat_bots(delta:float) -> void:
 					meteor_hits+=1
 					if meteor_hits%METEOR_HITS_PER_BOSS==0: _spawn_meteor_boss()
 				# Bot-vs-bot intentionally has no HP/damage operation.
+
+func _hit_nearby_combat_bot() -> void:
+	if player==null: return
+	var forward:=player_facing.normalized()
+	var victim:CharacterBody3D=null
+	var best:=3.0
+	for bot in combat_bots:
+		if not is_instance_valid(bot): continue
+		var delta:=bot.global_position-player.global_position
+		delta.y=0.0
+		var dist:=delta.length()
+		if dist<best and dist>0.01 and forward.dot(delta.normalized())>0.15:
+			best=dist; victim=bot
+	if victim==null: return
+	var id:int=victim.get_instance_id()
+	bot_aggro_player[id]=true
+	bot_hp[id]=int(bot_hp.get(id,2))-1
+	if int(bot_hp[id])<=0: _respawn_combat_bot(victim)
+
+func _respawn_combat_bot(bot:CharacterBody3D) -> void:
+	if not is_instance_valid(bot): return
+	var old_id:int=bot.get_instance_id()
+	var index:int=int(bot_spawn_index.get(old_id,1))
+	combat_bots.erase(bot)
+	bot_attack_cooldowns.erase(old_id); bot_weapon_types.erase(old_id); bot_hp.erase(old_id); bot_aggro_player.erase(old_id); bot_spawn_index.erase(old_id)
+	bot_anim_players.erase(old_id); bot_visual_skeletons.erase(old_id); bot_anim_skeletons.erase(old_id); bot_anim_names.erase(old_id); bot_anim_scenes.erase(old_id)
+	bot.queue_free()
+	if index>=0 and index<spawn_points.size(): _spawn_combat_bot(spawn_points[index],index)
 
 func _bot_play_animation(bot:CharacterBody3D,wanted:String) -> void:
 	var id:int=bot.get_instance_id()
