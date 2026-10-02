@@ -285,6 +285,10 @@ var combat_bots: Array[CharacterBody3D] = []
 var bot_attack_cooldowns: Dictionary = {}
 var bot_anim_players: Dictionary = {}
 var bot_weapon_types: Dictionary = {}
+var bot_visual_skeletons: Dictionary = {}
+var bot_anim_scenes: Dictionary = {}
+var bot_anim_skeletons: Dictionary = {}
+var bot_anim_names: Dictionary = {}
 const BOT_SPEED := 3.4
 const BOT_ATTACK_RANGE := 2.2
 const BOT_ATTACK_COOLDOWN := 0.85
@@ -727,11 +731,17 @@ func _build_spawn_system() -> void:
 		var p:=spawn_points[i]
 		p.y=height_at(p.x,p.z)
 		spawn_points[i]=p
-		# Gray concrete platform.
-		_add_static_box(p+Vector3(0,.18,0),Vector3(8.0,.36,8.0),Color(.38,.39,.40))
-		# Two wooden sight-blocking walls, angled toward the map center.
+		# Gray concrete platform sits in a shallow spawn hollow.
+		_add_static_box(p+Vector3(0,-.62,0),Vector3(8.0,.36,8.0),Color(.38,.39,.40))
 		var inward:=Vector3(-p.x,0,-p.z).normalized()
 		var side:=Vector3(-inward.z,0,inward.x)
+		# Low uneven earth/rock banks reduce sight lines while keeping an inward escape gap.
+		for ridge in [[side*7.0,Vector3(5.5,2.4,10.0)],[side*-7.0,Vector3(5.5,3.0,9.0)],[-inward*7.0,Vector3(11.0,2.7,4.5)]]:
+			var rp:Vector3=p+ridge[0]+Vector3(0,.55,0)
+			_add_static_box(rp,ridge[1],Color(.31,.29,.24))
+		p.y-=.80
+		spawn_points[i]=p
+		# Two wooden sight-blocking walls, angled toward the map center.
 		var wall_center:=p+inward*1.7
 		var wall_yaw:=atan2(inward.x,inward.z)
 		for s in [-1.0,1.0]:
@@ -764,8 +774,8 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 	var weapon_type:=index%3 # 0 knife, 1 sword, 2 firearm
 	bot_weapon_types[bot.get_instance_id()]=weapon_type
 	if model:
-		var ap:=_find_animation_player(model)
-		if ap: bot_anim_players[bot.get_instance_id()]=ap
+		var sk:=_find_skeleton(model)
+		if sk: bot_visual_skeletons[bot.get_instance_id()]=sk
 	combat_bots.append(bot)
 	bot_attack_cooldowns[bot.get_instance_id()]=randf_range(.0,BOT_ATTACK_COOLDOWN)
 
@@ -801,9 +811,11 @@ func _update_combat_bots(delta:float) -> void:
 			bot.move_and_slide()
 			if dir.length()>0.01: bot.look_at(Vector3(target.global_position.x,bot.global_position.y,target.global_position.z),Vector3.UP)
 			_bot_play_animation(bot,"Rifle Run" if weapon_type==2 else "Run")
+			_bot_copy_pose(bot)
 		else:
 			bot.velocity=Vector3.ZERO
 			_bot_play_animation(bot,"Rifle Idle" if weapon_type==2 else ("Great Sword Idle" if weapon_type==1 else "Knife Idle"))
+			_bot_copy_pose(bot)
 			if cd<=0.0:
 				_bot_play_animation(bot,"Firing Rifle" if weapon_type==2 else ("Stable Sword Outward Slash" if weapon_type==1 else "Stabbing"))
 				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN
@@ -822,10 +834,45 @@ func _update_combat_bots(delta:float) -> void:
 
 func _bot_play_animation(bot:CharacterBody3D,wanted:String) -> void:
 	var id:int=bot.get_instance_id()
-	var ap:AnimationPlayer=bot_anim_players.get(id,null)
-	if ap==null: return
-	var anim:=_find_animation_name(ap,wanted)
-	if anim!=&"" and ap.current_animation!=str(anim): ap.play(anim)
+	if str(bot_anim_names.get(id,""))==wanted and bot_anim_scenes.has(id): return
+	var old_scene:Node3D=bot_anim_scenes.get(id,null)
+	if old_scene and is_instance_valid(old_scene): old_scene.queue_free()
+	bot_anim_scenes.erase(id); bot_anim_skeletons.erase(id); bot_anim_players.erase(id)
+	var path:=_ybot_anim_source(wanted)
+	if path.is_empty() or not ResourceLoader.exists(path): return
+	var carrier:=_load_asset(path)
+	if carrier==null: return
+	carrier.visible=false
+	bot.add_child(carrier)
+	var ap:=_find_animation_player(carrier)
+	var sk:=_find_skeleton(carrier)
+	if ap==null or sk==null:
+		carrier.queue_free(); return
+	var chosen:StringName=&""
+	for lib_name in ap.get_animation_library_list():
+		var lib:=ap.get_animation_library(lib_name)
+		if lib:
+			for an in lib.get_animation_list():
+				if str(an).to_lower()!="reset": chosen=an; break
+		if chosen!=&"": break
+	if chosen==&"": carrier.queue_free(); return
+	var animation:=ap.get_animation(chosen)
+	if animation and wanted not in ["Firing Rifle","Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One"]:
+		animation.loop_mode=Animation.LOOP_LINEAR
+	bot_anim_scenes[id]=carrier; bot_anim_skeletons[id]=sk; bot_anim_players[id]=ap; bot_anim_names[id]=wanted
+	ap.play(chosen,0.05)
+
+func _bot_copy_pose(bot:CharacterBody3D) -> void:
+	var id:int=bot.get_instance_id()
+	var dst:Skeleton3D=bot_visual_skeletons.get(id,null)
+	var src:Skeleton3D=bot_anim_skeletons.get(id,null)
+	if dst==null or src==null: return
+	for i in range(dst.get_bone_count()):
+		var source_i:=src.find_bone(dst.get_bone_name(i))
+		if source_i<0: continue
+		dst.set_bone_pose_position(i,src.get_bone_pose_position(source_i))
+		dst.set_bone_pose_rotation(i,src.get_bone_pose_rotation(source_i))
+		dst.set_bone_pose_scale(i,src.get_bone_pose_scale(source_i))
 
 func _build_god_watchers() -> void:
 	if not god_watchers.is_empty(): return
