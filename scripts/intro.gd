@@ -27,6 +27,8 @@ var preview_slider: HSlider
 var store_category := "TÜMÜ"
 var weapon_inspect_panel: Panel
 var weapon_inspect_model: Node3D
+var weapon_inspect_dragging := false
+var weapon_inspect_last_pos := Vector2.ZERO
 
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
@@ -464,7 +466,26 @@ func _open_weapon_inspector(row:int,variant:String):
 			weapon_inspect_model.rotation_degrees=Vector3(0,-25,0)
 	else:
 		var missing=Label.new(); missing.text="3D DOSYA BULUNAMADI"; missing.position=Vector2(200,220); weapon_inspect_panel.add_child(missing)
-	var view=TextureRect.new(); view.position=Vector2(20,60); view.size=Vector2(600,390); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_IGNORE; weapon_inspect_panel.add_child(view)
+	var view=TextureRect.new(); view.position=Vector2(20,60); view.size=Vector2(600,390); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_STOP; view.gui_input.connect(_weapon_inspector_input); weapon_inspect_panel.add_child(view)
+
+func _weapon_inspector_input(event:InputEvent):
+	if weapon_inspect_model==null: return
+	if event is InputEventScreenTouch:
+		weapon_inspect_dragging=event.pressed
+		weapon_inspect_last_pos=event.position
+	elif event is InputEventScreenDrag:
+		var delta=event.position-weapon_inspect_last_pos
+		weapon_inspect_last_pos=event.position
+		weapon_inspect_model.rotate_y(-delta.x*0.012)
+		weapon_inspect_model.rotate_x(-delta.y*0.012)
+	elif event is InputEventMouseButton:
+		weapon_inspect_dragging=event.pressed
+		weapon_inspect_last_pos=event.position
+	elif event is InputEventMouseMotion and weapon_inspect_dragging:
+		var delta=event.position-weapon_inspect_last_pos
+		weapon_inspect_last_pos=event.position
+		weapon_inspect_model.rotate_y(-delta.x*0.012)
+		weapon_inspect_model.rotate_x(-delta.y*0.012)
 
 func _close_weapon_inspector():
 	if weapon_inspect_panel:
