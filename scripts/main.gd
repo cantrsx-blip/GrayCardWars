@@ -299,6 +299,10 @@ const BOT_SPEED := 3.4
 const BOT_ATTACK_RANGE := 2.2
 const BOT_ATTACK_COOLDOWN := 0.85
 const BOT_METEOR_RANGE := 4.0
+const PLAYER_COMBAT_DAMAGE := 50
+const NPC_COMBAT_DAMAGE := 15
+const BOSS_COMBAT_DAMAGE := 10
+const COMBAT_MAX_HP := 100
 
 func _ready():
 	# Keep scene entry light on Android: show the camera/HUD first, then build the
@@ -315,6 +319,11 @@ func _ready():
 		var saved_hotbar=lobby_cfg.get_value("inventory","hotbar",[])
 		if saved_hotbar is Array:
 			for i in range(mini(6,saved_hotbar.size())): hotbar_items[i]=str(saved_hotbar[i])
+	# Required starter loadout is always present when the player enters the game.
+	var starter_items=["Keskin Nişancı Tüfeği|lav","Çift Namlulu Pompalı|gunes","Büyük Kılıç|buz","Karambit|yesil","Bıçak|gumus"]
+	for starter in starter_items:
+		if int(crafted_inventory.get(starter,0))<1: crafted_inventory[starter]=1
+	_save_player_inventory()
 	_refresh_hotbar()
 	zone_label.text="DUNYA YUKLENIYOR..."
 	call_deferred("_build_world_staged")
@@ -636,14 +645,10 @@ func _player_attack() -> void:
 
 func _meteor_strike() -> void:
 	_hit_nearby_combat_bot()
+	_hit_nearby_meteor_boss()
 	if _panel_open() or player==null or meteor_node==null or not is_instance_valid(meteor_node): return
 	if player.global_position.distance_to(meteor_node.global_position)>METEOR_HIT_RANGE: return
 	meteor_hits+=1
-	for boss in meteor_bosses.duplicate():
-		if is_instance_valid(boss):
-			var hp:int=int(boss.get_meta("hp",10))-BOSS_METEOR_HIT_DAMAGE
-			boss.set_meta("hp",hp)
-			if hp<=0: meteor_bosses.erase(boss); boss_attack_cooldowns.erase(boss.get_instance_id()); boss.queue_free()
 	if meteor_hits%METEOR_HITS_PER_BOSS==0: _spawn_meteor_boss()
 	if gather_label:
 		gather_label.text="METEOR VURUSU %d  •  SONRAKI BOSS %d/5" % [meteor_hits,meteor_hits%5]
@@ -676,7 +681,7 @@ func _spawn_meteor_boss() -> void:
 	model.rotation_degrees.y=180.0
 	var bounds=_node_visual_bounds(model)
 	if bounds.size.y>0.001: model.scale*=2.0/bounds.size.y
-	boss.set_meta("hp",10); add_child(boss); meteor_bosses.append(boss)
+	boss.set_meta("hp",COMBAT_MAX_HP); add_child(boss); meteor_bosses.append(boss)
 	boss_attack_cooldowns[boss.get_instance_id()]=0.0
 	boss_targets[boss.get_instance_id()]=null
 	_play_boss_anim(boss,"Idle")
@@ -723,8 +728,8 @@ func _update_meteor_bosses(delta:float) -> void:
 		else:
 			boss.velocity=Vector3.ZERO; _play_boss_anim(boss,"Attack")
 			if cd<=0.0:
-				if target==player: _apply_damage(1.0)
-				elif target in combat_bots: _damage_combat_bot(target,1)
+				if target==player: _apply_damage(BOSS_COMBAT_DAMAGE)
+				elif target in combat_bots: _damage_combat_bot(target,BOSS_COMBAT_DAMAGE)
 				boss_attack_cooldowns[id]=BOSS_ATTACK_COOLDOWN
 
 func _build_world_environment() -> void:
@@ -817,7 +822,7 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 		if sk: bot_visual_skeletons[bot.get_instance_id()]=sk
 	combat_bots.append(bot)
 	var bid:int=bot.get_instance_id()
-	bot_hp[bid]=2
+	bot_hp[bid]=COMBAT_MAX_HP
 	bot_aggro_player[bid]=false
 	bot_spawn_index[bid]=index
 	# Stable mixed personalities: meteor hunters, boss fighters, roamers, bot fighters and boss avoiders.
@@ -886,17 +891,17 @@ func _update_combat_bots(delta:float) -> void:
 			if cd<=0.0:
 				_bot_play_animation(bot,"Firing Rifle" if weapon_type==2 else ("Stable Sword Outward Slash" if weapon_type==1 else "Stabbing"))
 				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.55)
-				if target==player: _apply_damage(1.0)
+				if target==player: _apply_damage(NPC_COMBAT_DAMAGE)
 				elif target in meteor_bosses:
 					boss_targets[target.get_instance_id()]=bot
-					var hp:=int(target.get_meta("hp",10))-1; target.set_meta("hp",hp)
+					var hp:=int(target.get_meta("hp",COMBAT_MAX_HP))-NPC_COMBAT_DAMAGE; target.set_meta("hp",hp)
 					if hp<=0:
 						boss_targets.erase(target.get_instance_id()); meteor_bosses.erase(target); boss_attack_cooldowns.erase(target.get_instance_id()); target.queue_free()
 				elif target==meteor_node:
 					meteor_hits+=1
 					if meteor_hits%METEOR_HITS_PER_BOSS==0: _spawn_meteor_boss()
 				elif target in combat_bots:
-					_damage_combat_bot(target,1)
+					_damage_combat_bot(target,NPC_COMBAT_DAMAGE)
 
 func _bot_move_smart(bot:CharacterBody3D,dir:Vector3,weapon_type:int,delta:float) -> void:
 	if dir.length()<0.05: return
@@ -925,8 +930,26 @@ func _bot_move_smart(bot:CharacterBody3D,dir:Vector3,weapon_type:int,delta:float
 func _damage_combat_bot(bot:Node3D,amount:int) -> void:
 	if bot==null or not is_instance_valid(bot): return
 	var id:int=bot.get_instance_id()
-	bot_hp[id]=int(bot_hp.get(id,2))-amount
+	bot_hp[id]=int(bot_hp.get(id,COMBAT_MAX_HP))-amount
 	if int(bot_hp[id])<=0: _respawn_combat_bot(bot as CharacterBody3D)
+
+func _hit_nearby_meteor_boss() -> void:
+	if player==null: return
+	var forward:=player_facing.normalized()
+	var victim:CharacterBody3D=null
+	var best:=3.5
+	for boss in meteor_bosses:
+		if not is_instance_valid(boss): continue
+		var delta:=boss.global_position-player.global_position; delta.y=0.0
+		var dist:=delta.length()
+		if dist<best and dist>0.01 and forward.dot(delta.normalized())>0.15:
+			best=dist; victim=boss
+	if victim==null: return
+	var hp:int=int(victim.get_meta("hp",COMBAT_MAX_HP))-PLAYER_COMBAT_DAMAGE
+	victim.set_meta("hp",hp)
+	boss_targets[victim.get_instance_id()]=player
+	if hp<=0:
+		boss_targets.erase(victim.get_instance_id()); meteor_bosses.erase(victim); boss_attack_cooldowns.erase(victim.get_instance_id()); victim.queue_free()
 
 func _hit_nearby_combat_bot() -> void:
 	if player==null: return
@@ -943,7 +966,7 @@ func _hit_nearby_combat_bot() -> void:
 	if victim==null: return
 	var id:int=victim.get_instance_id()
 	bot_aggro_player[id]=true
-	_damage_combat_bot(victim,1)
+	_damage_combat_bot(victim,PLAYER_COMBAT_DAMAGE)
 
 func _respawn_combat_bot(bot:CharacterBody3D) -> void:
 	if not is_instance_valid(bot): return
