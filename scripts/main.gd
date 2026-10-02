@@ -766,7 +766,7 @@ func _update_combat_bots(delta:float) -> void:
 	if combat_bots.is_empty(): return
 	for bot in combat_bots.duplicate():
 		if not is_instance_valid(bot): combat_bots.erase(bot); continue
-		var id:=bot.get_instance_id()
+		var id:int=bot.get_instance_id()
 		var cd:=maxf(0.0,float(bot_attack_cooldowns.get(id,0.0))-delta)
 		bot_attack_cooldowns[id]=cd
 		var target:Node3D=null
@@ -774,7 +774,7 @@ func _update_combat_bots(delta:float) -> void:
 		# Bosses have priority, then the meteor. The real player is never a target.
 		for boss in meteor_bosses:
 			if is_instance_valid(boss):
-				var d:=bot.global_position.distance_to(boss.global_position)
+				var d:float=bot.global_position.distance_to(boss.global_position)
 				if d<best: best=d; target=boss
 		if target==null and meteor_node!=null and is_instance_valid(meteor_node):
 			target=meteor_node; best=bot.global_position.distance_to(meteor_node.global_position)
@@ -782,10 +782,10 @@ func _update_combat_bots(delta:float) -> void:
 		if target==null:
 			for other in combat_bots:
 				if other!=bot and is_instance_valid(other):
-					var d:=bot.global_position.distance_to(other.global_position)
+					var d:float=bot.global_position.distance_to(other.global_position)
 					if d<best and d<12.0: best=d; target=other
 		if target==null: continue
-		var dir:=target.global_position-bot.global_position; dir.y=0.0
+		var dir:Vector3=target.global_position-bot.global_position; dir.y=0.0
 		var attack_range:=BOT_METEOR_RANGE if target==meteor_node else BOT_ATTACK_RANGE
 		if dir.length()>attack_range:
 			bot.velocity=dir.normalized()*BOT_SPEED
