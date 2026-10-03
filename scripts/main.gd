@@ -461,14 +461,14 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 	attachment.add_child(weapon)
 	var item=str(key.split("|")[0])
 	var grip={
-		"Bıçak":{"length":0.62,"pos":Vector3(0.02,-0.01,-0.01),"rot":Vector3(0,0,-90)},
-		"Karambit":{"length":0.58,"pos":Vector3(0.015,-0.005,-0.015),"rot":Vector3(0,0,-90)},
-		"Kılıç":{"length":1.18,"pos":Vector3(0.03,-0.035,-0.055),"rot":Vector3(0,0,-90)},
-		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.03,-0.045,-0.075),"rot":Vector3(0,0,-90)},
-		"Katana":{"length":1.24,"pos":Vector3(0.025,-0.035,-0.06),"rot":Vector3(0,0,-90)},
-		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,90,-90)},
-		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,90,-90)},
-		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,-0.06,-0.15),"rot":Vector3(0,90,-90)}
+		"Bıçak":{"length":0.62,"pos":Vector3(0.02,-0.01,-0.01),"rot":Vector3(0,180,-90)},
+		"Karambit":{"length":0.58,"pos":Vector3(0.015,-0.005,-0.015),"rot":Vector3(0,180,-90)},
+		"Kılıç":{"length":1.18,"pos":Vector3(0.03,-0.035,-0.055),"rot":Vector3(0,180,-90)},
+		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.03,-0.045,-0.075),"rot":Vector3(0,180,-90)},
+		"Katana":{"length":1.24,"pos":Vector3(0.025,-0.035,-0.06),"rot":Vector3(0,180,-90)},
+		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
+		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
+		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,-0.06,-0.15),"rot":Vector3(0,-90,-90)}
 	}
 	var g=grip.get(item,{"length":0.9,"pos":Vector3.ZERO,"rot":Vector3.ZERO})
 	# Normalize every GLB by its real visual bounds first. This keeps all five rarities
@@ -661,34 +661,6 @@ func _build_meteor_encounter() -> void:
 	solid.position=meteor_node.global_position
 	add_child(solid)
 
-func _build_spawn_meteor_shortcuts() -> void:
-	# Sunken dirt shortcuts from every spawn pad toward the central meteor.
-	# Gentle ramps keep every trench easy to enter/leave. Fences alternate sides every 3 tiles.
-	var root=Node3D.new(); root.name="MeteorShortcuts"; add_child(root)
-	var dirt=_terrain_material("res://01_toprak.png")
-	for si in spawn_points.size():
-		var start=spawn_points[si]
-		var flat=Vector2(start.x,start.z)
-		var distance=flat.length()-METEOR_ARENA_RADIUS
-		if distance<=1.0: continue
-		var inward=Vector3(-start.x,0,-start.z).normalized()
-		var side=Vector3(-inward.z,0,inward.x)
-		var steps=maxi(1,int(distance/6.25))
-		for step in range(steps):
-			var travel=minf(distance,(float(step)+0.5)*6.25)
-			var p=start+inward*travel
-			var edge_blend=minf(1.0,minf(travel,maxf(0.0,distance-travel))/12.5)
-			var depth=0.85*edge_blend
-			p.y=height_at(p.x,p.z)-depth+0.04
-			var road=MeshInstance3D.new(); var plane=BoxMesh.new(); plane.size=Vector3(5.2,0.10,6.25); road.mesh=plane; road.material_override=dirt
-			road.position=p; road.rotation.y=atan2(inward.x,inward.z); root.add_child(road)
-			if step>0 and (step+1)%3==0:
-				var fence_side=1.0 if (int((step+1)/3)%2)==1 else -1.0
-				var fp=p+side*fence_side*3.0+Vector3(0,0.62,0)
-				var fence=StaticBody3D.new(); fence.position=fp; fence.rotation.y=atan2(inward.x,inward.z)
-				var fm=MeshInstance3D.new(); var fb=BoxMesh.new(); fb.size=Vector3(3.4,1.15,.16); fm.mesh=fb
-				var fmat=StandardMaterial3D.new(); fmat.albedo_color=Color(.38,.23,.11); fmat.roughness=1.0; fm.material_override=fmat; fence.add_child(fm)
-				var fcs=CollisionShape3D.new(); var fshape=BoxShape3D.new(); fshape.size=fb.size; fcs.shape=fshape; fence.add_child(fcs); root.add_child(fence)
 
 func _node_visual_bounds(root:Node3D) -> AABB:
 	var first:=true
@@ -708,7 +680,7 @@ func _finish_attack_animation(_delay:float=.65) -> void:
 	player_action_token+=1
 	var attack_token:=player_action_token
 	player_action_locked=true
-	var real_duration:=maxf(player_action_duration,0.10)
+	var real_duration:=maxf(0.10,minf(player_action_duration,_delay))
 	await get_tree().create_timer(real_duration).timeout
 	if player_action_token==attack_token:
 		player_action_locked=false
@@ -722,7 +694,21 @@ func _sword_attack(anim_name:String) -> void:
 	if _panel_open() or player==null or not _is_sword_equipped(): return
 	_play_ybot_anim(anim_name)
 	_meteor_strike()
-	_finish_attack_animation(.75)
+	if anim_name in ["Great Sword Slash (1)","Great Sword Slash"]:
+		_commit_sword_lunge(anim_name)
+	_finish_attack_animation(.34)
+
+func _commit_sword_lunge(anim_name:String) -> void:
+	var token:=player_action_token+1
+	await get_tree().create_timer(.30).timeout
+	if player==null or token!=player_action_token: return
+	var step:=0.90 if anim_name=="Great Sword Slash (1)" else 0.72
+	var forward:=player_facing.normalized()
+	var next_pos:=player.global_position+Vector3(forward.x,0,forward.z)*step
+	next_pos.x=clampf(next_pos.x,-171.0,171.0)
+	next_pos.z=clampf(next_pos.z,-171.0,171.0)
+	next_pos.y=maxf(player.global_position.y,height_at(next_pos.x,next_pos.z)+PLAYER_HEIGHT)
+	player.global_position=next_pos
 
 func _sword_attack_1() -> void: _sword_attack("Great Sword Slash (1)")
 func _sword_attack_2() -> void: _sword_attack("Great Sword Slash")
@@ -744,7 +730,7 @@ func _player_attack() -> void:
 	elif sword: _play_ybot_anim("Stable Sword Outward Slash")
 	else: _play_ybot_anim("Stabbing")
 	_meteor_strike()
-	_finish_attack_animation(.65)
+	_finish_attack_animation(.30)
 
 func _meteor_strike() -> void:
 	_hit_nearby_combat_bot()
@@ -868,7 +854,6 @@ func _build_world_base():
 	_build_center_settlement_mound()
 	_build_meteor_encounter()
 	_build_spawn_system()
-	_build_spawn_meteor_shortcuts()
 	_build_map_edge_mountains()
 	_build_god_watchers()
 
@@ -1001,8 +986,15 @@ func _update_combat_bots(delta:float) -> void:
 				_bot_play_animation(bot,"Rifle Idle" if weapon_type==2 else ("Great Sword Idle" if weapon_type==1 else "Knife Idle"))
 			_bot_copy_pose(bot)
 			if cd<=0.0:
-				_bot_play_animation(bot,"Firing Rifle" if weapon_type==2 else ("Stable Sword Outward Slash" if weapon_type==1 else "Stabbing"))
-				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.55)
+				if weapon_type==2:
+					_bot_play_animation(bot,"Firing Rifle")
+					_npc_muzzle_flash(bot)
+				elif weapon_type==1:
+					var sword_moves=["Great Sword Slash (1)","Great Sword Slash","Sword Fight One"]
+					_bot_play_animation(bot,sword_moves[randi_range(0,2)])
+				else:
+					_bot_play_animation(bot,"Stabbing")
+				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.28)
 				if target==player: _apply_damage(NPC_COMBAT_DAMAGE)
 				elif target in meteor_bosses:
 					boss_targets[target.get_instance_id()]=bot
@@ -1518,7 +1510,8 @@ func _play_ybot_anim(wanted:String)->void:
 	if player_visual==null: return
 	var path:=_ybot_anim_source(wanted)
 	if path.is_empty() or not ResourceLoader.exists(path): return
-	if StringName(wanted)==player_anim_name and player_anim_scene!=null: return
+	var one_shot_attack=wanted in ["Firing Rifle","Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One"]
+	if StringName(wanted)==player_anim_name and player_anim_scene!=null and not one_shot_attack: return
 	# Mixamo animation FBXs are animation carriers. Keep the visible Y Bot mesh,
 	# hide carrier meshes, and play their compatible skeleton tracks.
 	if player_anim_scene and is_instance_valid(player_anim_scene):
@@ -2907,6 +2900,14 @@ func _update_damage_effect(delta:float):
 func _death_screen_effect():
 	if damage_overlay: damage_overlay.color=Color(.48,.0,.0,.72); damage_time=1.25
 
+
+func _npc_muzzle_flash(bot:Node3D) -> void:
+	if fx_root==null or bot==null or not is_instance_valid(bot): return
+	var flash=OmniLight3D.new()
+	flash.light_color=Color(1.0,.62,.22); flash.light_energy=4.0; flash.omni_range=3.5
+	flash.global_position=bot.global_position+Vector3(0,1.25,0)+(-bot.global_transform.basis.z*1.0)
+	fx_root.add_child(flash)
+	var t=get_tree().create_timer(.07); t.timeout.connect(flash.queue_free)
 
 func _muzzle_flash():
 	if fx_root==null or player==null: return
