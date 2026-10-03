@@ -461,14 +461,14 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 	attachment.add_child(weapon)
 	var item=str(key.split("|")[0])
 	var grip={
-		"Bıçak":{"length":0.62,"pos":Vector3(0.02,-0.01,-0.01),"rot":Vector3(0,180,-90)},
-		"Karambit":{"length":0.58,"pos":Vector3(0.015,-0.005,-0.015),"rot":Vector3(0,180,-90)},
-		"Kılıç":{"length":1.18,"pos":Vector3(0.03,-0.035,-0.055),"rot":Vector3(0,180,-90)},
-		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.03,-0.045,-0.075),"rot":Vector3(0,180,-90)},
-		"Katana":{"length":1.24,"pos":Vector3(0.025,-0.035,-0.06),"rot":Vector3(0,180,-90)},
-		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
-		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
-		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,-0.06,-0.15),"rot":Vector3(0,-90,-90)}
+		"Bıçak":{"length":0.62,"pos":Vector3(0.02,-0.01,-0.01),"rot":Vector3(0,0,-90)},
+		"Karambit":{"length":0.58,"pos":Vector3(0.015,-0.005,-0.015),"rot":Vector3(0,0,-90)},
+		"Kılıç":{"length":1.18,"pos":Vector3(0.03,-0.035,-0.055),"rot":Vector3(0,0,-90)},
+		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.03,-0.045,-0.075),"rot":Vector3(0,0,-90)},
+		"Katana":{"length":1.24,"pos":Vector3(0.025,-0.035,-0.06),"rot":Vector3(0,0,-90)},
+		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,90,-90)},
+		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,90,-90)},
+		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,-0.06,-0.15),"rot":Vector3(0,90,-90)}
 	}
 	var g=grip.get(item,{"length":0.9,"pos":Vector3.ZERO,"rot":Vector3.ZERO})
 	# Normalize every GLB by its real visual bounds first. This keeps all five rarities
@@ -680,7 +680,7 @@ func _finish_attack_animation(_delay:float=.65) -> void:
 	player_action_token+=1
 	var attack_token:=player_action_token
 	player_action_locked=true
-	var real_duration:=maxf(0.10,minf(player_action_duration,_delay))
+	var real_duration:=maxf(player_action_duration,0.10)
 	await get_tree().create_timer(real_duration).timeout
 	if player_action_token==attack_token:
 		player_action_locked=false
@@ -694,21 +694,7 @@ func _sword_attack(anim_name:String) -> void:
 	if _panel_open() or player==null or not _is_sword_equipped(): return
 	_play_ybot_anim(anim_name)
 	_meteor_strike()
-	if anim_name in ["Great Sword Slash (1)","Great Sword Slash"]:
-		_commit_sword_lunge(anim_name)
-	_finish_attack_animation(.34)
-
-func _commit_sword_lunge(anim_name:String) -> void:
-	var token:=player_action_token+1
-	await get_tree().create_timer(.30).timeout
-	if player==null or token!=player_action_token: return
-	var step:=0.90 if anim_name=="Great Sword Slash (1)" else 0.72
-	var forward:=player_facing.normalized()
-	var next_pos:=player.global_position+Vector3(forward.x,0,forward.z)*step
-	next_pos.x=clampf(next_pos.x,-171.0,171.0)
-	next_pos.z=clampf(next_pos.z,-171.0,171.0)
-	next_pos.y=maxf(player.global_position.y,height_at(next_pos.x,next_pos.z)+PLAYER_HEIGHT)
-	player.global_position=next_pos
+	_finish_attack_animation(.75)
 
 func _sword_attack_1() -> void: _sword_attack("Great Sword Slash (1)")
 func _sword_attack_2() -> void: _sword_attack("Great Sword Slash")
