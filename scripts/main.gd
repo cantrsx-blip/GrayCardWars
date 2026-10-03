@@ -180,6 +180,8 @@ var has_bed_spawn := false
 var bed_spawn := Vector3.ZERO
 var held_item: Node3D
 var player_weapon_node: Node3D
+var weapon_test_rotation := Vector3.ZERO
+var weapon_test_label: Label
 var viewmodel_root: Node3D
 var viewmodel_right_hand: Node3D
 var viewmodel_left_hand: Node3D
@@ -323,10 +325,13 @@ func _ready():
 		var saved_hotbar=lobby_cfg.get_value("inventory","hotbar",[])
 		if saved_hotbar is Array:
 			for i in range(mini(6,saved_hotbar.size())): hotbar_items[i]=str(saved_hotbar[i])
-	# Required starter loadout is always present when the player enters the game.
-	var starter_items=["Keskin Nişancı Tüfeği|lav","Çift Namlulu Pompalı|gunes","Büyük Kılıç|buz","Karambit|yesil","Bıçak|gumus"]
-	for starter in starter_items:
-		if int(crafted_inventory.get(starter,0))<1: crafted_inventory[starter]=1
+	# Test build: every weapon/rarity is available immediately on game entry.
+	var all_weapon_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	var all_weapon_rarities=["gumus","yesil","buz","gunes","lav"]
+	for weapon_name in all_weapon_names:
+		for rarity in all_weapon_rarities:
+			var weapon_key="%s|%s" % [weapon_name,rarity]
+			if int(crafted_inventory.get(weapon_key,0))<1: crafted_inventory[weapon_key]=1
 	_save_player_inventory()
 	_refresh_hotbar()
 	zone_label.text="DUNYA YUKLENIYOR..."
@@ -480,8 +485,20 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 	var scale_value=float(g.length)/longest if longest>0.001 else 0.5
 	weapon.scale=Vector3.ONE*scale_value
 	weapon.position=g.pos-(wb.get_center()*scale_value)
-	weapon.rotation_degrees=g.rot
+	weapon.rotation_degrees=g.rot+weapon_test_rotation
 	return weapon
+
+func _weapon_test_rotate(delta_rotation:Vector3) -> void:
+	weapon_test_rotation+=delta_rotation
+	weapon_test_rotation.x=fposmod(weapon_test_rotation.x+180.0,360.0)-180.0
+	weapon_test_rotation.y=fposmod(weapon_test_rotation.y+180.0,360.0)-180.0
+	weapon_test_rotation.z=fposmod(weapon_test_rotation.z+180.0,360.0)-180.0
+	_update_weapon_test_label()
+	_refresh_player_weapon_model()
+
+func _update_weapon_test_label() -> void:
+	if weapon_test_label:
+		weapon_test_label.text="SİLAH TEST  X:%d°  Y:%d°  Z:%d°" % [roundi(weapon_test_rotation.x),roundi(weapon_test_rotation.y),roundi(weapon_test_rotation.z)]
 
 func _refresh_player_weapon_model() -> void:
 	if player_skeleton==null: return
@@ -1606,6 +1623,12 @@ func _build_hud():
 		b.pressed.connect(actions[i][1]); layer.add_child(b)
 	_update_fly_button_styles()
 	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-300,96); lobby_btn.size=Vector2(288,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
+	# Temporary live weapon-axis tuner. Each tap changes the equipped model by 15 degrees.
+	weapon_test_label=Label.new(); weapon_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); weapon_test_label.position=Vector2(176,52); weapon_test_label.size=Vector2(390,30); weapon_test_label.add_theme_font_size_override("font_size",16); layer.add_child(weapon_test_label)
+	var axis_buttons=[["X-",Vector3(-15,0,0)],["X+",Vector3(15,0,0)],["Y-",Vector3(0,-15,0)],["Y+",Vector3(0,15,0)],["Z-",Vector3(0,0,-15)],["Z+",Vector3(0,0,15)]]
+	for ai in axis_buttons.size():
+		var ab=Button.new(); ab.text=axis_buttons[ai][0]; ab.set_anchors_preset(Control.PRESET_TOP_LEFT); ab.position=Vector2(176+ai*58,84); ab.size=Vector2(54,36); ab.add_theme_font_size_override("font_size",14); ab.pressed.connect(_weapon_test_rotate.bind(axis_buttons[ai][1])); layer.add_child(ab)
+	_update_weapon_test_label()
 	_create_minimap(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
@@ -2560,20 +2583,20 @@ func _hotbar_drop_countdown(slot:int,key:String,token:int) -> void:
 	overlay.name="ReturnProgress"
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	overlay.min_value=0; overlay.max_value=3; overlay.value=0
+	overlay.min_value=0; overlay.max_value=1.5; overlay.value=0
 	overlay.show_percentage=false
 	var bg=StyleBoxFlat.new(); bg.bg_color=Color(0,0,0,0)
 	var fill=StyleBoxFlat.new(); fill.bg_color=Color(.20,.72,.28,.55)
 	overlay.add_theme_stylebox_override("background",bg); overlay.add_theme_stylebox_override("fill",fill)
 	b.add_child(overlay)
 	var elapsed:=0.0
-	while elapsed<3.0:
+	while elapsed<1.5:
 		await get_tree().process_frame
 		if not hotbar_hold_started.has(slot) or int(hotbar_hold_started[slot])!=token:
 			if is_instance_valid(overlay): overlay.queue_free()
 			return
 		elapsed=(Time.get_ticks_msec()-token)/1000.0
-		overlay.value=minf(elapsed,3.0)
+		overlay.value=minf(elapsed,1.5)
 	hotbar_hold_started.erase(slot)
 	if is_instance_valid(overlay): overlay.queue_free()
 	_return_hotbar_to_inventory(slot,key)
