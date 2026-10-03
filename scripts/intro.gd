@@ -29,6 +29,8 @@ var weapon_inspect_panel: Panel
 var weapon_inspect_model: Node3D
 var weapon_inspect_dragging := false
 var weapon_inspect_last_pos := Vector2.ZERO
+var weapon_inspect_spin := Vector2.ZERO
+var weapon_inspect_zoom := 1.0
 
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
@@ -444,18 +446,20 @@ func _store_weapon_glb_path(row:int,variant:String) -> String:
 
 func _open_weapon_inspector(row:int,variant:String):
 	if weapon_inspect_panel: weapon_inspect_panel.free()
+	weapon_inspect_spin=Vector2.ZERO
+	weapon_inspect_zoom=1.0
 	weapon_inspect_panel=Panel.new()
-	weapon_inspect_panel.position=Vector2(70,55)
-	weapon_inspect_panel.size=Vector2(640,470)
+	weapon_inspect_panel.position=Vector2(70,35)
+	weapon_inspect_panel.size=Vector2(640,510)
 	weapon_inspect_panel.z_index=100
 	store_preview.add_child(weapon_inspect_panel)
-	var title=Label.new(); title.text="%s %s • 3D İNCELEME" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]; title.position=Vector2(18,12); title.size=Vector2(520,36); title.add_theme_font_size_override("font_size",20); weapon_inspect_panel.add_child(title)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(574,8); close.size=Vector2(48,40); close.pressed.connect(_close_weapon_inspector); weapon_inspect_panel.add_child(close)
+	var title=Label.new(); title.text="%s %s • 3D İNCELEME" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]; title.position=Vector2(18,8); title.size=Vector2(520,34); title.add_theme_font_size_override("font_size",20); weapon_inspect_panel.add_child(title)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(574,6); close.size=Vector2(48,38); close.pressed.connect(_close_weapon_inspector); weapon_inspect_panel.add_child(close)
 	var sub=SubViewport.new(); sub.size=Vector2i(600,390); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; weapon_inspect_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
 	var env=WorldEnvironment.new(); var e=Environment.new(); e.background_mode=Environment.BG_COLOR; e.background_color=Color(.055,.065,.08); e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; e.ambient_light_color=Color.WHITE; e.ambient_light_energy=1.2; env.environment=e; world.add_child(env)
 	var light=DirectionalLight3D.new(); light.rotation_degrees=Vector3(-35,-30,0); light.light_energy=2.2; world.add_child(light)
-	var cam=Camera3D.new(); cam.position=Vector3(0,0.2,3.2); cam.look_at_from_position(cam.position,Vector3.ZERO); world.add_child(cam)
+	var cam=Camera3D.new(); cam.position=Vector3(0,0,3.2); cam.look_at_from_position(cam.position,Vector3.ZERO); world.add_child(cam)
 	var path=_store_weapon_glb_path(row,variant)
 	if ResourceLoader.exists(path):
 		var packed=load(path)
@@ -464,28 +468,57 @@ func _open_weapon_inspector(row:int,variant:String):
 			world.add_child(weapon_inspect_model)
 			weapon_inspect_model.position=Vector3.ZERO
 			weapon_inspect_model.rotation_degrees=Vector3(0,-25,0)
+			_fit_weapon_inspector_model()
 	else:
 		var missing=Label.new(); missing.text="3D DOSYA BULUNAMADI"; missing.position=Vector2(200,220); weapon_inspect_panel.add_child(missing)
-	var view=TextureRect.new(); view.position=Vector2(20,60); view.size=Vector2(600,390); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_STOP; view.gui_input.connect(_weapon_inspector_input); weapon_inspect_panel.add_child(view)
+	var view=TextureRect.new(); view.position=Vector2(20,48); view.size=Vector2(600,390); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_IGNORE; weapon_inspect_panel.add_child(view)
+	var buttons=[["←",Vector2(92,452),Vector2(-1,0)],["→",Vector2(158,452),Vector2(1,0)],["↑",Vector2(224,452),Vector2(0,-1)],["↓",Vector2(290,452),Vector2(0,1)]]
+	for data in buttons:
+		var b=Button.new(); b.text=data[0]; b.position=data[1]; b.size=Vector2(58,42); b.add_theme_font_size_override("font_size",22); b.button_down.connect(_inspect_spin_start.bind(data[2])); b.button_up.connect(_inspect_spin_stop); weapon_inspect_panel.add_child(b)
+	var stop=Button.new(); stop.text="STOP"; stop.position=Vector2(356,452); stop.size=Vector2(72,42); stop.pressed.connect(_inspect_spin_stop); weapon_inspect_panel.add_child(stop)
+	var zoom_in=Button.new(); zoom_in.text="+"; zoom_in.position=Vector2(436,452); zoom_in.size=Vector2(58,42); zoom_in.add_theme_font_size_override("font_size",22); zoom_in.pressed.connect(_inspect_zoom.bind(1.18)); weapon_inspect_panel.add_child(zoom_in)
+	var zoom_out=Button.new(); zoom_out.text="−"; zoom_out.position=Vector2(502,452); zoom_out.size=Vector2(58,42); zoom_out.add_theme_font_size_override("font_size",22); zoom_out.pressed.connect(_inspect_zoom.bind(0.85)); weapon_inspect_panel.add_child(zoom_out)
 
-func _weapon_inspector_input(event:InputEvent):
+func _fit_weapon_inspector_model():
 	if weapon_inspect_model==null: return
-	if event is InputEventScreenTouch:
-		weapon_inspect_dragging=event.pressed
-		weapon_inspect_last_pos=event.position
-	elif event is InputEventScreenDrag:
-		var delta=event.position-weapon_inspect_last_pos
-		weapon_inspect_last_pos=event.position
-		weapon_inspect_model.rotate_y(-delta.x*0.012)
-		weapon_inspect_model.rotate_x(-delta.y*0.012)
-	elif event is InputEventMouseButton:
-		weapon_inspect_dragging=event.pressed
-		weapon_inspect_last_pos=event.position
-	elif event is InputEventMouseMotion and weapon_inspect_dragging:
-		var delta=event.position-weapon_inspect_last_pos
-		weapon_inspect_last_pos=event.position
-		weapon_inspect_model.rotate_y(-delta.x*0.012)
-		weapon_inspect_model.rotate_x(-delta.y*0.012)
+	var meshes:Array[MeshInstance3D]=[]
+	_collect_inspect_meshes(weapon_inspect_model,meshes)
+	if meshes.is_empty(): return
+	var merged:AABB
+	var first=true
+	for mi in meshes:
+		var box=mi.get_aabb()
+		var gt=weapon_inspect_model.global_transform.affine_inverse()*mi.global_transform
+		var wb=gt*box
+		if first: merged=wb; first=false
+		else: merged=merged.merge(wb)
+	var longest=maxf(merged.size.x,maxf(merged.size.y,merged.size.z))
+	if longest<=0.0001: return
+	var s=2.35/longest
+	weapon_inspect_model.scale=Vector3.ONE*s
+	weapon_inspect_model.position=-(merged.get_center()*s)
+
+func _collect_inspect_meshes(node:Node,out:Array[MeshInstance3D]):
+	if node is MeshInstance3D: out.append(node)
+	for child in node.get_children(): _collect_inspect_meshes(child,out)
+
+func _inspect_spin_start(dir:Vector2):
+	weapon_inspect_spin=dir
+
+func _inspect_spin_stop():
+	weapon_inspect_spin=Vector2.ZERO
+
+func _inspect_zoom(factor:float):
+	if weapon_inspect_model==null: return
+	weapon_inspect_zoom=clampf(weapon_inspect_zoom*factor,0.55,2.2)
+	weapon_inspect_model.scale*=factor
+	var length=weapon_inspect_model.scale.length()
+	if length>4.0: weapon_inspect_model.scale=weapon_inspect_model.scale.normalized()*4.0
+
+func _process(delta:float):
+	if weapon_inspect_model!=null and weapon_inspect_spin!=Vector2.ZERO:
+		weapon_inspect_model.rotate_y(-weapon_inspect_spin.x*delta*1.6)
+		weapon_inspect_model.rotate_x(-weapon_inspect_spin.y*delta*1.6)
 
 func _close_weapon_inspector():
 	if weapon_inspect_panel:
