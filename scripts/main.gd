@@ -2944,7 +2944,7 @@ func _toggle_cheat_mode():
 	_save_player_inventory()
 	_refresh_hotbar()
 	if inventory_panel and inventory_panel.visible:
-		_create_inventory_panel()
+		_refresh_inventory()
 	_update_cheat_button_style()
 	_flash_message("HILE ACIK" if cheat_mode else "HILE KAPALI")
 
