@@ -306,6 +306,7 @@ const PLAYER_COMBAT_DAMAGE := 50
 const NPC_COMBAT_DAMAGE := 15
 const BOSS_COMBAT_DAMAGE := 10
 const COMBAT_MAX_HP := 100
+const BOSS_MAX_HP := 30
 
 func _ready():
 	# Keep scene entry light on Android: show the camera/HUD first, then build the
@@ -458,9 +459,21 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 	var weapon:=_load_asset(path)
 	if weapon==null: return null
 	attachment.add_child(weapon)
-	weapon.position=Vector3.ZERO
-	weapon.rotation=Vector3.ZERO
-	weapon.scale=Vector3.ONE
+	var item=str(key.split("|")[0])
+	var grip={
+		"Bıçak":{"scale":0.42,"pos":Vector3(0,-0.03,-0.03),"rot":Vector3(0,0,-90)},
+		"Karambit":{"scale":0.38,"pos":Vector3(0,-0.02,-0.02),"rot":Vector3(0,0,-90)},
+		"Kılıç":{"scale":0.62,"pos":Vector3(0,-0.04,-0.08),"rot":Vector3(0,0,-90)},
+		"Büyük Kılıç":{"scale":0.56,"pos":Vector3(0,-0.05,-0.10),"rot":Vector3(0,0,-90)},
+		"Katana":{"scale":0.60,"pos":Vector3(0,-0.04,-0.08),"rot":Vector3(0,0,-90)},
+		"Pompalı Tüfek":{"scale":0.52,"pos":Vector3(0,-0.05,-0.12),"rot":Vector3(0,90,-90)},
+		"Çift Namlulu Pompalı":{"scale":0.50,"pos":Vector3(0,-0.05,-0.12),"rot":Vector3(0,90,-90)},
+		"Keskin Nişancı Tüfeği":{"scale":0.48,"pos":Vector3(0,-0.05,-0.14),"rot":Vector3(0,90,-90)}
+	}
+	var g=grip.get(item,{"scale":0.5,"pos":Vector3.ZERO,"rot":Vector3.ZERO})
+	weapon.position=g.pos
+	weapon.rotation_degrees=g.rot
+	weapon.scale=Vector3.ONE*float(g.scale)
 	return weapon
 
 func _refresh_player_weapon_model() -> void:
