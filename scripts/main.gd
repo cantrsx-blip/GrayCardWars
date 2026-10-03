@@ -461,19 +461,24 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 	attachment.add_child(weapon)
 	var item=str(key.split("|")[0])
 	var grip={
-		"Bıçak":{"scale":0.42,"pos":Vector3(0,-0.03,-0.03),"rot":Vector3(0,0,-90)},
-		"Karambit":{"scale":0.38,"pos":Vector3(0,-0.02,-0.02),"rot":Vector3(0,0,-90)},
-		"Kılıç":{"scale":0.62,"pos":Vector3(0,-0.04,-0.08),"rot":Vector3(0,0,-90)},
-		"Büyük Kılıç":{"scale":0.56,"pos":Vector3(0,-0.05,-0.10),"rot":Vector3(0,0,-90)},
-		"Katana":{"scale":0.60,"pos":Vector3(0,-0.04,-0.08),"rot":Vector3(0,0,-90)},
-		"Pompalı Tüfek":{"scale":0.52,"pos":Vector3(0,-0.05,-0.12),"rot":Vector3(0,90,-90)},
-		"Çift Namlulu Pompalı":{"scale":0.50,"pos":Vector3(0,-0.05,-0.12),"rot":Vector3(0,90,-90)},
-		"Keskin Nişancı Tüfeği":{"scale":0.48,"pos":Vector3(0,-0.05,-0.14),"rot":Vector3(0,90,-90)}
+		"Bıçak":{"length":0.62,"pos":Vector3(0.02,-0.01,-0.01),"rot":Vector3(0,0,-90)},
+		"Karambit":{"length":0.58,"pos":Vector3(0.015,-0.005,-0.015),"rot":Vector3(0,0,-90)},
+		"Kılıç":{"length":1.18,"pos":Vector3(0.03,-0.035,-0.055),"rot":Vector3(0,0,-90)},
+		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.03,-0.045,-0.075),"rot":Vector3(0,0,-90)},
+		"Katana":{"length":1.24,"pos":Vector3(0.025,-0.035,-0.06),"rot":Vector3(0,0,-90)},
+		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,90,-90)},
+		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,90,-90)},
+		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,-0.06,-0.15),"rot":Vector3(0,90,-90)}
 	}
-	var g=grip.get(item,{"scale":0.5,"pos":Vector3.ZERO,"rot":Vector3.ZERO})
-	weapon.position=g.pos
+	var g=grip.get(item,{"length":0.9,"pos":Vector3.ZERO,"rot":Vector3.ZERO})
+	# Normalize every GLB by its real visual bounds first. This keeps all five rarities
+	# of a weapon type consistent even when their source exports use different units.
+	var wb=_node_visual_bounds(weapon)
+	var longest=maxf(wb.size.x,maxf(wb.size.y,wb.size.z))
+	var scale_value=float(g.length)/longest if longest>0.001 else 0.5
+	weapon.scale=Vector3.ONE*scale_value
+	weapon.position=g.pos-(wb.get_center()*scale_value)
 	weapon.rotation_degrees=g.rot
-	weapon.scale=Vector3.ONE*float(g.scale)
 	return weapon
 
 func _refresh_player_weapon_model() -> void:
@@ -622,7 +627,7 @@ func _build_terrain_mesh() -> void:
 func _build_center_settlement_mound() -> void:
 	var body=StaticBody3D.new(); body.name="CenterSettlementMound"; body.position=Vector3(0,0.18,0); add_child(body)
 	var mesh=MeshInstance3D.new(); var cylinder=CylinderMesh.new(); cylinder.top_radius=18.0; cylinder.bottom_radius=19.0; cylinder.height=0.36; cylinder.radial_segments=64; mesh.mesh=cylinder
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.46,.40,.32); mat.roughness=1.0; mesh.material_override=mat; body.add_child(mesh)
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.015,.015,.018); mat.roughness=1.0; mesh.material_override=mat; body.add_child(mesh)
 	var cs=CollisionShape3D.new(); var shape=CylinderShape3D.new(); shape.radius=19.0; shape.height=0.36; cs.shape=shape; body.add_child(cs)
 
 func _build_meteor_encounter() -> void:
@@ -655,6 +660,35 @@ func _build_meteor_encounter() -> void:
 	solid.add_child(cs)
 	solid.position=meteor_node.global_position
 	add_child(solid)
+
+func _build_spawn_meteor_shortcuts() -> void:
+	# Sunken dirt shortcuts from every spawn pad toward the central meteor.
+	# Gentle ramps keep every trench easy to enter/leave. Fences alternate sides every 3 tiles.
+	var root=Node3D.new(); root.name="MeteorShortcuts"; add_child(root)
+	var dirt=_terrain_material("res://01_toprak.png")
+	for si in spawn_points.size():
+		var start=spawn_points[si]
+		var flat=Vector2(start.x,start.z)
+		var distance=flat.length()-METEOR_ARENA_RADIUS
+		if distance<=1.0: continue
+		var inward=Vector3(-start.x,0,-start.z).normalized()
+		var side=Vector3(-inward.z,0,inward.x)
+		var steps=maxi(1,int(distance/6.25))
+		for step in range(steps):
+			var travel=minf(distance,(float(step)+0.5)*6.25)
+			var p=start+inward*travel
+			var edge_blend=minf(1.0,minf(travel,maxf(0.0,distance-travel))/12.5)
+			var depth=0.85*edge_blend
+			p.y=height_at(p.x,p.z)-depth+0.04
+			var road=MeshInstance3D.new(); var plane=BoxMesh.new(); plane.size=Vector3(5.2,0.10,6.25); road.mesh=plane; road.material_override=dirt
+			road.position=p; road.rotation.y=atan2(inward.x,inward.z); root.add_child(road)
+			if step>0 and (step+1)%3==0:
+				var fence_side=1.0 if (int((step+1)/3)%2)==1 else -1.0
+				var fp=p+side*fence_side*3.0+Vector3(0,0.62,0)
+				var fence=StaticBody3D.new(); fence.position=fp; fence.rotation.y=atan2(inward.x,inward.z)
+				var fm=MeshInstance3D.new(); var fb=BoxMesh.new(); fb.size=Vector3(3.4,1.15,.16); fm.mesh=fb
+				var fmat=StandardMaterial3D.new(); fmat.albedo_color=Color(.38,.23,.11); fmat.roughness=1.0; fm.material_override=fmat; fence.add_child(fm)
+				var fcs=CollisionShape3D.new(); var fshape=BoxShape3D.new(); fshape.size=fb.size; fcs.shape=fshape; fence.add_child(fcs); root.add_child(fence)
 
 func _node_visual_bounds(root:Node3D) -> AABB:
 	var first:=true
@@ -750,7 +784,7 @@ func _spawn_meteor_boss() -> void:
 	model.rotation_degrees.y=180.0
 	var bounds=_node_visual_bounds(model)
 	if bounds.size.y>0.001: model.scale*=2.0/bounds.size.y
-	boss.set_meta("hp",COMBAT_MAX_HP); add_child(boss); meteor_bosses.append(boss)
+	boss.set_meta("hp",BOSS_MAX_HP); add_child(boss); meteor_bosses.append(boss)
 	boss_attack_cooldowns[boss.get_instance_id()]=0.0
 	boss_targets[boss.get_instance_id()]=null
 	_play_boss_anim(boss,"Idle")
@@ -834,6 +868,7 @@ func _build_world_base():
 	_build_center_settlement_mound()
 	_build_meteor_encounter()
 	_build_spawn_system()
+	_build_spawn_meteor_shortcuts()
 	_build_map_edge_mountains()
 	_build_god_watchers()
 
@@ -1563,6 +1598,10 @@ func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
 			else: wanted="Walking"
 	if StringName(wanted)!=player_anim_name: _play_ybot_anim(wanted)
 
+func _return_to_lobby() -> void:
+	_save_player_inventory()
+	get_tree().change_scene_to_file.call_deferred("res://scenes/Intro.tscn")
+
 func _build_hud():
 	var layer = CanvasLayer.new()
 	add_child(layer)
@@ -1585,6 +1624,7 @@ func _build_hud():
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15)
 		b.pressed.connect(actions[i][1]); layer.add_child(b)
 	_update_fly_button_styles()
+	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-300,96); lobby_btn.size=Vector2(288,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
 	_create_minimap(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
