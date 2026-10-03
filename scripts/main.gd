@@ -180,7 +180,8 @@ var has_bed_spawn := false
 var bed_spawn := Vector3.ZERO
 var held_item: Node3D
 var player_weapon_node: Node3D
-var weapon_test_rotation := Vector3.ZERO
+var weapon_test_rotation := Vector3(-165,105,-30)
+var weapon_test_position := Vector3.ZERO
 var weapon_test_label: Label
 var viewmodel_root: Node3D
 var viewmodel_right_hand: Node3D
@@ -485,7 +486,10 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 	var scale_value=float(g.length)/longest if longest>0.001 else 0.5
 	weapon.scale=Vector3.ONE*scale_value
 	weapon.position=g.pos-(wb.get_center()*scale_value)
-	weapon.rotation_degrees=g.rot+weapon_test_rotation
+	var is_firearm=item in ["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	if not is_firearm:
+		weapon.position+=weapon_test_position
+	weapon.rotation_degrees=g.rot if is_firearm else g.rot+weapon_test_rotation
 	return weapon
 
 func _weapon_test_rotate(delta_rotation:Vector3) -> void:
@@ -496,9 +500,14 @@ func _weapon_test_rotate(delta_rotation:Vector3) -> void:
 	_update_weapon_test_label()
 	_refresh_player_weapon_model()
 
+func _weapon_test_move(delta_position:Vector3) -> void:
+	weapon_test_position+=delta_position
+	_update_weapon_test_label()
+	_refresh_player_weapon_model()
+
 func _update_weapon_test_label() -> void:
 	if weapon_test_label:
-		weapon_test_label.text="SİLAH TEST  X:%d°  Y:%d°  Z:%d°" % [roundi(weapon_test_rotation.x),roundi(weapon_test_rotation.y),roundi(weapon_test_rotation.z)]
+		weapon_test_label.text="SİLAH TEST X:%d° Y:%d° Z:%d°  KONUM X:%.2f Y:%.2f Z:%.2f" % [roundi(weapon_test_rotation.x),roundi(weapon_test_rotation.y),roundi(weapon_test_rotation.z),weapon_test_position.x,weapon_test_position.y,weapon_test_position.z]
 
 func _refresh_player_weapon_model() -> void:
 	if player_skeleton==null: return
@@ -1623,11 +1632,14 @@ func _build_hud():
 		b.pressed.connect(actions[i][1]); layer.add_child(b)
 	_update_fly_button_styles()
 	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-300,96); lobby_btn.size=Vector2(288,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
-	# Temporary live weapon-axis tuner. Each tap changes the equipped model by 15 degrees.
-	weapon_test_label=Label.new(); weapon_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); weapon_test_label.position=Vector2(176,52); weapon_test_label.size=Vector2(390,30); weapon_test_label.add_theme_font_size_override("font_size",16); layer.add_child(weapon_test_label)
+	# Live weapon tuner stays available: rotation plus grip-position nudging.
+	weapon_test_label=Label.new(); weapon_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); weapon_test_label.position=Vector2(176,52); weapon_test_label.size=Vector2(620,30); weapon_test_label.add_theme_font_size_override("font_size",14); layer.add_child(weapon_test_label)
 	var axis_buttons=[["X-",Vector3(-15,0,0)],["X+",Vector3(15,0,0)],["Y-",Vector3(0,-15,0)],["Y+",Vector3(0,15,0)],["Z-",Vector3(0,0,-15)],["Z+",Vector3(0,0,15)]]
 	for ai in axis_buttons.size():
 		var ab=Button.new(); ab.text=axis_buttons[ai][0]; ab.set_anchors_preset(Control.PRESET_TOP_LEFT); ab.position=Vector2(176+ai*58,84); ab.size=Vector2(54,36); ab.add_theme_font_size_override("font_size",14); ab.pressed.connect(_weapon_test_rotate.bind(axis_buttons[ai][1])); layer.add_child(ab)
+	var position_buttons=[["SOL",Vector3(-0.02,0,0)],["SAĞ",Vector3(0.02,0,0)],["YUKARI",Vector3(0,0.02,0)],["AŞAĞI",Vector3(0,-0.02,0)],["UZAK",Vector3(0,0,-0.02)],["YAKIN",Vector3(0,0,0.02)]]
+	for pi in position_buttons.size():
+		var pb=Button.new(); pb.text=position_buttons[pi][0]; pb.set_anchors_preset(Control.PRESET_TOP_LEFT); pb.position=Vector2(176+pi*70,124); pb.size=Vector2(66,36); pb.add_theme_font_size_override("font_size",11); pb.pressed.connect(_weapon_test_move.bind(position_buttons[pi][1])); layer.add_child(pb)
 	_update_weapon_test_label()
 	_create_minimap(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
