@@ -32,6 +32,8 @@ var weapon_inspect_last_pos := Vector2.ZERO
 var weapon_inspect_spin := Vector2.ZERO
 var weapon_inspect_zoom := 1.0
 var weapon_inspect_base_scale := Vector3.ONE
+var weapon_inspect_auto_spin := true
+var weapon_inspect_stop_button: Button
 
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
@@ -447,8 +449,9 @@ func _store_weapon_glb_path(row:int,variant:String) -> String:
 
 func _open_weapon_inspector(row:int,variant:String):
 	if weapon_inspect_panel: weapon_inspect_panel.free()
-	weapon_inspect_spin=Vector2(-1,0)
-	weapon_inspect_zoom=1.0
+	weapon_inspect_spin=Vector2.ZERO
+	weapon_inspect_auto_spin=true
+	weapon_inspect_zoom=2.2
 	weapon_inspect_panel=Panel.new()
 	weapon_inspect_panel.position=Vector2(70,35)
 	weapon_inspect_panel.size=Vector2(640,510)
@@ -477,8 +480,8 @@ func _open_weapon_inspector(row:int,variant:String):
 	var view=TextureRect.new(); view.position=Vector2(20,48); view.size=Vector2(600,390); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_IGNORE; weapon_inspect_panel.add_child(view)
 	var buttons=[["←",Vector2(92,452),Vector2(-1,0)],["→",Vector2(158,452),Vector2(1,0)],["↑",Vector2(224,452),Vector2(0,-1)],["↓",Vector2(290,452),Vector2(0,1)]]
 	for data in buttons:
-		var b=Button.new(); b.text=data[0]; b.position=data[1]; b.size=Vector2(58,42); b.add_theme_font_size_override("font_size",22); b.button_down.connect(_inspect_spin_start.bind(data[2])); b.button_up.connect(_inspect_spin_stop); weapon_inspect_panel.add_child(b)
-	var stop=Button.new(); stop.text="STOP"; stop.position=Vector2(356,452); stop.size=Vector2(72,42); stop.pressed.connect(_inspect_spin_stop); weapon_inspect_panel.add_child(stop)
+		var b=Button.new(); b.text=data[0]; b.position=data[1]; b.size=Vector2(58,42); b.add_theme_font_size_override("font_size",22); b.button_down.connect(_inspect_spin_start.bind(data[2])); b.button_up.connect(_inspect_manual_spin_stop); weapon_inspect_panel.add_child(b)
+	var stop=Button.new(); weapon_inspect_stop_button=stop; stop.text="STOP"; stop.position=Vector2(356,452); stop.size=Vector2(72,42); stop.pressed.connect(_inspect_toggle_auto_spin); weapon_inspect_panel.add_child(stop)
 	var zoom_in=Button.new(); zoom_in.text="+"; zoom_in.position=Vector2(436,452); zoom_in.size=Vector2(58,42); zoom_in.add_theme_font_size_override("font_size",22); zoom_in.pressed.connect(_inspect_zoom.bind(1.18)); weapon_inspect_panel.add_child(zoom_in)
 	var zoom_out=Button.new(); zoom_out.text="−"; zoom_out.position=Vector2(502,452); zoom_out.size=Vector2(58,42); zoom_out.add_theme_font_size_override("font_size",22); zoom_out.pressed.connect(_inspect_zoom.bind(0.85)); weapon_inspect_panel.add_child(zoom_out)
 
@@ -499,7 +502,7 @@ func _fit_weapon_inspector_model():
 	if longest<=0.0001: return
 	var s=2.75/longest
 	weapon_inspect_base_scale=Vector3.ONE*s
-	weapon_inspect_model.scale=weapon_inspect_base_scale
+	weapon_inspect_model.scale=weapon_inspect_base_scale*weapon_inspect_zoom
 	weapon_inspect_model.position=-(merged.get_center()*s)
 
 func _collect_inspect_meshes(node:Node,out:Array[MeshInstance3D]):
@@ -509,8 +512,13 @@ func _collect_inspect_meshes(node:Node,out:Array[MeshInstance3D]):
 func _inspect_spin_start(dir:Vector2):
 	weapon_inspect_spin=dir
 
-func _inspect_spin_stop():
+func _inspect_manual_spin_stop():
 	weapon_inspect_spin=Vector2.ZERO
+
+func _inspect_toggle_auto_spin():
+	weapon_inspect_auto_spin=not weapon_inspect_auto_spin
+	if weapon_inspect_stop_button:
+		weapon_inspect_stop_button.text="STOP" if weapon_inspect_auto_spin else "START"
 
 func _inspect_zoom(factor:float):
 	if weapon_inspect_model==null: return
@@ -518,9 +526,12 @@ func _inspect_zoom(factor:float):
 	weapon_inspect_model.scale=weapon_inspect_base_scale*weapon_inspect_zoom
 
 func _process(delta:float):
-	if weapon_inspect_model!=null and weapon_inspect_spin!=Vector2.ZERO:
-		weapon_inspect_model.rotate_y(-weapon_inspect_spin.x*delta*1.6)
-		weapon_inspect_model.rotate_x(-weapon_inspect_spin.y*delta*1.6)
+	if weapon_inspect_model!=null:
+		if weapon_inspect_auto_spin:
+			weapon_inspect_model.rotate_y(delta*1.0)
+		if weapon_inspect_spin!=Vector2.ZERO:
+			weapon_inspect_model.rotate_y(-weapon_inspect_spin.x*delta*1.6)
+			weapon_inspect_model.rotate_x(-weapon_inspect_spin.y*delta*1.6)
 
 func _close_weapon_inspector():
 	if weapon_inspect_panel:
