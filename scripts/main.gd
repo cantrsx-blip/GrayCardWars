@@ -180,7 +180,7 @@ var has_bed_spawn := false
 var bed_spawn := Vector3.ZERO
 var held_item: Node3D
 var player_weapon_node: Node3D
-var weapon_test_rotation := Vector3(-165,105,-30)
+var weapon_test_rotation := Vector3.ZERO
 var weapon_test_position := Vector3.ZERO
 var weapon_test_label: Label
 var viewmodel_root: Node3D
@@ -326,13 +326,7 @@ func _ready():
 		var saved_hotbar=lobby_cfg.get_value("inventory","hotbar",[])
 		if saved_hotbar is Array:
 			for i in range(mini(6,saved_hotbar.size())): hotbar_items[i]=str(saved_hotbar[i])
-	# Test build: every weapon/rarity is available immediately on game entry.
-	var all_weapon_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
-	var all_weapon_rarities=["gumus","yesil","buz","gunes","lav"]
-	for weapon_name in all_weapon_names:
-		for rarity in all_weapon_rarities:
-			var weapon_key="%s|%s" % [weapon_name,rarity]
-			if int(crafted_inventory.get(weapon_key,0))<1: crafted_inventory[weapon_key]=1
+	_sync_cheat_weapons()
 	_save_player_inventory()
 	_refresh_hotbar()
 	zone_label.text="DUNYA YUKLENIYOR..."
@@ -467,13 +461,11 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 	attachment.add_child(weapon)
 	var item=str(key.split("|")[0])
 	var grip={
-		# Final hand orientation: melee keeps its current family pose and flips 180 degrees.
-		# Firearms first return to the old pose (0,90,-90), then flip 180 degrees on Y.
-		"Bıçak":{"length":0.62,"pos":Vector3(0.02,-0.01,-0.01),"rot":Vector3(0,90,-90)},
-		"Karambit":{"length":0.58,"pos":Vector3(0.015,-0.005,-0.015),"rot":Vector3(0,90,-90)},
-		"Kılıç":{"length":1.18,"pos":Vector3(0.03,-0.035,-0.055),"rot":Vector3(0,90,-90)},
-		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.03,-0.045,-0.075),"rot":Vector3(0,90,-90)},
-		"Katana":{"length":1.24,"pos":Vector3(0.025,-0.035,-0.06),"rot":Vector3(0,90,-90)},
+		"Bıçak":{"length":0.62,"pos":Vector3(0.10,0.20,0.02),"rot":Vector3(-150,30,0)},
+		"Karambit":{"length":0.58,"pos":Vector3(0.10,0.20,0.02),"rot":Vector3(-150,30,0)},
+		"Kılıç":{"length":1.18,"pos":Vector3(-0.04,0.46,0.06),"rot":Vector3(-180,30,0)},
+		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.02,0.50,0.08),"rot":Vector3(-180,-60,0)},
+		"Katana":{"length":1.24,"pos":Vector3(0.02,0.50,0.08),"rot":Vector3(-180,-60,0)},
 		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
 		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
 		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,-0.06,-0.15),"rot":Vector3(0,-90,-90)}
@@ -2948,8 +2940,30 @@ func _toggle_cheat_mode():
 		cheat_label.text = ("HILE ACIK" if cheat_mode else "HILE KAPALI")
 	if creative_panel:
 		creative_panel.visible = false
+	_sync_cheat_weapons()
+	_save_player_inventory()
+	_refresh_hotbar()
+	if inventory_panel and inventory_panel.visible:
+		_create_inventory_panel()
 	_update_cheat_button_style()
 	_flash_message("HILE ACIK" if cheat_mode else "HILE KAPALI")
+
+func _sync_cheat_weapons() -> void:
+	var weapon_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	var weapon_rarities=["gumus","yesil","buz","gunes","lav"]
+	for weapon_name in weapon_names:
+		for rarity in weapon_rarities:
+			var weapon_key="%s|%s" % [weapon_name,rarity]
+			if cheat_mode:
+				crafted_inventory[weapon_key]=1
+			else:
+				crafted_inventory.erase(weapon_key)
+	if not cheat_mode:
+		for i in range(hotbar_items.size()):
+			if "|" in str(hotbar_items[i]):
+				hotbar_items[i]=""
+		selected_tool=""
+		_refresh_player_weapon_model()
 
 func _create_creative_menu(layer:CanvasLayer):
 	if creative_panel:
