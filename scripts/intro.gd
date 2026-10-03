@@ -31,6 +31,7 @@ var weapon_inspect_dragging := false
 var weapon_inspect_last_pos := Vector2.ZERO
 var weapon_inspect_spin := Vector2.ZERO
 var weapon_inspect_zoom := 1.0
+var weapon_inspect_base_scale := Vector3.ONE
 
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
@@ -446,7 +447,7 @@ func _store_weapon_glb_path(row:int,variant:String) -> String:
 
 func _open_weapon_inspector(row:int,variant:String):
 	if weapon_inspect_panel: weapon_inspect_panel.free()
-	weapon_inspect_spin=Vector2.ZERO
+	weapon_inspect_spin=Vector2(-1,0)
 	weapon_inspect_zoom=1.0
 	weapon_inspect_panel=Panel.new()
 	weapon_inspect_panel.position=Vector2(70,35)
@@ -455,7 +456,7 @@ func _open_weapon_inspector(row:int,variant:String):
 	store_preview.add_child(weapon_inspect_panel)
 	var title=Label.new(); title.text="%s %s • 3D İNCELEME" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]; title.position=Vector2(18,8); title.size=Vector2(520,34); title.add_theme_font_size_override("font_size",20); weapon_inspect_panel.add_child(title)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(574,6); close.size=Vector2(48,38); close.pressed.connect(_close_weapon_inspector); weapon_inspect_panel.add_child(close)
-	var sub=SubViewport.new(); sub.size=Vector2i(600,390); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; weapon_inspect_panel.add_child(sub)
+	var sub=SubViewport.new(); sub.size=Vector2i(600,390); sub.transparent_bg=true; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; weapon_inspect_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
 	var env=WorldEnvironment.new(); var e=Environment.new(); e.background_mode=Environment.BG_COLOR; e.background_color=Color(.055,.065,.08); e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; e.ambient_light_color=Color.WHITE; e.ambient_light_energy=1.2; env.environment=e; world.add_child(env)
 	var light=DirectionalLight3D.new(); light.rotation_degrees=Vector3(-35,-30,0); light.light_energy=2.2; world.add_child(light)
@@ -471,6 +472,8 @@ func _open_weapon_inspector(row:int,variant:String):
 			_fit_weapon_inspector_model()
 	else:
 		var missing=Label.new(); missing.text="3D DOSYA BULUNAMADI"; missing.position=Vector2(200,220); weapon_inspect_panel.add_child(missing)
+	var bg=TextureRect.new(); bg.position=Vector2(20,48); bg.size=Vector2(600,390); var vi=STORE_WEAPON_VARIANTS.find(variant); bg.texture=_store_png_texture(STORE_SLOT_BG[vi]); bg.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; bg.stretch_mode=TextureRect.STRETCH_SCALE; bg.mouse_filter=Control.MOUSE_FILTER_IGNORE; weapon_inspect_panel.add_child(bg)
+	var detail=TextureRect.new(); detail.position=Vector2(20,48); detail.size=Vector2(600,390); detail.texture=_store_png_texture("res://weapon%d%s.png" % [row,variant]); detail.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; detail.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; detail.mouse_filter=Control.MOUSE_FILTER_IGNORE; weapon_inspect_panel.add_child(detail)
 	var view=TextureRect.new(); view.position=Vector2(20,48); view.size=Vector2(600,390); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_IGNORE; weapon_inspect_panel.add_child(view)
 	var buttons=[["←",Vector2(92,452),Vector2(-1,0)],["→",Vector2(158,452),Vector2(1,0)],["↑",Vector2(224,452),Vector2(0,-1)],["↓",Vector2(290,452),Vector2(0,1)]]
 	for data in buttons:
@@ -494,8 +497,9 @@ func _fit_weapon_inspector_model():
 		else: merged=merged.merge(wb)
 	var longest=maxf(merged.size.x,maxf(merged.size.y,merged.size.z))
 	if longest<=0.0001: return
-	var s=2.35/longest
-	weapon_inspect_model.scale=Vector3.ONE*s
+	var s=2.75/longest
+	weapon_inspect_base_scale=Vector3.ONE*s
+	weapon_inspect_model.scale=weapon_inspect_base_scale
 	weapon_inspect_model.position=-(merged.get_center()*s)
 
 func _collect_inspect_meshes(node:Node,out:Array[MeshInstance3D]):
@@ -511,9 +515,7 @@ func _inspect_spin_stop():
 func _inspect_zoom(factor:float):
 	if weapon_inspect_model==null: return
 	weapon_inspect_zoom=clampf(weapon_inspect_zoom*factor,0.55,2.2)
-	weapon_inspect_model.scale*=factor
-	var length=weapon_inspect_model.scale.length()
-	if length>4.0: weapon_inspect_model.scale=weapon_inspect_model.scale.normalized()*4.0
+	weapon_inspect_model.scale=weapon_inspect_base_scale*weapon_inspect_zoom
 
 func _process(delta:float):
 	if weapon_inspect_model!=null and weapon_inspect_spin!=Vector2.ZERO:
