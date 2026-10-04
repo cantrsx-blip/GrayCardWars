@@ -363,6 +363,7 @@ var bot_roles: Dictionary = {}
 var bot_wander_targets: Dictionary = {}
 var bot_survivor_ids: Dictionary = {}
 var boss_targets: Dictionary = {}
+var foundation_position_labels: Array[Label] = []
 const BOT_SPEED := 3.4
 const BOT_ATTACK_RANGE := 2.2
 const BOT_ATTACK_COOLDOWN := 0.55
@@ -812,6 +813,14 @@ func _update_sword_attack_buttons(show_buttons:bool) -> void:
 
 func _player_attack() -> void:
 	if _panel_open() or player==null: return
+	if build_mode:
+		var place_pos:Vector3=player.global_position+player_facing.normalized()*5.0
+		place_pos.y=height_at(place_pos.x,place_pos.z)
+		var layers=get_children().filter(func(n): return n is CanvasLayer)
+		if layers.size()>0:
+			_register_ground_foundation(place_pos,layers[-1])
+			_flash_message("TEMEL %d  X:%.1f Y:%.1f Z:%.1f" % [built_floors.size(),place_pos.x,place_pos.y,place_pos.z])
+		return
 	var item:=selected_tool.to_lower()
 	var firearm=("pompal" in item or "tüfek" in item or "tufek" in item or "nişancı" in item or "nisanci" in item)
 	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
@@ -2028,9 +2037,16 @@ func _build_hud():
 		["SINIRSIZ GJ",_toggle_infinite_gj],
 		["SONSUZ GÜÇ",_toggle_infinite_power]
 	]
-	for entry in cheat_items:
-		var cb=Button.new(); cb.text=entry[0]; cb.custom_minimum_size=Vector2(288,32); cb.add_theme_font_size_override("font_size",13); cb.pressed.connect(entry[1]); cheat_menu_panel.add_child(cb)
-	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_LEFT); lobby_btn.position=Vector2(12,12); lobby_btn.size=Vector2(140,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
+	for ci in cheat_items.size():
+		var entry=cheat_items[ci]
+		var row=HBoxContainer.new(); row.custom_minimum_size=Vector2(288,32); cheat_menu_panel.add_child(row)
+		var cb=Button.new(); cb.text=str(ci+1); cb.custom_minimum_size=Vector2(46,32); cb.add_theme_font_size_override("font_size",13); row.add_child(cb)
+		var name_label=Label.new(); name_label.text=str(entry[0]); name_label.custom_minimum_size=Vector2(226,32); name_label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER; name_label.add_theme_font_size_override("font_size",12); name_label.visible=false; row.add_child(name_label)
+		cb.pressed.connect(func():
+			name_label.visible=not name_label.visible
+			if name_label.visible: entry[1].call()
+		)
+	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-448,12); lobby_btn.size=Vector2(140,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
 	# Live weapon tuner stays available: rotation plus grip-position nudging.
 	weapon_test_label=Label.new(); weapon_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); weapon_test_label.position=Vector2(176,52); weapon_test_label.size=Vector2(620,30); weapon_test_label.add_theme_font_size_override("font_size",14); layer.add_child(weapon_test_label); weapon_test_controls.append(weapon_test_label)
 	var axis_buttons=[["X-",Vector3(-15,0,0)],["X+",Vector3(15,0,0)],["Y-",Vector3(0,-15,0)],["Y+",Vector3(0,15,0)],["Z-",Vector3(0,0,-15)],["Z+",Vector3(0,0,15)]]
@@ -3270,6 +3286,33 @@ func _hide_hotbar_feedback_later(token:int) -> void:
 	# Keep the equipped item selected; only the temporary name label expires.
 	_refresh_hotbar()
 
+
+func _refresh_foundation_position_labels(layer:CanvasLayer) -> void:
+	for label in foundation_position_labels:
+		if is_instance_valid(label): label.queue_free()
+	foundation_position_labels.clear()
+	var number:int=1
+	for foundation in built_floors:
+		if not is_instance_valid(foundation): continue
+		var label=Label.new()
+		var p:Vector3=foundation.global_position
+		label.text="T%d  X:%.1f Y:%.1f Z:%.1f" % [number,p.x,p.y,p.z]
+		label.position=Vector2(18,88+(number-1)*18)
+		label.add_theme_font_size_override("font_size",12)
+		label.mouse_filter=Control.MOUSE_FILTER_IGNORE
+		layer.add_child(label); foundation_position_labels.append(label)
+		number+=1
+
+func _register_ground_foundation(pos:Vector3, layer:CanvasLayer) -> Node3D:
+	var root=StaticBody3D.new()
+	root.name="Temel_%03d" % (built_floors.size()+1)
+	root.position=Vector3(pos.x,height_at(pos.x,pos.z),pos.z)
+	root.set_meta("build_piece","TEMEL")
+	var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(5.0,.45,5.0); mi.mesh=bm; mi.position=Vector3(0,.225,0); mi.material_override=_simple_mat(Color(.42,.23,.08)); root.add_child(mi)
+	var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=Vector3(5.0,.45,5.0); cs.shape=sh; cs.position=Vector3(0,.225,0); root.add_child(cs)
+	add_child(root); built_floors.append(root)
+	_refresh_foundation_position_labels(layer)
+	return root
 
 func _nearest_floor(max_dist:=9.0) -> Node3D:
 	var best: Node3D; var best_d: float = float(max_dist)
