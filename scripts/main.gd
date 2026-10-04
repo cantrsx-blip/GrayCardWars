@@ -183,6 +183,7 @@ var player_weapon_node: Node3D
 var weapon_test_rotation := Vector3.ZERO
 var weapon_test_position := Vector3.ZERO
 var weapon_test_label: Label
+var weapon_test_controls: Array[Control] = []
 var viewmodel_root: Node3D
 var viewmodel_right_hand: Node3D
 var viewmodel_left_hand: Node3D
@@ -450,7 +451,7 @@ func _right_hand_attachment(skeleton:Skeleton3D) -> BoneAttachment3D:
 	skeleton.add_child(attachment)
 	return attachment
 
-func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
+func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String,use_live_tuner:bool=false) -> Node3D:
 	var path:=_weapon_glb_path(key)
 	if path.is_empty() or not ResourceLoader.exists(path): return null
 	var attachment:=_right_hand_attachment(skeleton)
@@ -466,9 +467,9 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 		"Kılıç":{"length":1.18,"pos":Vector3(-0.04,0.46,0.06),"rot":Vector3(-180,30,0)},
 		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.02,0.50,0.08),"rot":Vector3(-180,-60,0)},
 		"Katana":{"length":1.24,"pos":Vector3(0.02,0.50,0.08),"rot":Vector3(-180,-60,0)},
-		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
-		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
-		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,-0.06,-0.15),"rot":Vector3(0,-90,-90)}
+		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(-0.10,0.48,0.16),"rot":Vector3(-180,45,0)},
+		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.04,0.42,0.14),"rot":Vector3(-180,75,0)},
+		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,0.42,0.12),"rot":Vector3(-180,120,0)}
 	}
 	var g=grip.get(item,{"length":0.9,"pos":Vector3.ZERO,"rot":Vector3.ZERO})
 	# Normalize every GLB by its real visual bounds first. This keeps all five rarities
@@ -478,9 +479,12 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 	var scale_value=float(g.length)/longest if longest>0.001 else 0.5
 	weapon.scale=Vector3.ONE*scale_value
 	weapon.position=g.pos-(wb.get_center()*scale_value)
-	# Live grip tuner applies to every weapon family, including firearms.
-	weapon.position+=weapon_test_position
-	weapon.rotation_degrees=g.rot+weapon_test_rotation
+	# NPCs use the same finalized grip presets. Live offsets are player-only and cheat-only.
+	if use_live_tuner and cheat_mode:
+		weapon.position+=weapon_test_position
+		weapon.rotation_degrees=g.rot+weapon_test_rotation
+	else:
+		weapon.rotation_degrees=g.rot
 	return weapon
 
 func _weapon_test_rotate(delta_rotation:Vector3) -> void:
@@ -509,7 +513,7 @@ func _refresh_player_weapon_model() -> void:
 	var attachment:=_right_hand_attachment(player_skeleton)
 	if attachment:
 		for child in attachment.get_children(): child.queue_free()
-	player_weapon_node=_attach_weapon_to_skeleton(player_skeleton,key) if not key.is_empty() else null
+	player_weapon_node=_attach_weapon_to_skeleton(player_skeleton,key,true) if not key.is_empty() else null
 
 func _find_skeleton(node:Node) -> Skeleton3D:
 	if node is Skeleton3D:
@@ -1624,14 +1628,15 @@ func _build_hud():
 	_update_fly_button_styles()
 	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-300,96); lobby_btn.size=Vector2(288,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
 	# Live weapon tuner stays available: rotation plus grip-position nudging.
-	weapon_test_label=Label.new(); weapon_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); weapon_test_label.position=Vector2(176,52); weapon_test_label.size=Vector2(620,30); weapon_test_label.add_theme_font_size_override("font_size",14); layer.add_child(weapon_test_label)
+	weapon_test_label=Label.new(); weapon_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); weapon_test_label.position=Vector2(176,52); weapon_test_label.size=Vector2(620,30); weapon_test_label.add_theme_font_size_override("font_size",14); layer.add_child(weapon_test_label); weapon_test_controls.append(weapon_test_label)
 	var axis_buttons=[["X-",Vector3(-15,0,0)],["X+",Vector3(15,0,0)],["Y-",Vector3(0,-15,0)],["Y+",Vector3(0,15,0)],["Z-",Vector3(0,0,-15)],["Z+",Vector3(0,0,15)]]
 	for ai in axis_buttons.size():
-		var ab=Button.new(); ab.text=axis_buttons[ai][0]; ab.set_anchors_preset(Control.PRESET_TOP_LEFT); ab.position=Vector2(176+ai*58,84); ab.size=Vector2(54,36); ab.add_theme_font_size_override("font_size",14); ab.pressed.connect(_weapon_test_rotate.bind(axis_buttons[ai][1])); layer.add_child(ab)
+		var ab=Button.new(); ab.text=axis_buttons[ai][0]; ab.set_anchors_preset(Control.PRESET_TOP_LEFT); ab.position=Vector2(176+ai*58,84); ab.size=Vector2(54,36); ab.add_theme_font_size_override("font_size",14); ab.pressed.connect(_weapon_test_rotate.bind(axis_buttons[ai][1])); layer.add_child(ab); weapon_test_controls.append(ab)
 	var position_buttons=[["SOL",Vector3(-0.02,0,0)],["SAĞ",Vector3(0.02,0,0)],["YUKARI",Vector3(0,0.02,0)],["AŞAĞI",Vector3(0,-0.02,0)],["UZAK",Vector3(0,0,-0.02)],["YAKIN",Vector3(0,0,0.02)]]
 	for pi in position_buttons.size():
-		var pb=Button.new(); pb.text=position_buttons[pi][0]; pb.set_anchors_preset(Control.PRESET_TOP_LEFT); pb.position=Vector2(176+pi*70,124); pb.size=Vector2(66,36); pb.add_theme_font_size_override("font_size",11); pb.pressed.connect(_weapon_test_move.bind(position_buttons[pi][1])); layer.add_child(pb)
+		var pb=Button.new(); pb.text=position_buttons[pi][0]; pb.set_anchors_preset(Control.PRESET_TOP_LEFT); pb.position=Vector2(176+pi*70,124); pb.size=Vector2(66,36); pb.add_theme_font_size_override("font_size",11); pb.pressed.connect(_weapon_test_move.bind(position_buttons[pi][1])); layer.add_child(pb); weapon_test_controls.append(pb)
 	_update_weapon_test_label()
+	_update_cheat_button_style()
 	_create_minimap(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
 	var action_style=StyleBoxFlat.new(); action_style.bg_color=Color(1.0,.78,.08,.34); action_style.corner_radius_top_left=52; action_style.corner_radius_top_right=52; action_style.corner_radius_bottom_left=52; action_style.corner_radius_bottom_right=52
@@ -1862,6 +1867,8 @@ func _update_cheat_button_style():
 	cheat_button.add_theme_stylebox_override("normal",normal)
 	cheat_button.add_theme_stylebox_override("hover",normal)
 	cheat_button.add_theme_stylebox_override("pressed",normal)
+	for control in weapon_test_controls:
+		if is_instance_valid(control): control.visible=cheat_mode
 
 func _physics_process(delta):
 	if player == null or camera == null or hud == null or zone_label == null:
