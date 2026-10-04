@@ -171,6 +171,12 @@ var sharpness_preview_node: Node3D
 var sharpness_test_offset := Vector3.ZERO
 var sharpness_test_scale := 1.0
 var sharpness_test_angle := 0.0
+var sharpness2_offsets: Dictionary = {
+	"Bıçak":Vector3(-0.15,0.60,0.57),"Karambit":Vector3(-0.15,0.60,0.57),
+	"Kılıç":Vector3(-0.15,0.60,0.57),"Büyük Kılıç":Vector3(-0.15,0.60,0.57),"Katana":Vector3(-0.15,0.60,0.57)
+}
+var sharpness2_scales: Dictionary = {"Bıçak":1.0,"Karambit":1.0,"Kılıç":1.4,"Büyük Kılıç":1.4,"Katana":1.4}
+var sharpness2_angle := -90.0
 var sharpness_test_label: Label
 var sharpness_test_controls: Array[Control] = []
 var cheat_infinite_weapons := false
@@ -1110,7 +1116,9 @@ func _damage_combat_bot(bot:Node3D,amount:int) -> void:
 	if bot==null or not is_instance_valid(bot): return
 	var id:int=bot.get_instance_id()
 	bot_hp[id]=int(bot_hp.get(id,COMBAT_MAX_HP))-amount
-	if int(bot_hp[id])<=0: _respawn_combat_bot(bot as CharacterBody3D)
+	if int(bot_hp[id])<=0:
+		_spawn_local_kill_sharpness()
+		_respawn_combat_bot(bot as CharacterBody3D)
 
 func _hit_nearby_meteor_boss() -> void:
 	if player==null: return
@@ -1128,6 +1136,7 @@ func _hit_nearby_meteor_boss() -> void:
 	victim.set_meta("hp",hp)
 	boss_targets[victim.get_instance_id()]=player
 	if hp<=0:
+		_spawn_local_kill_sharpness()
 		boss_targets.erase(victim.get_instance_id()); meteor_bosses.erase(victim); boss_attack_cooldowns.erase(victim.get_instance_id()); victim.queue_free()
 
 func _hit_nearby_combat_bot() -> void:
@@ -3195,16 +3204,17 @@ func _sharpness_palette(key:String) -> Array[Color]:
 		"lav": return [Color(1.0,.62,.36,.18),Color(1.0,.28,.12,.30),Color(.92,.07,.04,.48),Color(.55,.015,.025,.72),Color(.20,.005,.012,.95)]
 		_: return [Color(1,1,1,.18),Color(.90,.96,1,.30),Color(.70,.78,.86,.48),Color(.38,.45,.54,.72),Color(.12,.15,.20,.95)]
 
-func _make_sharpness_effect(parent:Node3D,key:String,mode:int,persistent:bool=true) -> Node3D:
+func _make_sharpness_effect(parent:Node3D,key:String,mode:int,persistent:bool=true,effect_offset:Vector3=Vector3(INF,INF,INF),effect_scale:float=-1.0,effect_angle:float=INF) -> Node3D:
 	var root=Node3D.new(); parent.add_child(root)
 	var palette:=_sharpness_palette(key)
 	var length:=1.15 if mode==1 else 2.35
 	# Five nested luminous layers create a continuous-looking phosphor-to-dark core,
 	# rather than two flat colour bands.
 	var widths=[.16,.125,.092,.060,.030]
-	for n in 2:
-		var xoff=-.10 if n==0 else .10
-		var zang=-18.0 if n==0 else -10.0
+	var line_count:=1 if mode==1 else 2
+	for n in line_count:
+		var xoff=0.0 if mode==1 else (-.10 if n==0 else .10)
+		var zang=0.0 if mode==1 else (-18.0 if n==0 else -10.0)
 		for li in range(5):
 			var cut=MeshInstance3D.new(); var mesh=BoxMesh.new()
 			mesh.size=Vector3(float(widths[li]),length,0.018+float(li)*.002); cut.mesh=mesh
@@ -3212,9 +3222,15 @@ func _make_sharpness_effect(parent:Node3D,key:String,mode:int,persistent:bool=tr
 			mat.albedo_color=col; mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA
 			mat.emission_enabled=true; mat.emission=Color(col.r,col.g,col.b); mat.emission_energy_multiplier=7.0-float(li)*.75
 			cut.material_override=mat; cut.position=Vector3(xoff,0.18 if mode==1 else 0.0,float(li)*.001); cut.rotation_degrees.z=zang; root.add_child(cut)
-	root.position=sharpness_test_offset; root.rotation_degrees.z=sharpness_test_angle; root.scale=Vector3.ONE*sharpness_test_scale
+	var use_offset:=sharpness_test_offset if is_inf(effect_offset.x) else effect_offset
+	var use_scale:=sharpness_test_scale if effect_scale<0.0 else effect_scale
+	var use_angle:=sharpness_test_angle if is_inf(effect_angle) else effect_angle
+	root.position=use_offset; root.rotation_degrees.z=use_angle; root.scale=Vector3.ONE*use_scale
 	if not persistent:
-		var tw=create_tween(); tw.tween_property(root,"scale",root.scale*1.16,.10); tw.tween_property(root,"scale",root.scale*.96,.06); tw.tween_callback(root.queue_free)
+		if mode==2:
+			var timer=get_tree().create_timer(.07); timer.timeout.connect(root.queue_free)
+		else:
+			var tw=create_tween(); tw.tween_property(root,"scale",root.scale*1.08,.07); tw.tween_property(root,"scale",root.scale*.98,.05); tw.tween_callback(root.queue_free)
 	return root
 
 func _clear_sharpness_preview() -> void:
@@ -3233,10 +3249,19 @@ func _preview_sharpness() -> void:
 		sharpness_preview_node=_make_sharpness_effect(anchor,key,2,true)
 
 func _sharpness_move(v:Vector3) -> void:
-	sharpness_test_offset+=v; _update_sharpness_label(); _preview_sharpness()
+	sharpness_test_offset+=v
+	if cheat_sharpness_tuner==2:
+		var key:=_selected_weapon_key()
+		if _is_melee_key(key): sharpness2_offsets[str(key.split("|")[0])]=sharpness_test_offset
+	_update_sharpness_label(); _preview_sharpness()
 
 func _sharpness_adjust(ds:float,da:float) -> void:
-	sharpness_test_scale=clampf(sharpness_test_scale+ds,.2,3.0); sharpness_test_angle=fposmod(sharpness_test_angle+da+180.0,360.0)-180.0; _update_sharpness_label(); _preview_sharpness()
+	sharpness_test_scale=clampf(sharpness_test_scale+ds,.2,3.0); sharpness_test_angle=fposmod(sharpness_test_angle+da+180.0,360.0)-180.0
+	if cheat_sharpness_tuner==2:
+		var key:=_selected_weapon_key()
+		if _is_melee_key(key):
+			var item:=str(key.split("|")[0]); sharpness2_scales[item]=sharpness_test_scale; sharpness2_angle=sharpness_test_angle
+	_update_sharpness_label(); _preview_sharpness()
 
 func _update_sharpness_label() -> void:
 	if sharpness_test_label: sharpness_test_label.text="KESKİNLİK %d  X:%.2f Y:%.2f Z:%.2f  BOYUT:%d%% AÇI:%d°" % [cheat_sharpness_tuner,sharpness_test_offset.x,sharpness_test_offset.y,sharpness_test_offset.z,roundi(sharpness_test_scale*100.0),roundi(sharpness_test_angle)]
@@ -3251,16 +3276,32 @@ func _toggle_sharpness_1() -> void:
 func _toggle_sharpness_2() -> void:
 	if not cheat_mode: return
 	cheat_sharpness_tuner=0 if cheat_sharpness_tuner==2 else 2
+	if cheat_sharpness_tuner==2:
+		var key:=_selected_weapon_key()
+		if _is_melee_key(key):
+			var item:=str(key.split("|")[0]); sharpness_test_offset=sharpness2_offsets.get(item,Vector3(-.15,.60,.57)); sharpness_test_scale=float(sharpness2_scales.get(item,1.0)); sharpness_test_angle=sharpness2_angle
 	muzzle_calibration_frozen=false; player_action_locked=false; player_anim_name=&""
 	if player_anim and is_instance_valid(player_anim): player_anim.play()
 	cheat_muzzle_tuner=false; _clear_muzzle_preview(); _update_sharpness_label(); _preview_sharpness(); _update_cheat_button_style()
 
 func _spawn_melee_sharpness(key:String) -> void:
+	# Regular melee swing: only the single blade-following Keskinlik 1 line.
 	if not _is_melee_key(key) or player_weapon_node==null: return
 	_make_sharpness_effect(player_weapon_node,key,1,false)
-	var anchor=Node3D.new(); fx_root.add_child(anchor); anchor.global_position=player.global_position+Vector3(0,1.15,0)-player.global_transform.basis.z*1.25; anchor.global_rotation=player.global_rotation
-	_make_sharpness_effect(anchor,key,2,false)
-	var timer=get_tree().create_timer(.20); timer.timeout.connect(anchor.queue_free)
+
+func _spawn_local_kill_sharpness() -> void:
+	# Local-only finisher. Called exclusively from damage caused by this player.
+	var key:=_selected_weapon_key()
+	if not _is_melee_key(key) or fx_root==null or player==null: return
+	var item:=str(key.split("|")[0])
+	var offset:Vector3=sharpness2_offsets.get(item,Vector3(-.15,.60,.57))
+	var scale_value:float=float(sharpness2_scales.get(item,1.0))
+	var anchor=Node3D.new(); fx_root.add_child(anchor)
+	anchor.global_position=player.global_position+Vector3(0,1.15,0)-player.global_transform.basis.z*1.25
+	anchor.global_rotation=player.global_rotation
+	_make_sharpness_effect(anchor,key,2,false,offset,scale_value,sharpness2_angle)
+	var timer=get_tree().create_timer(.08); timer.timeout.connect(anchor.queue_free)
+
 
 func _toggle_muzzle_tuner() -> void:
 	if not cheat_mode: return
