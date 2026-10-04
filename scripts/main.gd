@@ -465,14 +465,24 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String,use_live_tuner:bo
 	attachment.add_child(weapon)
 	var item=str(key.split("|")[0])
 	var grip={
-		"Bıçak":{"length":0.62,"pos":Vector3(0.10,0.20,0.02),"rot":Vector3(-150,30,0)},
-		"Karambit":{"length":0.58,"pos":Vector3(0.10,0.20,0.02),"rot":Vector3(-150,30,0)},
-		"Kılıç":{"length":1.18,"pos":Vector3(-0.04,0.46,0.06),"rot":Vector3(-180,30,0)},
-		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.02,0.50,0.08),"rot":Vector3(-180,-60,0)},
-		"Katana":{"length":1.24,"pos":Vector3(0.02,0.50,0.08),"rot":Vector3(-180,-60,0)},
-		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(-0.10,0.48,0.16),"rot":Vector3(-180,45,0)},
-		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.04,0.42,0.14),"rot":Vector3(-180,75,0)},
-		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,0.42,0.12),"rot":Vector3(-180,120,0)}
+		"Bıçak":{"length":0.62,"pos":Vector3(0.02,-0.01,-0.01),"rot":Vector3(0,90,-90)},
+		"Karambit":{"length":0.58,"pos":Vector3(0.015,-0.005,-0.015),"rot":Vector3(0,90,-90)},
+		"Kılıç":{"length":1.18,"pos":Vector3(0.03,-0.035,-0.055),"rot":Vector3(0,90,-90)},
+		"Büyük Kılıç":{"length":1.38,"pos":Vector3(0.03,-0.045,-0.075),"rot":Vector3(0,90,-90)},
+		"Katana":{"length":1.24,"pos":Vector3(0.025,-0.035,-0.06),"rot":Vector3(0,90,-90)},
+		"Pompalı Tüfek":{"length":1.02,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
+		"Çift Namlulu Pompalı":{"length":1.00,"pos":Vector3(0.02,-0.055,-0.13),"rot":Vector3(0,-90,-90)},
+		"Keskin Nişancı Tüfeği":{"length":1.16,"pos":Vector3(0.02,-0.06,-0.15),"rot":Vector3(0,-90,-90)}
+	}
+	var calibrated={
+		"Bıçak":{"pos":Vector3(0.10,0.20,0.02),"rot":Vector3(-150,30,0)},
+		"Karambit":{"pos":Vector3(0.10,0.20,0.02),"rot":Vector3(-150,30,0)},
+		"Kılıç":{"pos":Vector3(-0.04,0.46,0.06),"rot":Vector3(-180,30,0)},
+		"Büyük Kılıç":{"pos":Vector3(0.02,0.50,0.08),"rot":Vector3(-180,-60,0)},
+		"Katana":{"pos":Vector3(0.02,0.50,0.08),"rot":Vector3(-180,-60,0)},
+		"Pompalı Tüfek":{"pos":Vector3(-0.10,0.48,0.16),"rot":Vector3(-180,45,0)},
+		"Çift Namlulu Pompalı":{"pos":Vector3(0.04,0.42,0.14),"rot":Vector3(-180,75,0)},
+		"Keskin Nişancı Tüfeği":{"pos":Vector3(0.02,0.42,0.12),"rot":Vector3(-180,120,0)}
 	}
 	var g=grip.get(item,{"length":0.9,"pos":Vector3.ZERO,"rot":Vector3.ZERO})
 	# Normalize every GLB by its real visual bounds first. This keeps all five rarities
@@ -481,13 +491,12 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String,use_live_tuner:bo
 	var longest=maxf(wb.size.x,maxf(wb.size.y,wb.size.z))
 	var scale_value=float(g.length)/longest if longest>0.001 else 0.5
 	weapon.scale=Vector3.ONE*scale_value
-	weapon.position=g.pos-(wb.get_center()*scale_value)
-	# NPCs use the same finalized grip presets. Live offsets are player-only and cheat-only.
+	var cal=calibrated.get(item,{"pos":Vector3.ZERO,"rot":Vector3.ZERO})
+	weapon.position=g.pos-(wb.get_center()*scale_value)+cal.pos
+	weapon.rotation_degrees=g.rot+cal.rot
 	if use_live_tuner and cheat_mode:
 		weapon.position+=weapon_test_position
-		weapon.rotation_degrees=g.rot+weapon_test_rotation
-	else:
-		weapon.rotation_degrees=g.rot
+		weapon.rotation_degrees+=weapon_test_rotation
 	return weapon
 
 func _weapon_test_rotate(delta_rotation:Vector3) -> void:
