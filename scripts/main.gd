@@ -171,6 +171,9 @@ var sharpness_preview_node: Node3D
 var sharpness_test_offset := Vector3.ZERO
 var sharpness_test_scale := 1.0
 var sharpness_test_angle := 0.0
+var sharpness1_offsets: Dictionary = {"Bıçak":Vector3(0.12,0.03,0.00),"Karambit":Vector3(0.12,0.03,0.00)}
+var sharpness1_scales: Dictionary = {"Bıçak":1.0,"Karambit":1.0}
+var sharpness1_angles: Dictionary = {"Bıçak":-100.0,"Karambit":-100.0}
 var sharpness2_offsets: Dictionary = {
 	"Bıçak":Vector3(-0.15,0.60,0.57),"Karambit":Vector3(-0.15,0.60,0.57),
 	"Kılıç":Vector3(-0.15,0.60,0.57),"Büyük Kılıç":Vector3(-0.15,0.60,0.57),"Katana":Vector3(-0.15,0.60,0.57)
@@ -984,12 +987,12 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 		model.rotation_degrees.y=180.0
 	add_child(bot)
 	bot.set_meta("harmless_to_player",true)
-	# NPC muzzle/VFX test: every combat bot carries a firearm.
-	var weapon_names=["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	# Temporary locked test rule: all combat NPCs use knife/sword families until explicitly changed.
+	var weapon_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana"]
 	var rarities=["gumus","yesil","buz","gunes","lav"]
 	var weapon_name:String=weapon_names[(index-1)%weapon_names.size()]
 	var weapon_key:String="%s|%s" % [weapon_name,rarities[(index-1)%rarities.size()]]
-	var weapon_type:=2
+	var weapon_type:=0 if weapon_name in ["Bıçak","Karambit"] else 1
 	bot_weapon_types[bot.get_instance_id()]=weapon_type
 	bot_weapon_keys[bot.get_instance_id()]=weapon_key
 	if model:
@@ -1073,8 +1076,10 @@ func _update_combat_bots(delta:float) -> void:
 				elif weapon_type==1:
 					var sword_moves=["Great Sword Slash (1)","Great Sword Slash","Sword Fight One"]
 					_bot_play_animation(bot,sword_moves[randi_range(0,2)])
+					_spawn_npc_melee_sharpness(bot)
 				else:
 					_bot_play_animation(bot,"Stabbing")
+					_spawn_npc_melee_sharpness(bot)
 				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.28)
 				if target==player: _apply_damage(NPC_COMBAT_DAMAGE)
 				elif target in meteor_bosses:
@@ -1112,12 +1117,12 @@ func _bot_move_smart(bot:CharacterBody3D,dir:Vector3,weapon_type:int,delta:float
 	_bot_play_animation(bot,"Rifle Run" if weapon_type==2 else "Run")
 	_bot_copy_pose(bot)
 
-func _damage_combat_bot(bot:Node3D,amount:int) -> void:
+func _damage_combat_bot(bot:Node3D,amount:int,caused_by_player:bool=false) -> void:
 	if bot==null or not is_instance_valid(bot): return
 	var id:int=bot.get_instance_id()
 	bot_hp[id]=int(bot_hp.get(id,COMBAT_MAX_HP))-amount
 	if int(bot_hp[id])<=0:
-		_spawn_local_kill_sharpness()
+		if caused_by_player: _spawn_local_kill_sharpness()
 		_respawn_combat_bot(bot as CharacterBody3D)
 
 func _hit_nearby_meteor_boss() -> void:
@@ -1154,7 +1159,7 @@ func _hit_nearby_combat_bot() -> void:
 	if victim==null: return
 	var id:int=victim.get_instance_id()
 	bot_aggro_player[id]=true
-	_damage_combat_bot(victim,PLAYER_COMBAT_DAMAGE)
+	_damage_combat_bot(victim,PLAYER_COMBAT_DAMAGE,true)
 
 func _respawn_combat_bot(bot:CharacterBody3D) -> void:
 	if not is_instance_valid(bot): return
@@ -3243,13 +3248,17 @@ func _preview_sharpness() -> void:
 	var key:=_selected_weapon_key()
 	if not _is_melee_key(key) or player_weapon_node==null: return
 	if cheat_sharpness_tuner==1:
-		sharpness_preview_node=_make_sharpness_effect(player_weapon_node,key,1,true)
+		var vals:=_sharpness1_values(key)
+		sharpness_preview_node=_make_sharpness_effect(player_weapon_node,key,1,true,vals.offset,vals.scale,vals.angle)
 	else:
 		var anchor=Node3D.new(); fx_root.add_child(anchor); anchor.global_position=player.global_position+Vector3(0,1.15,0)-player.global_transform.basis.z*1.25; anchor.global_rotation=player.global_rotation
 		sharpness_preview_node=_make_sharpness_effect(anchor,key,2,true)
 
 func _sharpness_move(v:Vector3) -> void:
 	sharpness_test_offset+=v
+	if cheat_sharpness_tuner==1:
+		var k1:=_selected_weapon_key()
+		if _is_melee_key(k1): sharpness1_offsets[str(k1.split("|")[0])]=sharpness_test_offset
 	if cheat_sharpness_tuner==2:
 		var key:=_selected_weapon_key()
 		if _is_melee_key(key): sharpness2_offsets[str(key.split("|")[0])]=sharpness_test_offset
@@ -3257,6 +3266,10 @@ func _sharpness_move(v:Vector3) -> void:
 
 func _sharpness_adjust(ds:float,da:float) -> void:
 	sharpness_test_scale=clampf(sharpness_test_scale+ds,.2,3.0); sharpness_test_angle=fposmod(sharpness_test_angle+da+180.0,360.0)-180.0
+	if cheat_sharpness_tuner==1:
+		var k1:=_selected_weapon_key()
+		if _is_melee_key(k1):
+			var i1:=str(k1.split("|")[0]); sharpness1_scales[i1]=sharpness_test_scale; sharpness1_angles[i1]=sharpness_test_angle
 	if cheat_sharpness_tuner==2:
 		var key:=_selected_weapon_key()
 		if _is_melee_key(key):
@@ -3269,6 +3282,10 @@ func _update_sharpness_label() -> void:
 func _toggle_sharpness_1() -> void:
 	if not cheat_mode: return
 	cheat_sharpness_tuner=0 if cheat_sharpness_tuner==1 else 1
+	if cheat_sharpness_tuner==1:
+		var key:=_selected_weapon_key()
+		if _is_melee_key(key):
+			var item:=str(key.split("|")[0]); sharpness_test_offset=sharpness1_offsets.get(item,Vector3.ZERO); sharpness_test_scale=float(sharpness1_scales.get(item,1.0)); sharpness_test_angle=float(sharpness1_angles.get(item,0.0))
 	muzzle_calibration_frozen=false; player_action_locked=false; player_anim_name=&""
 	if player_anim and is_instance_valid(player_anim): player_anim.play()
 	cheat_muzzle_tuner=false; _clear_muzzle_preview(); _update_sharpness_label(); _preview_sharpness(); _update_cheat_button_style()
@@ -3284,10 +3301,38 @@ func _toggle_sharpness_2() -> void:
 	if player_anim and is_instance_valid(player_anim): player_anim.play()
 	cheat_muzzle_tuner=false; _clear_muzzle_preview(); _update_sharpness_label(); _preview_sharpness(); _update_cheat_button_style()
 
+func _sharpness1_values(key:String) -> Dictionary:
+	var item:=str(key.split("|")[0]) if "|" in key else ""
+	return {
+		"offset":sharpness1_offsets.get(item,Vector3.ZERO),
+		"scale":float(sharpness1_scales.get(item,1.0)),
+		"angle":float(sharpness1_angles.get(item,0.0))
+	}
+
+func _blade_trail(weapon:Node3D,key:String,duration:float) -> void:
+	if weapon==null or not is_instance_valid(weapon) or fx_root==null or not _is_melee_key(key): return
+	var vals:=_sharpness1_values(key)
+	var elapsed:=0.0
+	while elapsed<duration and weapon!=null and is_instance_valid(weapon):
+		var ghost=_make_sharpness_effect(weapon,key,1,true,vals.offset,vals.scale,vals.angle)
+		ghost.reparent(fx_root,true)
+		var tw=create_tween(); tw.tween_interval(.10); tw.tween_property(ghost,"scale",ghost.scale*.82,.12); tw.tween_callback(ghost.queue_free)
+		await get_tree().create_timer(.035).timeout
+		elapsed+=.035
+
 func _spawn_melee_sharpness(key:String) -> void:
-	# Regular melee swing: only the single blade-following Keskinlik 1 line.
+	# Keskinlik 1 follows the blade for the whole attack and leaves a fading visible history.
 	if not _is_melee_key(key) or player_weapon_node==null: return
-	_make_sharpness_effect(player_weapon_node,key,1,false)
+	_blade_trail(player_weapon_node,key,maxf(player_action_duration,.30))
+
+func _spawn_npc_melee_sharpness(bot:Node3D) -> void:
+	if bot==null or not is_instance_valid(bot): return
+	var id:=bot.get_instance_id()
+	var key:=str(bot_weapon_keys.get(id,""))
+	var weapon:Node3D=bot_weapon_nodes.get(id,null)
+	if weapon==null or not is_instance_valid(weapon) or not _is_melee_key(key): return
+	_blade_trail(weapon,key,.65)
+
 
 func _spawn_local_kill_sharpness() -> void:
 	# Local-only finisher. Called exclusively from damage caused by this player.
