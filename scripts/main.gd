@@ -478,10 +478,9 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String) -> Node3D:
 	var scale_value=float(g.length)/longest if longest>0.001 else 0.5
 	weapon.scale=Vector3.ONE*scale_value
 	weapon.position=g.pos-(wb.get_center()*scale_value)
-	var is_firearm=item in ["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
-	if not is_firearm:
-		weapon.position+=weapon_test_position
-	weapon.rotation_degrees=g.rot if is_firearm else g.rot+weapon_test_rotation
+	# Live grip tuner applies to every weapon family, including firearms.
+	weapon.position+=weapon_test_position
+	weapon.rotation_degrees=g.rot+weapon_test_rotation
 	return weapon
 
 func _weapon_test_rotate(delta_rotation:Vector3) -> void:
@@ -2404,12 +2403,11 @@ func _refresh_inventory():
 		var title="%s %s" % [_rarity_name(rarity),name]
 		var stackable=_inventory_is_stackable(name,rarity)
 		var remaining=count
-		while remaining>0 and shown<25:
+		while remaining>0:
 			var amount=mini(100,remaining) if stackable else 1
 			grid.add_child(_inventory_item_cell(key,title+"  "+str(amount)+"x",amount,tex))
 			remaining-=amount
 			shown+=1
-		if shown>=25: break
 
 func _build_blocks_respawn(p:Vector3)->bool:
 	# Check the actual placed structure nodes instead of one old build_origin point.
