@@ -2286,7 +2286,7 @@ func _apply_damage(amount:float):
 	var whole=int(floor(damage_buffer))
 	if whole>0:
 		var protection_damage:=int(ceil(float(whole)*0.5))
-		var health_damage:=whole-protection_damage
+		var health_damage:int=whole-protection_damage
 		var absorbed:=mini(protection,protection_damage)
 		protection-=absorbed
 		health_damage+=protection_damage-absorbed
