@@ -192,6 +192,7 @@ var sharpness_test_label: Label
 var sharpness_test_controls: Array[Control] = []
 var cheat_infinite_weapons := false
 var cheat_infinite_gj := false
+var cheat_infinite_power := false
 var muzzle_preview_node: Node3D
 var fx_root: Node3D
 var structure_hp_default := 100
@@ -314,7 +315,7 @@ var pits := [
 var meteor_node: Node3D
 var meteor_hits := 0
 var meteor_damage_total := 0
-var meteor_hp := 1000
+var meteor_hp := 2000
 var meteor_hp_label: Label3D
 var gj_balance := 0
 var gj_drops: Array[Node3D] = []
@@ -329,7 +330,7 @@ const REWARD_GRID_SIZE := 6.25
 var meteor_boss_spawn_count := 0
 var meteor_bosses: Array[CharacterBody3D] = []
 var boss_attack_cooldowns: Dictionary = {}
-const METEOR_DAMAGE_PER_BOSS := 20
+const METEOR_DAMAGE_PER_BOSS := 40
 const METEOR_HIT_RANGE := 7.0
 const BOSS_SPEED := 2.6
 const BOSS_ATTACK_RANGE := 1.8
@@ -355,6 +356,7 @@ var bot_anim_scenes: Dictionary = {}
 var bot_anim_skeletons: Dictionary = {}
 var bot_anim_names: Dictionary = {}
 var bot_hp: Dictionary = {}
+var bot_loot: Dictionary = {}
 var bot_aggro_player: Dictionary = {}
 var bot_spawn_index: Dictionary = {}
 var bot_roles: Dictionary = {}
@@ -736,8 +738,8 @@ func _build_meteor_encounter() -> void:
 	meteor_node.name="MeteorEncounter"
 	add_child(meteor_node)
 	meteor_node.position=Vector3(0,0.36,0)
-	meteor_hp=1000; meteor_damage_total=0
-	meteor_hp_label=Label3D.new(); meteor_hp_label.position=Vector3(0,9.2,0); meteor_hp_label.font_size=64; meteor_hp_label.outline_size=10; meteor_hp_label.billboard=BaseMaterial3D.BILLBOARD_ENABLED; meteor_node.add_child(meteor_hp_label); _update_meteor_hp_label()
+	meteor_hp=2000; meteor_damage_total=0
+	meteor_hp_label=Label3D.new(); meteor_hp_label.position=Vector3(0,5.8,0); meteor_hp_label.font_size=72; meteor_hp_label.outline_size=12; meteor_hp_label.billboard=BaseMaterial3D.BILLBOARD_ENABLED; meteor_node.add_child(meteor_hp_label); _update_meteor_hp_label()
 	_ground_asset_to_terrain(meteor_node,0,0)
 	# Restore the previous meteor scale.
 	var bounds:=_node_visual_bounds(meteor_node)
@@ -858,7 +860,7 @@ func _weapon_level_for_key(key:String) -> int:
 
 func _melee_total_damage(item:String) -> int:
 	var base:Dictionary={"Bıçak":10,"Karambit":15,"Kılıç":20,"Büyük Kılıç":25,"Katana":30}
-	var level:=_weapon_level(item)
+	var level:=100 if cheat_mode and cheat_infinite_power else _weapon_level(item)
 	var milestone:=level/5
 	return int(base.get(item,10))+milestone*2
 
@@ -883,7 +885,7 @@ func _distance_table_value(item:String,distance:float) -> int:
 	elif distance>=150.0: max_value=int(values[3])
 	elif distance>=50.0: max_value=int(values[4])
 	else: max_value=int(values[5])
-	var level:=_weapon_level(item)
+	var level:=100 if cheat_mode and cheat_infinite_power else _weapon_level(item)
 	var band:=level/5
 	if level<5: band=0
 	if level>=100: return max_value
@@ -944,7 +946,7 @@ func _meteor_strike() -> void:
 	var damage:=_current_meteor_damage()
 	_apply_meteor_damage(damage)
 	if gather_label:
-		gather_label.text="METEOR %d/1000 HP  •  +%d GJ" % [meteor_hp,damage]
+		gather_label.text="METEOR %d/2000 HP  •  +%d GJ" % [meteor_hp,damage]
 		gather_label.visible=true; message_time=1.2
 
 func _current_meteor_damage() -> int:
@@ -969,7 +971,7 @@ func _apply_meteor_damage(amount:int) -> void:
 	for i in range(old_wave,new_wave): _spawn_meteor_boss()
 	_update_meteor_hp_label()
 	if meteor_hp<=0:
-		meteor_hp=1000
+		meteor_hp=2000
 		meteor_damage_total=0
 		meteor_reward_thresholds_claimed.clear()
 		_update_meteor_hp_label()
@@ -977,7 +979,9 @@ func _apply_meteor_damage(amount:int) -> void:
 func _spawn_gj_drop(amount:int) -> void:
 	if amount<=0 or meteor_node==null: return
 	var root=Node3D.new(); root.name="GJDrop_%d" % Time.get_ticks_msec(); add_child(root)
-	root.global_position=meteor_node.global_position+Vector3(randf_range(-2.5,2.5),1.0,randf_range(-2.5,2.5))
+	var angle:=randf()*TAU
+	var radius:=randf_range(METEOR_ARENA_RADIUS*.55,METEOR_ARENA_RADIUS*.92)
+	root.global_position=meteor_node.global_position+Vector3(cos(angle)*radius,1.0,sin(angle)*radius)
 	root.set_meta("gj_amount",amount)
 	var coin=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.28; mesh.bottom_radius=.28; mesh.height=.10; coin.mesh=mesh; coin.rotation_degrees.x=90; root.add_child(coin)
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.45,.45,.48); mat.metallic=.85; mat.roughness=.25; coin.material_override=mat
@@ -987,7 +991,9 @@ func _spawn_gj_drop(amount:int) -> void:
 func _spawn_card_drop(item:String,rarity:String,amount:int=1) -> void:
 	if meteor_node==null or amount<=0: return
 	var root=Node3D.new(); root.name="CardDrop_%s_%s" % [item,rarity]; add_child(root)
-	root.global_position=meteor_node.global_position+Vector3(randf_range(-2.7,2.7),.55,randf_range(-2.7,2.7))
+	var angle:=randf()*TAU
+	var radius:=randf_range(METEOR_ARENA_RADIUS*.55,METEOR_ARENA_RADIUS*.92)
+	root.global_position=meteor_node.global_position+Vector3(cos(angle)*radius,.55,sin(angle)*radius)
 	var card_key:="%s|%s" % [item,rarity] if item=="Kart" else "Kart:%s|%s" % [item,rarity]
 	root.set_meta("card_key",card_key); root.set_meta("card_amount",amount)
 	var mesh_node=MeshInstance3D.new(); var mesh=BoxMesh.new(); mesh.size=Vector3(.42,.58,.06); mesh_node.mesh=mesh; root.add_child(mesh_node)
@@ -1000,13 +1006,13 @@ func _drop_five_rarity_cards(item:String,amount_each:int=1) -> void:
 	for rarity in ["gumus","yesil","buz","gunes","lav"]: _spawn_card_drop(item,rarity,amount_each)
 
 func _process_meteor_card_rewards(before:int,after:int) -> void:
-	var rewards:Dictionary={200:"Bıçak",300:"Karambit",400:"Kılıç",500:"Büyük Kılıç",600:"Katana",700:"Pompalı Tüfek",800:"Çift Namlulu Pompalı",900:"Keskin Nişancı Tüfeği"}
-	for threshold in [100,200,300,400,500,600,700,800,900,1000]:
+	var rewards:Dictionary={400:"Bıçak",600:"Karambit",800:"Kılıç",1000:"Büyük Kılıç",1200:"Katana",1400:"Pompalı Tüfek",1600:"Çift Namlulu Pompalı",1800:"Keskin Nişancı Tüfeği"}
+	for threshold in [200,400,600,800,1000,1200,1400,1600,1800,2000]:
 		if before<threshold and after>=threshold and not meteor_reward_thresholds_claimed.has(threshold):
 			meteor_reward_thresholds_claimed[threshold]=true
-			if threshold==100:
+			if threshold==200:
 				for rarity in ["gumus","yesil","buz","gunes","lav"]: _spawn_card_drop("Kart",rarity,1)
-			elif threshold==1000:
+			elif threshold==2000:
 				for weapon_name in ["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]:
 					_drop_five_rarity_cards(weapon_name,1)
 			else:
@@ -1034,7 +1040,7 @@ func _collect_reward_square() -> void:
 			gj_collected+=int(drop.get_meta("gj_amount",0)); gj_drops.erase(drop); drop.queue_free()
 	for drop in meteor_card_drops.duplicate():
 		if is_instance_valid(drop) and _same_reward_square(player.global_position,drop.global_position):
-			var key:=str(drop.get_meta("card_key","")); var amount:=int(drop.get_meta("card_amount",1))
+			var key:=str(drop.get_meta("inventory_key",drop.get_meta("card_key",""))); var amount:=int(drop.get_meta("card_amount",1))
 			if not key.is_empty(): crafted_inventory[key]=int(crafted_inventory.get(key,0))+amount; cards_collected+=amount
 			meteor_card_drops.erase(drop); drop.queue_free()
 	gj_balance+=gj_collected
@@ -1042,7 +1048,14 @@ func _collect_reward_square() -> void:
 	_flash_message("TOPLANDI  +%d GJ  +%d KART" % [gj_collected,cards_collected])
 
 func _update_meteor_hp_label() -> void:
-	if meteor_hp_label: meteor_hp_label.text="METEOR  %d / 1000 HP" % meteor_hp
+	if meteor_hp_label==null: return
+	meteor_hp_label.text="METEOR  %d / 2000 HP" % meteor_hp
+	var ratio:float=clampf(float(meteor_hp)/2000.0,0.0,1.0)
+	if ratio>0.75: meteor_hp_label.modulate=Color(.10,.55,1.0)
+	elif ratio>0.50: meteor_hp_label.modulate=Color(.20,.85,1.0)
+	elif ratio>0.25: meteor_hp_label.modulate=Color(1.0,.85,.08)
+	elif ratio>0.10: meteor_hp_label.modulate=Color(1.0,.38,.04)
+	else: meteor_hp_label.modulate=Color(1.0,.04,.04)
 
 func _spawn_meteor_boss() -> void:
 	var model=_load_asset("res://1.sv.boss.glb")
@@ -1205,12 +1218,22 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 		model.rotation_degrees.y=180.0
 	add_child(bot)
 	bot.set_meta("harmless_to_player",true)
-	# Temporary locked test rule: all combat NPCs use knife/sword families until explicitly changed.
-	var weapon_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana"]
-	var rarities=["gumus","yesil","buz","gunes","lav"]
-	var weapon_name:String=weapon_names[(index-1)%weapon_names.size()]
-	var weapon_key:String="%s|%s" % [weapon_name,rarities[(index-1)%rarities.size()]]
-	var weapon_type:=0 if weapon_name in ["Bıçak","Karambit"] else 1
+	# Fixed combat classes: 2 knives, 3 swords, remaining NPCs use firearms.
+	var weapon_name:String
+	var rarity:String
+	var slot:=index-1
+	if slot==0: weapon_name="Bıçak"; rarity="gumus"
+	elif slot==1: weapon_name="Karambit"; rarity="yesil"
+	elif slot==2: weapon_name="Kılıç"; rarity="buz"
+	elif slot==3: weapon_name="Büyük Kılıç"; rarity="gunes"
+	elif slot==4: weapon_name="Katana"; rarity="lav"
+	else:
+		var firearms=["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+		var rarities=["gumus","yesil","buz","gunes","lav"]
+		weapon_name=str(firearms[(slot-5)%firearms.size()])
+		rarity=str(rarities[(slot-5)%rarities.size()])
+	var weapon_key:String="%s|%s" % [weapon_name,rarity]
+	var weapon_type:=0 if weapon_name in ["Bıçak","Karambit"] else (1 if weapon_name in ["Kılıç","Büyük Kılıç","Katana"] else 2)
 	bot_weapon_types[bot.get_instance_id()]=weapon_type
 	bot_weapon_keys[bot.get_instance_id()]=weapon_key
 	if model:
@@ -1222,11 +1245,11 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 	combat_bots.append(bot)
 	var bid:int=bot.get_instance_id()
 	bot_hp[bid]=COMBAT_MAX_HP
+	bot_loot[bid]={"gj":0,"items":{}}
 	bot_aggro_player[bid]=false
 	bot_spawn_index[bid]=index
 	# Stable mixed personalities: meteor hunters, boss fighters, roamers, bot fighters and boss avoiders.
-	var roles=["meteor","meteor","boss","roam","fight","avoid"]
-	bot_roles[bid]=roles[index%roles.size()]
+	bot_roles[bid]="fight"
 	bot_wander_targets[bid]=Vector3.ZERO
 	bot_attack_cooldowns[bid]=randf_range(.0,BOT_ATTACK_COOLDOWN)
 
@@ -1260,6 +1283,8 @@ func _update_combat_bots(delta:float) -> void:
 			var best:=INF
 			for other in combat_bots:
 				if other!=bot and is_instance_valid(other):
+					var other_type:int=int(bot_weapon_types.get(other.get_instance_id(),-1))
+					if other_type!=weapon_type: continue
 					var od:float=bot.global_position.distance_to(other.global_position)
 					if od<best: best=od; target=other
 		# Roamers and boss avoiders without immediate danger wander independently.
@@ -1276,9 +1301,17 @@ func _update_combat_bots(delta:float) -> void:
 		if flee_from!=null:
 			_bot_move_smart(bot,dir,weapon_type,delta)
 			continue
-		var attack_range:float=BOT_METEOR_RANGE if target==meteor_node else BOT_ATTACK_RANGE
+		var weapon_key:String=str(bot_weapon_keys.get(id,""))
+		var weapon_name:String=str(weapon_key.split("|")[0]) if "|" in weapon_key else ""
+		var sniper:=weapon_name=="Keskin Nişancı Tüfeği"
+		var attack_range:float=600.0 if sniper else (BOT_METEOR_RANGE if target==meteor_node else BOT_ATTACK_RANGE)
 		if dir.length()>attack_range:
-			_bot_move_smart(bot,dir,weapon_type,delta)
+			if sniper:
+				bot.velocity=Vector3.ZERO
+				_bot_play_animation(bot,"Rifle Aiming Idle")
+				_bot_copy_pose(bot)
+			else:
+				_bot_move_smart(bot,dir,weapon_type,delta)
 		else:
 			bot.velocity=Vector3.ZERO
 			# Varied combat posture instead of every bot using the same stance.
@@ -1292,24 +1325,41 @@ func _update_combat_bots(delta:float) -> void:
 					_bot_play_animation(bot,"Firing Rifle")
 					_npc_muzzle_flash(bot)
 				elif weapon_type==1:
-					var sword_moves=["Great Sword Slash (1)","Great Sword Slash"]
-					_bot_play_animation(bot,sword_moves[randi_range(0,1)])
+					var sword_moves=["Great Sword Slash (1)","Great Sword Slash","Sword Fight One","Stable Sword Outward Slash"]
+					_bot_play_animation(bot,sword_moves[randi_range(0,sword_moves.size()-1)])
 					_spawn_npc_melee_sharpness(bot)
 				else:
 					_bot_play_animation(bot,"Stabbing")
 					_spawn_npc_melee_sharpness(bot)
 				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.16)
-				if target==player: _apply_damage(NPC_COMBAT_DAMAGE)
+				var npc_damage:=_npc_level10_damage(bot,target)
+				if target==player: _apply_damage(npc_damage)
 				elif target in meteor_bosses:
 					boss_targets[target.get_instance_id()]=bot
-					var hp:=int(target.get_meta("hp",COMBAT_MAX_HP))-NPC_COMBAT_DAMAGE; target.set_meta("hp",hp)
+					var hp:=int(target.get_meta("hp",COMBAT_MAX_HP))-npc_damage; target.set_meta("hp",hp)
 					if hp<=0:
 						boss_targets.erase(target.get_instance_id()); meteor_bosses.erase(target); boss_attack_cooldowns.erase(target.get_instance_id()); target.queue_free()
 				elif target==meteor_node:
 					meteor_hits+=1
-					_apply_meteor_damage(NPC_COMBAT_DAMAGE)
+					_apply_meteor_damage(npc_damage)
 				elif target in combat_bots:
-					_damage_combat_bot(target,NPC_COMBAT_DAMAGE)
+					_damage_combat_bot(target,npc_damage)
+
+func _npc_level10_damage(bot:Node3D,target:Node3D) -> int:
+	var key:String=str(bot_weapon_keys.get(bot.get_instance_id(),""))
+	var item:String=str(key.split("|")[0]) if "|" in key else "Bıçak"
+	if item in ["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana"]:
+		var base:Dictionary={"Bıçak":10,"Karambit":15,"Kılıç":20,"Büyük Kılıç":25,"Katana":30}
+		return int(base.get(item,10))+4
+	var distance:float=bot.global_position.distance_to(target.global_position) if target else 50.0
+	var max_values:Dictionary={"Pompalı Tüfek":55,"Çift Namlulu Pompalı":70,"Keskin Nişancı Tüfeği":75}
+	var max_damage:int=int(max_values.get(item,55))
+	if distance>=483.0: max_damage=maxi(5,roundi(max_damage*.28))
+	elif distance>=350.0: max_damage=maxi(7,roundi(max_damage*.38))
+	elif distance>=250.0: max_damage=maxi(9,roundi(max_damage*.50))
+	elif distance>=150.0: max_damage=maxi(12,roundi(max_damage*.66))
+	elif distance>=50.0: max_damage=maxi(15,roundi(max_damage*.82))
+	return maxi(1,roundi(float(max_damage)*3.0/21.0))
 
 func _bot_move_smart(bot:CharacterBody3D,dir:Vector3,weapon_type:int,delta:float) -> void:
 	if dir.length()<0.05: return
@@ -1334,6 +1384,17 @@ func _bot_move_smart(bot:CharacterBody3D,dir:Vector3,weapon_type:int,delta:float
 	bot.look_at(Vector3(bot.global_position.x+desired.x,bot.global_position.y,bot.global_position.z+desired.z),Vector3.UP)
 	_bot_play_animation(bot,"Rifle Run" if weapon_type==2 else "Run")
 	_bot_copy_pose(bot)
+
+func _drop_half_bot_loot_to_meteor(id:int) -> void:
+	var loot:Dictionary=bot_loot.get(id,{})
+	var items:Dictionary=loot.get("items",{})
+	for key in items.keys():
+		var count:int=int(items.get(key,0))
+		var dropped:int=int(ceil(float(count)/2.0))
+		if dropped>0: _spawn_inventory_drop_at_meteor(str(key),dropped)
+	var gj_count:int=int(loot.get("gj",0))
+	var gj_drop:int=int(ceil(float(gj_count)/2.0))
+	if gj_drop>0: _spawn_gj_drop(gj_drop)
 
 func _damage_combat_bot(bot:Node3D,amount:int,caused_by_player:bool=false) -> void:
 	if bot==null or not is_instance_valid(bot): return
@@ -1372,7 +1433,8 @@ func _respawn_combat_bot(bot:CharacterBody3D) -> void:
 	var old_id:int=bot.get_instance_id()
 	var index:int=int(bot_spawn_index.get(old_id,1))
 	combat_bots.erase(bot)
-	bot_attack_cooldowns.erase(old_id); bot_weapon_types.erase(old_id); bot_weapon_keys.erase(old_id); bot_weapon_nodes.erase(old_id); bot_hp.erase(old_id); bot_aggro_player.erase(old_id); bot_spawn_index.erase(old_id); bot_roles.erase(old_id); bot_wander_targets.erase(old_id)
+	_drop_half_bot_loot_to_meteor(old_id)
+	bot_attack_cooldowns.erase(old_id); bot_weapon_types.erase(old_id); bot_weapon_keys.erase(old_id); bot_weapon_nodes.erase(old_id); bot_hp.erase(old_id); bot_loot.erase(old_id); bot_aggro_player.erase(old_id); bot_spawn_index.erase(old_id); bot_roles.erase(old_id); bot_wander_targets.erase(old_id)
 	bot_anim_players.erase(old_id); bot_visual_skeletons.erase(old_id); bot_anim_skeletons.erase(old_id); bot_anim_names.erase(old_id); bot_anim_scenes.erase(old_id)
 	bot.queue_free()
 	if index>=0 and index<spawn_points.size(): _spawn_combat_bot(spawn_points[index],index)
@@ -1921,7 +1983,8 @@ func _build_hud():
 		["UÇMA MODU",_toggle_cheat_fly],
 		["ALÇAL",_fly_down],
 		["SINIRSIZ SİLAH",_toggle_infinite_weapons],
-		["SINIRSIZ GJ",_toggle_infinite_gj]
+		["SINIRSIZ GJ",_toggle_infinite_gj],
+		["SONSUZ GÜÇ",_toggle_infinite_power]
 	]
 	for entry in cheat_items:
 		var cb=Button.new(); cb.text=entry[0]; cb.custom_minimum_size=Vector2(288,32); cb.add_theme_font_size_override("font_size",13); cb.pressed.connect(entry[1]); cheat_menu_panel.add_child(cb)
@@ -2539,8 +2602,32 @@ func _update_map_dot():
 		var wx=clampf((waypoint_pos.x+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0); var wz=clampf((waypoint_pos.z+MAP_HALF)/(MAP_HALF*2.0),0.0,1.0)
 		map_waypoint.position=Vector2(70+wx*1140.0,65+wz*570.0)
 
+func _spawn_inventory_drop_at_meteor(key:String,amount:int) -> void:
+	if meteor_node==null or amount<=0: return
+	var root=Node3D.new(); root.name="InventoryDrop"; add_child(root)
+	var angle:=randf()*TAU; var radius:=randf_range(METEOR_ARENA_RADIUS*.55,METEOR_ARENA_RADIUS*.92)
+	root.global_position=meteor_node.global_position+Vector3(cos(angle)*radius,.6,sin(angle)*radius)
+	root.set_meta("inventory_key",key); root.set_meta("card_amount",amount)
+	var mesh_node=MeshInstance3D.new(); var mesh=BoxMesh.new(); mesh.size=Vector3(.46,.46,.10); mesh_node.mesh=mesh; root.add_child(mesh_node)
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.92,.78,.18); mat.metallic=.4; mesh_node.material_override=mat
+	var label=Label3D.new(); label.text="%s x%d" % [str(key.split("|")[0]),amount]; label.position=Vector3(0,.5,0); label.font_size=32; label.outline_size=6; label.billboard=BaseMaterial3D.BILLBOARD_ENABLED; root.add_child(label)
+	meteor_card_drops.append(root)
+
+func _drop_half_player_loot_to_meteor() -> void:
+	for key in crafted_inventory.keys():
+		var count:int=int(crafted_inventory.get(key,0))
+		if count<=0: continue
+		var dropped:int=int(ceil(float(count)/2.0))
+		crafted_inventory[key]=count-dropped
+		_spawn_inventory_drop_at_meteor(str(key),dropped)
+	if gj_balance>0:
+		var gj_drop:int=int(ceil(float(gj_balance)/2.0))
+		gj_balance-=gj_drop; _spawn_gj_drop(gj_drop)
+	_save_player_inventory()
+
 func _respawn():
 	_clear_meteor_bosses()
+	_drop_half_player_loot_to_meteor()
 	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
 	health=100; protection=100; _update_vitals_ui(); hunger=70.0; thirst=80.0; damage_buffer=0.0; player.velocity=Vector3.ZERO
 	if not spawn_points.is_empty():
@@ -2549,7 +2636,7 @@ func _respawn():
 		player.position=Vector3(0,PLAYER_HEIGHT,0)
 	if map_panel: map_panel.visible=false
 	if respawn_label:
-		respawn_label.text="YENIDEN DOGDUN  •  Kaynaklarin yarisi kaybedildi  •  Kartlar korundu"; respawn_label.visible=true; message_time=3.5
+		respawn_label.text="YENIDEN DOGDUN  •  Toplanan ganimetin yarısı meteor alanına düştü"; respawn_label.visible=true; message_time=3.5
 
 
 func _landmark_box(p: Vector3, size: Vector3, c: Color, rot := Vector3.ZERO):
@@ -2728,6 +2815,8 @@ func _general_card_cost_for_target_level(target_level:int) -> int:
 	return 1 << (target_level-1)
 
 func _upgrade_weapon_with_card(key:String) -> void:
+	_flash_message("SİLAH YÜKSELTME SADECE LOBİDE YAPILIR")
+	return
 	if "|" not in key: return
 	var parts=key.split("|"); var item:=str(parts[0]); var rarity:=str(parts[1])
 	if item.begins_with("Kart:"): item=item.trim_prefix("Kart:")
@@ -2754,6 +2843,8 @@ func _upgrade_weapon_with_card(key:String) -> void:
 	_flash_message("%s %s  SEVİYE %d" % [_rarity_name(rarity),item,target_level])
 
 func _open_card_exchange_choices(key:String) -> void:
+	_flash_message("KART TAKASI SADECE LOBİDE YAPILIR")
+	return
 	if "|" not in key or inventory_panel==null: return
 	var parts=key.split("|"); var item:=str(parts[0]); var source_rarity:=str(parts[1])
 	if item!="Kart": _flash_message("2→1 TAKAS GENEL RENK KARTLARI İÇİNDİR"); return
@@ -2797,7 +2888,18 @@ func _refresh_inventory():
 	var grid=inventory_panel.get_node("InvScroll/Grid")
 	for child in grid.get_children(): child.queue_free()
 	var shown:=0
-	for key in crafted_inventory:
+	var sorted_keys:Array=crafted_inventory.keys()
+	var rarity_order=["gumus","yesil","buz","gunes","lav"]
+	var weapon_order=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	sorted_keys.sort_custom(func(a,b):
+		var ap=str(a).split("|"); var bp=str(b).split("|")
+		var an=str(ap[0]); var bn=str(bp[0]); var ar=str(ap[1]) if ap.size()>1 else ""; var br=str(bp[1]) if bp.size()>1 else ""
+		var acat=-1 if an=="Kart" else (weapon_order.find(an.trim_prefix("Kart:")) if weapon_order.find(an.trim_prefix("Kart:"))>=0 else 99)
+		var bcat=-1 if bn=="Kart" else (weapon_order.find(bn.trim_prefix("Kart:")) if weapon_order.find(bn.trim_prefix("Kart:"))>=0 else 99)
+		if acat!=bcat: return acat<bcat
+		return rarity_order.find(ar)<rarity_order.find(br)
+	)
+	for key in sorted_keys:
 		var count=int(crafted_inventory[key])
 		if count<=0: continue
 		var parts=key.split("|")
@@ -2882,13 +2984,17 @@ func _create_hotbar(layer:CanvasLayer):
 		b.button_up.connect(_hotbar_hold_cancel.bind(i))
 		hotbar.add_child(b)
 	layer.add_child(hotbar)
-	var vitals=HBoxContainer.new(); vitals.set_anchors_preset(Control.PRESET_CENTER_BOTTOM); vitals.position=Vector2(-260,-178); vitals.size=Vector2(520,54); vitals.alignment=BoxContainer.ALIGNMENT_CENTER; layer.add_child(vitals)
+	var vitals=VBoxContainer.new(); vitals.set_anchors_preset(Control.PRESET_CENTER_BOTTOM); vitals.position=Vector2(-130,-220); vitals.size=Vector2(260,104); vitals.alignment=BoxContainer.ALIGNMENT_CENTER; layer.add_child(vitals)
 	var hp_box=VBoxContainer.new(); hp_box.custom_minimum_size=Vector2(250,50); vitals.add_child(hp_box)
 	health_value_label=Label.new(); health_value_label.text="CAN  100/100"; health_value_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; health_value_label.add_theme_color_override("font_color",Color(1.0,.25,.25)); hp_box.add_child(health_value_label)
-	health_bar=ProgressBar.new(); health_bar.min_value=0; health_bar.max_value=100; health_bar.value=health; health_bar.show_percentage=false; health_bar.custom_minimum_size=Vector2(250,20); hp_box.add_child(health_bar)
+	health_bar=ProgressBar.new(); health_bar.min_value=0; health_bar.max_value=100; health_bar.value=health; health_bar.show_percentage=false; health_bar.custom_minimum_size=Vector2(250,20)
+	var hp_bg=StyleBoxFlat.new(); hp_bg.bg_color=Color(.55,.02,.02,.28); health_bar.add_theme_stylebox_override("background",hp_bg)
+	var hp_fill=StyleBoxFlat.new(); hp_fill.bg_color=Color(.72,.02,.02,.98); health_bar.add_theme_stylebox_override("fill",hp_fill); hp_box.add_child(health_bar)
 	var armor_box=VBoxContainer.new(); armor_box.custom_minimum_size=Vector2(250,50); vitals.add_child(armor_box)
 	protection_value_label=Label.new(); protection_value_label.text="KORUMA  100/100"; protection_value_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; protection_value_label.add_theme_color_override("font_color",Color(.30,.65,1.0)); armor_box.add_child(protection_value_label)
-	protection_bar=ProgressBar.new(); protection_bar.min_value=0; protection_bar.max_value=100; protection_bar.value=protection; protection_bar.show_percentage=false; protection_bar.custom_minimum_size=Vector2(250,20); armor_box.add_child(protection_bar)
+	protection_bar=ProgressBar.new(); protection_bar.min_value=0; protection_bar.max_value=100; protection_bar.value=protection; protection_bar.show_percentage=false; protection_bar.custom_minimum_size=Vector2(250,20)
+	var armor_bg=StyleBoxFlat.new(); armor_bg.bg_color=Color(.02,.18,.62,.25); protection_bar.add_theme_stylebox_override("background",armor_bg)
+	var armor_fill=StyleBoxFlat.new(); armor_fill.bg_color=Color(.02,.28,.82,.98); protection_bar.add_theme_stylebox_override("fill",armor_fill); armor_box.add_child(protection_bar)
 	_update_vitals_ui()
 	var eye=Button.new()
 	eye.name="HotbarEye"
@@ -3478,7 +3584,7 @@ func _toggle_cheat_mode():
 	if _panel_open(): return
 	cheat_mode=!cheat_mode
 	if not cheat_mode:
-		cheat_weapon_tuner=false; cheat_muzzle_tuner=false; cheat_sharpness_tuner=0; cheat_infinite_weapons=false; cheat_infinite_gj=false; muzzle_calibration_frozen=false; _clear_sharpness_preview(); player_action_locked=false
+		cheat_weapon_tuner=false; cheat_muzzle_tuner=false; cheat_sharpness_tuner=0; cheat_infinite_weapons=false; cheat_infinite_gj=false; cheat_infinite_power=false; muzzle_calibration_frozen=false; _clear_sharpness_preview(); player_action_locked=false
 		if fly_mode: fly_mode=false
 		_clear_muzzle_preview()
 	if cheat_menu_panel: cheat_menu_panel.visible=cheat_mode
@@ -3666,6 +3772,11 @@ func _toggle_infinite_weapons() -> void:
 	_sync_cheat_weapons(); _save_player_inventory(); _refresh_hotbar()
 	if inventory_panel and inventory_panel.visible: _refresh_inventory()
 	_flash_message("SINIRSIZ SILAH ACIK" if cheat_infinite_weapons else "SINIRSIZ SILAH KAPALI")
+
+func _toggle_infinite_power() -> void:
+	if not cheat_mode: return
+	cheat_infinite_power=!cheat_infinite_power
+	_flash_message("SONSUZ GÜÇ AÇIK" if cheat_infinite_power else "SONSUZ GÜÇ KAPALI")
 
 func _toggle_infinite_gj() -> void:
 	if not cheat_mode: return
