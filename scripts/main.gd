@@ -1988,7 +1988,7 @@ func _build_hud():
 	]
 	for entry in cheat_items:
 		var cb=Button.new(); cb.text=entry[0]; cb.custom_minimum_size=Vector2(288,32); cb.add_theme_font_size_override("font_size",13); cb.pressed.connect(entry[1]); cheat_menu_panel.add_child(cb)
-	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-300,352); lobby_btn.size=Vector2(288,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
+	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_LEFT); lobby_btn.position=Vector2(12,12); lobby_btn.size=Vector2(140,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
 	# Live weapon tuner stays available: rotation plus grip-position nudging.
 	weapon_test_label=Label.new(); weapon_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); weapon_test_label.position=Vector2(176,52); weapon_test_label.size=Vector2(620,30); weapon_test_label.add_theme_font_size_override("font_size",14); layer.add_child(weapon_test_label); weapon_test_controls.append(weapon_test_label)
 	var axis_buttons=[["X-",Vector3(-15,0,0)],["X+",Vector3(15,0,0)],["Y-",Vector3(0,-15,0)],["Y+",Vector3(0,15,0)],["Z-",Vector3(0,0,-15)],["Z+",Vector3(0,0,15)]]
