@@ -2805,7 +2805,7 @@ func _refresh_inventory():
 		var name=str(parts[0]); var rarity=str(parts[1])
 		var tex=null
 		var store_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
-		var display_name:=name.trim_prefix("Kart:") if name.begins_with("Kart:") else name
+		var display_name: String = name.trim_prefix("Kart:") if name.begins_with("Kart:") else name
 		var store_row=store_names.find(display_name)+1
 		if store_row>0 and rarity in ["gumus","yesil","buz","gunes","lav"]:
 			tex=_store_png_texture("res://weapon%d%s.png" % [store_row,rarity])
