@@ -171,9 +171,12 @@ var sharpness_preview_node: Node3D
 var sharpness_test_offset := Vector3.ZERO
 var sharpness_test_scale := 1.0
 var sharpness_test_angle := 0.0
-var sharpness1_offsets: Dictionary = {"Bıçak":Vector3(0.12,0.03,0.00),"Karambit":Vector3(0.12,0.03,0.00)}
-var sharpness1_scales: Dictionary = {"Bıçak":1.0,"Karambit":1.0}
-var sharpness1_angles: Dictionary = {"Bıçak":-100.0,"Karambit":-100.0}
+var sharpness1_offsets: Dictionary = {
+	"Bıçak":Vector3(0.12,0.03,0.00),"Karambit":Vector3(0.12,0.03,0.00),
+	"Katana":Vector3(0.03,-0.06,0.00),"Büyük Kılıç":Vector3(0.03,0.03,0.00),"Kılıç":Vector3(0.06,-0.06,-0.03)
+}
+var sharpness1_scales: Dictionary = {"Bıçak":1.0,"Karambit":1.0,"Katana":0.90,"Büyük Kılıç":0.90,"Kılıç":1.20}
+var sharpness1_angles: Dictionary = {"Bıçak":-100.0,"Karambit":-100.0,"Katana":-80.0,"Büyük Kılıç":-80.0,"Kılıç":-90.0}
 var sharpness2_offsets: Dictionary = {
 	"Bıçak":Vector3(-0.15,0.60,0.57),"Karambit":Vector3(-0.15,0.60,0.57),
 	"Kılıç":Vector3(-0.15,0.60,0.57),"Büyük Kılıç":Vector3(-0.15,0.60,0.57),"Katana":Vector3(-0.15,0.60,0.57)
@@ -341,7 +344,7 @@ var bot_wander_targets: Dictionary = {}
 var boss_targets: Dictionary = {}
 const BOT_SPEED := 3.4
 const BOT_ATTACK_RANGE := 2.2
-const BOT_ATTACK_COOLDOWN := 0.85
+const BOT_ATTACK_COOLDOWN := 0.55
 const BOT_METEOR_RANGE := 4.0
 const PLAYER_COMBAT_DAMAGE := 50
 const NPC_COMBAT_DAMAGE := 15
@@ -1074,13 +1077,13 @@ func _update_combat_bots(delta:float) -> void:
 					_bot_play_animation(bot,"Firing Rifle")
 					_npc_muzzle_flash(bot)
 				elif weapon_type==1:
-					var sword_moves=["Great Sword Slash (1)","Great Sword Slash","Sword Fight One"]
-					_bot_play_animation(bot,sword_moves[randi_range(0,2)])
+					var sword_moves=["Great Sword Slash (1)","Great Sword Slash"]
+					_bot_play_animation(bot,sword_moves[randi_range(0,1)])
 					_spawn_npc_melee_sharpness(bot)
 				else:
 					_bot_play_animation(bot,"Stabbing")
 					_spawn_npc_melee_sharpness(bot)
-				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.28)
+				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.16)
 				if target==player: _apply_damage(NPC_COMBAT_DAMAGE)
 				elif target in meteor_bosses:
 					boss_targets[target.get_instance_id()]=bot
