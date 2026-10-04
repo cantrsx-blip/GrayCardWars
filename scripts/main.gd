@@ -393,6 +393,7 @@ func _ready():
 		var saved_hotbar=lobby_cfg.get_value("inventory","hotbar",[])
 		if saved_hotbar is Array:
 			for i in range(mini(6,saved_hotbar.size())): hotbar_items[i]=str(saved_hotbar[i])
+	_restore_owned_weapons_to_inventory()
 	_sync_cheat_weapons()
 	_save_player_inventory()
 	_refresh_hotbar()
@@ -2910,6 +2911,30 @@ func _exchange_general_card(source_rarity:String,target_rarity:String) -> void:
 	_save_player_inventory(); _refresh_inventory()
 	_flash_message("2 %s → 1 %s" % [_rarity_name(source_rarity),_rarity_name(target_rarity)])
 
+func _restore_owned_weapons_to_inventory() -> void:
+	# A saved weapon level is ownership evidence. Restore missing legacy weapons
+	# without creating map-collected resources in the visible inventory.
+	var names:Array[String]=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	var rarities:Array[String]=["gumus","yesil","buz","gunes","lav"]
+	for name in names:
+		var restored:bool=false
+		for rarity in rarities:
+			var key:String="%s|%s" % [name,rarity]
+			if crafted_inventory.has(key) and int(crafted_inventory.get(key,0))>0:
+				restored=true
+				break
+		if restored: continue
+		# Prefer a saved color-specific level; otherwise restore legacy owned weapons
+		# whose old name-only level is above the default level 1.
+		for rarity in rarities:
+			var key:String="%s|%s" % [name,rarity]
+			if weapon_levels.has(key):
+				crafted_inventory[key]=1
+				restored=true
+				break
+		if not restored and int(weapon_levels.get(name,1))>1:
+			crafted_inventory["%s|gumus" % name]=1
+
 func _inventory_is_stackable(name:String,rarity:String) -> bool:
 	var store_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
 	return name in ["Ok","Tabanca Mermisi","Pompalı Mermisi","Tüfek Mermisi","Kart"] or name.begins_with("Kart:") or (name in store_names and rarity in ["gumus","yesil","buz","gunes","lav"])
@@ -2946,6 +2971,10 @@ func _refresh_inventory():
 		var parts=key.split("|")
 		if parts.size()<2: continue
 		var name=str(parts[0]); var rarity=str(parts[1])
+		# Raw world resources/loot stay tracked for gameplay/crafting but are hidden
+		# from the weapon/card inventory UI.
+		var visible_names:Array[String]=["Kart","Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+		if not (name in visible_names or name.begins_with("Kart:")): continue
 		var tex=null
 		var store_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
 		var display_name: String = name.trim_prefix("Kart:") if name.begins_with("Kart:") else name
