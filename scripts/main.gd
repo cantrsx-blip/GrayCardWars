@@ -3053,7 +3053,7 @@ func _npc_muzzle_flash(bot:Node3D) -> void:
 	var flash=OmniLight3D.new()
 	flash.light_color=_muzzle_color_for_key(key); flash.light_energy=4.0; flash.omni_range=3.5
 	fx_root.add_child(flash); flash.global_position=pos
-	var t=get_tree().create_timer(.07); t.timeout.connect(flash.queue_free)
+	var t=get_tree().create_timer(.14); t.timeout.connect(flash.queue_free)
 
 func _muzzle_weapon_name() -> String:
 	var key:=_selected_weapon_key()
@@ -3105,7 +3105,7 @@ func _spawn_muzzle_light(origin:Node3D,key:String,local_offset:Vector3) -> void:
 	if fx_root==null or origin==null or not is_instance_valid(origin): return
 	var flash=OmniLight3D.new(); flash.light_color=_muzzle_color_for_key(key); flash.light_energy=5.0; flash.omni_range=3.2
 	fx_root.add_child(flash); flash.global_position=origin.to_global(local_offset)
-	var timer=get_tree().create_timer(.07); timer.timeout.connect(flash.queue_free)
+	var timer=get_tree().create_timer(.14); timer.timeout.connect(flash.queue_free)
 
 func _clear_muzzle_preview() -> void:
 	if muzzle_preview_node!=null and is_instance_valid(muzzle_preview_node): muzzle_preview_node.queue_free()
