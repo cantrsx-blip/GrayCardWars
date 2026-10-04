@@ -96,6 +96,11 @@ var grass_n := 0
 var wheat_n := 0
 var mushroom_n := 0
 var health := 100
+var protection := 100
+var health_bar: ProgressBar
+var protection_bar: ProgressBar
+var health_value_label: Label
+var protection_value_label: Label
 var hunger := 100.0
 var thirst := 100.0
 var player: CharacterBody3D
@@ -308,10 +313,15 @@ var pits := [
 # Meteor + level-1 boss encounter
 var meteor_node: Node3D
 var meteor_hits := 0
+var meteor_damage_total := 0
+var meteor_hp := 1000
+var meteor_hp_label: Label3D
+var gj_balance := 0
+var gj_drops: Array[Node3D] = []
 var meteor_boss_spawn_count := 0
 var meteor_bosses: Array[CharacterBody3D] = []
 var boss_attack_cooldowns: Dictionary = {}
-const METEOR_HITS_PER_BOSS := 5
+const METEOR_DAMAGE_PER_BOSS := 20
 const METEOR_HIT_RANGE := 7.0
 const BOSS_SPEED := 2.6
 const BOSS_ATTACK_RANGE := 1.8
@@ -348,7 +358,7 @@ const BOT_ATTACK_COOLDOWN := 0.55
 const BOT_METEOR_RANGE := 4.0
 const PLAYER_COMBAT_DAMAGE := 50
 const NPC_COMBAT_DAMAGE := 15
-const BOSS_COMBAT_DAMAGE := 10
+const BOSS_COMBAT_DAMAGE := 5
 const COMBAT_MAX_HP := 100
 const BOSS_MAX_HP := 30
 
@@ -712,6 +722,8 @@ func _build_meteor_encounter() -> void:
 	meteor_node.name="MeteorEncounter"
 	add_child(meteor_node)
 	meteor_node.position=Vector3(0,0.36,0)
+	meteor_hp=1000; meteor_damage_total=0
+	meteor_hp_label=Label3D.new(); meteor_hp_label.position=Vector3(0,9.2,0); meteor_hp_label.font_size=64; meteor_hp_label.outline_size=10; meteor_hp_label.billboard=BaseMaterial3D.BILLBOARD_ENABLED; meteor_node.add_child(meteor_hp_label); _update_meteor_hp_label()
 	_ground_asset_to_terrain(meteor_node,0,0)
 	# Restore the previous meteor scale.
 	var bounds:=_node_visual_bounds(meteor_node)
@@ -824,10 +836,47 @@ func _meteor_strike() -> void:
 	if _panel_open() or player==null or meteor_node==null or not is_instance_valid(meteor_node): return
 	if player.global_position.distance_to(meteor_node.global_position)>METEOR_HIT_RANGE: return
 	meteor_hits+=1
-	if meteor_hits%METEOR_HITS_PER_BOSS==0: _spawn_meteor_boss()
+	var damage:=_current_meteor_damage()
+	_apply_meteor_damage(damage)
 	if gather_label:
-		gather_label.text="METEOR VURUSU %d  •  SONRAKI BOSS %d/5" % [meteor_hits,meteor_hits%5]
+		gather_label.text="METEOR %d/1000 HP  •  +%d GJ" % [meteor_hp,damage]
 		gather_label.visible=true; message_time=1.2
+
+func _current_meteor_damage() -> int:
+	var key:=_selected_weapon_key()
+	if key.is_empty(): return 1
+	var item:=str(key.split("|")[0])
+	var base_damage:Dictionary={"Bıçak":10,"Karambit":15,"Kılıç":20,"Büyük Kılıç":25,"Katana":30,"Pompalı Tüfek":10,"Çift Namlulu Pompalı":14,"Keskin Nişancı Tüfeği":20}
+	return maxi(1,int(base_damage.get(item,1)))
+
+func _apply_meteor_damage(amount:int) -> void:
+	if amount<=0: return
+	var actual:=mini(amount,meteor_hp)
+	var before:=meteor_damage_total
+	meteor_hp-=actual
+	meteor_damage_total+=actual
+	_spawn_gj_drop(actual)
+	var old_wave:=before/METEOR_DAMAGE_PER_BOSS
+	var new_wave:=meteor_damage_total/METEOR_DAMAGE_PER_BOSS
+	for i in range(old_wave,new_wave): _spawn_meteor_boss()
+	_update_meteor_hp_label()
+	if meteor_hp<=0:
+		meteor_hp=1000
+		meteor_damage_total=0
+		_update_meteor_hp_label()
+
+func _spawn_gj_drop(amount:int) -> void:
+	if amount<=0 or meteor_node==null: return
+	var root=Node3D.new(); root.name="GJDrop_%d" % Time.get_ticks_msec(); add_child(root)
+	root.global_position=meteor_node.global_position+Vector3(randf_range(-2.5,2.5),1.0,randf_range(-2.5,2.5))
+	root.set_meta("gj_amount",amount)
+	var coin=MeshInstance3D.new(); var mesh=CylinderMesh.new(); mesh.top_radius=.28; mesh.bottom_radius=.28; mesh.height=.10; coin.mesh=mesh; coin.rotation_degrees.x=90; root.add_child(coin)
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.45,.45,.48); mat.metallic=.85; mat.roughness=.25; coin.material_override=mat
+	var label=Label3D.new(); label.text="%d GJ" % amount; label.position=Vector3(0,.55,0); label.font_size=48; label.outline_size=8; label.billboard=BaseMaterial3D.BILLBOARD_ENABLED; root.add_child(label)
+	gj_drops.append(root)
+
+func _update_meteor_hp_label() -> void:
+	if meteor_hp_label: meteor_hp_label.text="METEOR  %d / 1000 HP" % meteor_hp
 
 func _spawn_meteor_boss() -> void:
 	var model=_load_asset("res://1.sv.boss.glb")
@@ -1092,7 +1141,7 @@ func _update_combat_bots(delta:float) -> void:
 						boss_targets.erase(target.get_instance_id()); meteor_bosses.erase(target); boss_attack_cooldowns.erase(target.get_instance_id()); target.queue_free()
 				elif target==meteor_node:
 					meteor_hits+=1
-					if meteor_hits%METEOR_HITS_PER_BOSS==0: _spawn_meteor_boss()
+					_apply_meteor_damage(NPC_COMBAT_DAMAGE)
 				elif target in combat_bots:
 					_damage_combat_bot(target,NPC_COMBAT_DAMAGE)
 
@@ -2236,8 +2285,20 @@ func _apply_damage(amount:float):
 	damage_buffer += amount
 	var whole=int(floor(damage_buffer))
 	if whole>0:
-		health=max(0,health-whole)
+		var protection_damage:=int(ceil(float(whole)*0.5))
+		var health_damage:=whole-protection_damage
+		var absorbed:=mini(protection,protection_damage)
+		protection-=absorbed
+		health_damage+=protection_damage-absorbed
+		health=max(0,health-health_damage)
 		damage_buffer-=whole
+		_update_vitals_ui()
+
+func _update_vitals_ui() -> void:
+	if health_bar: health_bar.value=health
+	if protection_bar: protection_bar.value=protection
+	if health_value_label: health_value_label.text="CAN  %d/100" % health
+	if protection_value_label: protection_value_label.text="KORUMA  %d/100" % protection
 
 func _add_house_light(roof_pos:Vector3):
 	var light=OmniLight3D.new(); light.position=roof_pos+Vector3(0,-1.35,0); light.light_color=Color(1.0,.88,.68); light.light_energy=.85; light.omni_range=7.0; light.shadow_enabled=false; add_child(light)
@@ -2326,7 +2387,7 @@ func _update_map_dot():
 func _respawn():
 	_clear_meteor_bosses()
 	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
-	health=100; hunger=70.0; thirst=80.0; damage_buffer=0.0; player.velocity=Vector3.ZERO; player.position=Vector3(0,PLAYER_HEIGHT,0)
+	health=100; protection=100; _update_vitals_ui(); hunger=70.0; thirst=80.0; damage_buffer=0.0; player.velocity=Vector3.ZERO; player.position=Vector3(0,PLAYER_HEIGHT,0)
 	if map_panel: map_panel.visible=false
 	if respawn_label:
 		respawn_label.text="YENIDEN DOGDUN  •  Kaynaklarin yarisi kaybedildi  •  Kartlar korundu"; respawn_label.visible=true; message_time=3.5
@@ -2597,6 +2658,14 @@ func _create_hotbar(layer:CanvasLayer):
 		b.button_up.connect(_hotbar_hold_cancel.bind(i))
 		hotbar.add_child(b)
 	layer.add_child(hotbar)
+	var vitals=HBoxContainer.new(); vitals.set_anchors_preset(Control.PRESET_CENTER_BOTTOM); vitals.position=Vector2(-260,-178); vitals.size=Vector2(520,54); vitals.alignment=BoxContainer.ALIGNMENT_CENTER; layer.add_child(vitals)
+	var hp_box=VBoxContainer.new(); hp_box.custom_minimum_size=Vector2(250,50); vitals.add_child(hp_box)
+	health_value_label=Label.new(); health_value_label.text="CAN  100/100"; health_value_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; health_value_label.add_theme_color_override("font_color",Color(1.0,.25,.25)); hp_box.add_child(health_value_label)
+	health_bar=ProgressBar.new(); health_bar.min_value=0; health_bar.max_value=100; health_bar.value=health; health_bar.show_percentage=false; health_bar.custom_minimum_size=Vector2(250,20); hp_box.add_child(health_bar)
+	var armor_box=VBoxContainer.new(); armor_box.custom_minimum_size=Vector2(250,50); vitals.add_child(armor_box)
+	protection_value_label=Label.new(); protection_value_label.text="KORUMA  100/100"; protection_value_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; protection_value_label.add_theme_color_override("font_color",Color(.30,.65,1.0)); armor_box.add_child(protection_value_label)
+	protection_bar=ProgressBar.new(); protection_bar.min_value=0; protection_bar.max_value=100; protection_bar.value=protection; protection_bar.show_percentage=false; protection_bar.custom_minimum_size=Vector2(250,20); armor_box.add_child(protection_bar)
+	_update_vitals_ui()
 	var eye=Button.new()
 	eye.name="HotbarEye"
 	eye.text="👁"
