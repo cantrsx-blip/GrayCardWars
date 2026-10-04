@@ -921,10 +921,18 @@ func _firearm_target_hit(item:String) -> void:
 
 func _meteor_is_under_crosshair() -> bool:
 	if camera==null or meteor_node==null or not is_instance_valid(meteor_node): return false
-	if camera.is_position_behind(meteor_node.global_position): return false
-	var screen_pos:=camera.unproject_position(meteor_node.global_position)
 	var center:=get_viewport().get_visible_rect().size*.5
-	return screen_pos.distance_to(center)<=55.0
+	var origin:=camera.project_ray_origin(center)
+	var dir:=camera.project_ray_normal(center)
+	var to_meteor:Vector3=meteor_node.global_position-origin
+	var forward:float=to_meteor.dot(dir)
+	if forward<0.0 or forward>600.0: return false
+	# Use the meteor's physical footprint instead of its pivot point. The old 55 px
+	# center test could reject a shot even while the visible meteor filled the crosshair.
+	var closest:Vector3=origin+dir*forward
+	var bounds:=_node_visual_bounds(meteor_node)
+	var hit_radius:float=maxf(3.0,maxf(bounds.size.x,bounds.size.z)*.58)
+	return closest.distance_to(meteor_node.global_position)<=hit_radius
 
 func _meteor_strike() -> void:
 	if _panel_open() or player==null: return
@@ -941,7 +949,11 @@ func _meteor_strike() -> void:
 	if firearm:
 		if distance>600.0 or not _meteor_is_under_crosshair(): return
 	else:
-		if distance>_melee_range(item): return
+		# Meteor is physically much wider than its center pivot. Give melee the visible
+		# meteor surface radius plus the weapon reach, instead of measuring to the center.
+		var meteor_bounds:=_node_visual_bounds(meteor_node)
+		var meteor_radius:float=maxf(2.0,maxf(meteor_bounds.size.x,meteor_bounds.size.z)*.50)
+		if distance>meteor_radius+_melee_range(item): return
 	meteor_hits+=1
 	var damage:=_current_meteor_damage()
 	_apply_meteor_damage(damage)
