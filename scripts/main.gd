@@ -774,6 +774,17 @@ func _player_attack() -> void:
 	var firearm=("pompal" in item or "tüfek" in item or "tufek" in item or "nişancı" in item or "nisanci" in item)
 	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
 	var sword=("kılıç" in item or "kilic" in item or "katana" in item)
+	if (knife or sword) and cheat_mode and cheat_sharpness_tuner>0:
+		if muzzle_calibration_frozen:
+			muzzle_calibration_frozen=false; player_action_locked=false; player_anim_name=&""
+			if player_anim and is_instance_valid(player_anim): player_anim.play()
+		else:
+			_play_ybot_anim("Stabbing" if knife else "Stable Sword Outward Slash")
+			player_action_token+=1; player_action_locked=true; muzzle_calibration_frozen=true
+			await get_tree().create_timer(maxf(.08,minf(player_action_duration*.42,.28))).timeout
+			if player_anim and is_instance_valid(player_anim): player_anim.pause()
+		_update_sharpness_label(); _preview_sharpness()
+		return
 	if firearm and cheat_mode and cheat_muzzle_tuner:
 		if muzzle_calibration_frozen:
 			muzzle_calibration_frozen=false; player_action_locked=false; player_anim_name=&""
@@ -3174,20 +3185,36 @@ func _is_melee_key(key:String) -> bool:
 	if key.is_empty() or "|" not in key: return false
 	return str(key.split("|")[0]) in ["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana"]
 
+func _sharpness_palette(key:String) -> Array[Color]:
+	var rarity="gumus"
+	if "|" in key: rarity=str(key.split("|")[1])
+	match rarity:
+		"yesil": return [Color(0.55,1.0,0.62,.18),Color(0.22,1.0,0.38,.30),Color(0.05,.78,.20,.48),Color(0.02,.42,.12,.72),Color(0.01,.16,.06,.95)]
+		"buz": return [Color(.72,.96,1.0,.18),Color(.38,.82,1.0,.30),Color(.12,.56,1.0,.48),Color(.04,.27,.72,.72),Color(.01,.08,.30,.95)]
+		"gunes": return [Color(1.0,.96,.58,.18),Color(1.0,.82,.20,.30),Color(1.0,.56,.05,.48),Color(.82,.28,.02,.72),Color(.35,.08,.01,.95)]
+		"lav": return [Color(1.0,.62,.36,.18),Color(1.0,.28,.12,.30),Color(.92,.07,.04,.48),Color(.55,.015,.025,.72),Color(.20,.005,.012,.95)]
+		_: return [Color(1,1,1,.18),Color(.90,.96,1,.30),Color(.70,.78,.86,.48),Color(.38,.45,.54,.72),Color(.12,.15,.20,.95)]
+
 func _make_sharpness_effect(parent:Node3D,key:String,mode:int,persistent:bool=true) -> Node3D:
 	var root=Node3D.new(); parent.add_child(root)
-	var col=_muzzle_color_for_key(key)
-	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(col.r,col.g,col.b,.88); mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; mat.emission_enabled=true; mat.emission=col; mat.emission_energy_multiplier=5.5
-	# Two parallel claw-like luminous cuts.
+	var palette:=_sharpness_palette(key)
+	var length:=1.15 if mode==1 else 2.35
+	# Five nested luminous layers create a continuous-looking phosphor-to-dark core,
+	# rather than two flat colour bands.
+	var widths=[.16,.125,.092,.060,.030]
 	for n in 2:
-		var cut=MeshInstance3D.new(); var mesh=BoxMesh.new()
-		mesh.size=Vector3(0.035,1.15 if mode==1 else 2.35,0.028); cut.mesh=mesh; cut.material_override=mat
-		cut.position=Vector3((-0.10 if n==0 else 0.10),0.18 if mode==1 else 0.0,0.0)
-		cut.rotation_degrees.z=(-18.0 if n==0 else -10.0)
-		root.add_child(cut)
+		var xoff=-.10 if n==0 else .10
+		var zang=-18.0 if n==0 else -10.0
+		for li in range(5):
+			var cut=MeshInstance3D.new(); var mesh=BoxMesh.new()
+			mesh.size=Vector3(float(widths[li]),length,0.018+float(li)*.002); cut.mesh=mesh
+			var mat=StandardMaterial3D.new(); var col:Color=palette[li]
+			mat.albedo_color=col; mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.emission_enabled=true; mat.emission=Color(col.r,col.g,col.b); mat.emission_energy_multiplier=7.0-float(li)*.75
+			cut.material_override=mat; cut.position=Vector3(xoff,0.18 if mode==1 else 0.0,float(li)*.001); cut.rotation_degrees.z=zang; root.add_child(cut)
 	root.position=sharpness_test_offset; root.rotation_degrees.z=sharpness_test_angle; root.scale=Vector3.ONE*sharpness_test_scale
 	if not persistent:
-		var tw=create_tween(); tw.tween_property(root,"scale",root.scale*1.16,.10); tw.parallel().tween_property(mat,"albedo_color:a",0.0,.16); tw.tween_callback(root.queue_free)
+		var tw=create_tween(); tw.tween_property(root,"scale",root.scale*1.16,.10); tw.tween_property(root,"scale",root.scale*.96,.06); tw.tween_callback(root.queue_free)
 	return root
 
 func _clear_sharpness_preview() -> void:
@@ -3217,11 +3244,15 @@ func _update_sharpness_label() -> void:
 func _toggle_sharpness_1() -> void:
 	if not cheat_mode: return
 	cheat_sharpness_tuner=0 if cheat_sharpness_tuner==1 else 1
+	muzzle_calibration_frozen=false; player_action_locked=false; player_anim_name=&""
+	if player_anim and is_instance_valid(player_anim): player_anim.play()
 	cheat_muzzle_tuner=false; _clear_muzzle_preview(); _update_sharpness_label(); _preview_sharpness(); _update_cheat_button_style()
 
 func _toggle_sharpness_2() -> void:
 	if not cheat_mode: return
 	cheat_sharpness_tuner=0 if cheat_sharpness_tuner==2 else 2
+	muzzle_calibration_frozen=false; player_action_locked=false; player_anim_name=&""
+	if player_anim and is_instance_valid(player_anim): player_anim.play()
 	cheat_muzzle_tuner=false; _clear_muzzle_preview(); _update_sharpness_label(); _preview_sharpness(); _update_cheat_button_style()
 
 func _spawn_melee_sharpness(key:String) -> void:
