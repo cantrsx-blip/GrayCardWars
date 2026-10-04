@@ -184,6 +184,9 @@ var weapon_test_rotation := Vector3.ZERO
 var weapon_test_position := Vector3.ZERO
 var weapon_test_label: Label
 var weapon_test_controls: Array[Control] = []
+var muzzle_test_offset := Vector3.ZERO
+var muzzle_test_label: Label
+var muzzle_test_controls: Array[Control] = []
 var viewmodel_root: Node3D
 var viewmodel_right_hand: Node3D
 var viewmodel_left_hand: Node3D
@@ -1636,6 +1639,11 @@ func _build_hud():
 	for pi in position_buttons.size():
 		var pb=Button.new(); pb.text=position_buttons[pi][0]; pb.set_anchors_preset(Control.PRESET_TOP_LEFT); pb.position=Vector2(176+pi*70,124); pb.size=Vector2(66,36); pb.add_theme_font_size_override("font_size",11); pb.pressed.connect(_weapon_test_move.bind(position_buttons[pi][1])); layer.add_child(pb); weapon_test_controls.append(pb)
 	_update_weapon_test_label()
+	muzzle_test_label=Label.new(); muzzle_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); muzzle_test_label.position=Vector2(176,164); muzzle_test_label.size=Vector2(520,28); muzzle_test_label.add_theme_font_size_override("font_size",13); layer.add_child(muzzle_test_label); muzzle_test_controls.append(muzzle_test_label)
+	var muzzle_buttons=[["M SOL",Vector3(-0.02,0,0)],["M SAĞ",Vector3(0.02,0,0)],["M YUKARI",Vector3(0,0.02,0)],["M AŞAĞI",Vector3(0,-0.02,0)],["M GERİ",Vector3(0,0,-0.02)],["M İLERİ",Vector3(0,0,0.02)]]
+	for mi in muzzle_buttons.size():
+		var mb=Button.new(); mb.text=muzzle_buttons[mi][0]; mb.set_anchors_preset(Control.PRESET_TOP_LEFT); mb.position=Vector2(176+mi*76,194); mb.size=Vector2(72,34); mb.add_theme_font_size_override("font_size",10); mb.pressed.connect(_muzzle_test_move.bind(muzzle_buttons[mi][1])); layer.add_child(mb); muzzle_test_controls.append(mb)
+	_update_muzzle_test_label()
 	_update_cheat_button_style()
 	_create_minimap(layer)
 	var action_btn=Button.new(); action_btn.text="VUR"; action_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); action_btn.position=Vector2(-250,-215); action_btn.size=Vector2(104,104); action_btn.add_theme_font_size_override("font_size",20)
@@ -1868,6 +1876,8 @@ func _update_cheat_button_style():
 	cheat_button.add_theme_stylebox_override("hover",normal)
 	cheat_button.add_theme_stylebox_override("pressed",normal)
 	for control in weapon_test_controls:
+		if is_instance_valid(control): control.visible=cheat_mode
+	for control in muzzle_test_controls:
 		if is_instance_valid(control): control.visible=cheat_mode
 
 func _physics_process(delta):
@@ -2929,11 +2939,47 @@ func _npc_muzzle_flash(bot:Node3D) -> void:
 	fx_root.add_child(flash)
 	var t=get_tree().create_timer(.07); t.timeout.connect(flash.queue_free)
 
+func _muzzle_test_move(delta_position:Vector3) -> void:
+	if not cheat_mode: return
+	muzzle_test_offset+=delta_position
+	_update_muzzle_test_label()
+	_preview_muzzle_flash()
+
+func _update_muzzle_test_label() -> void:
+	if muzzle_test_label:
+		muzzle_test_label.text="NAMLU TEST  X:%.2f Y:%.2f Z:%.2f" % [muzzle_test_offset.x,muzzle_test_offset.y,muzzle_test_offset.z]
+
+func _selected_weapon_key() -> String:
+	for hotkey in hotbar_items:
+		if _hotbar_item_title(str(hotkey))==selected_tool: return str(hotkey)
+	return ""
+
+func _muzzle_color_for_key(key:String) -> Color:
+	var rarity="gumus"
+	if "|" in key: rarity=str(key.split("|")[1])
+	match rarity:
+		"yesil": return Color(0.20,1.0,0.30)
+		"buz": return Color(0.20,0.65,1.0)
+		"gunes": return Color(1.0,0.78,0.10)
+		"lav": return Color(1.0,0.12,0.05)
+		_: return Color(0.92,0.95,1.0)
+
+func _spawn_muzzle_light(origin:Node3D,key:String,local_offset:Vector3) -> void:
+	if fx_root==null or origin==null or not is_instance_valid(origin): return
+	var flash=OmniLight3D.new(); flash.light_color=_muzzle_color_for_key(key); flash.light_energy=5.0; flash.omni_range=3.2
+	fx_root.add_child(flash); flash.global_position=origin.to_global(local_offset)
+	var timer=get_tree().create_timer(.07); timer.timeout.connect(flash.queue_free)
+
+func _preview_muzzle_flash() -> void:
+	var key:=_selected_weapon_key()
+	if key.is_empty() or player_weapon_node==null: return
+	var item=str(key.split("|")[0])
+	if not item in ["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]: return
+	_spawn_muzzle_light(player_weapon_node,key,muzzle_test_offset)
+
 func _muzzle_flash():
-	if fx_root==null or player==null: return
-	var flash=OmniLight3D.new(); flash.light_color=Color(1.0,.62,.22); flash.light_energy=4.0; flash.omni_range=3.5
-	flash.position=player.global_position+Vector3(0,1.25,0)+(-player.global_transform.basis.z*1.0); fx_root.add_child(flash)
-	var t=get_tree().create_timer(.07); t.timeout.connect(flash.queue_free)
+	if fx_root==null or player_weapon_node==null: return
+	_spawn_muzzle_light(player_weapon_node,_selected_weapon_key(),muzzle_test_offset)
 
 func _create_cheat_ui(layer:CanvasLayer):
 	cheat_label=Label.new(); cheat_label.position=Vector2(510,10); cheat_label.size=Vector2(260,34); cheat_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cheat_label.text=""; cheat_label.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(cheat_label)
