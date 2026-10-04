@@ -381,6 +381,7 @@ func _ready():
 		cheat_mode=bool(lobby_cfg.get_value("game","cheat",false))
 		var saved_inventory=lobby_cfg.get_value("inventory","crafted",{})
 		if saved_inventory is Dictionary: crafted_inventory=saved_inventory
+		gj_balance=int(lobby_cfg.get_value("wallet","gj",0))
 		var saved_levels=lobby_cfg.get_value("weapons","levels",{})
 		if saved_levels is Dictionary:
 			for weapon_name in saved_levels:
@@ -851,7 +852,7 @@ func _melee_total_damage(item:String) -> int:
 	return int(base.get(item,10))+milestone*2
 
 func _melee_range(item:String) -> float:
-	var ranges:Dictionary={"Bıçak":1.50,"Karambit":1.75,"Kılıç":2.00,"Büyük Kılıç":2.25,"Katana":2.50}
+	var ranges:Dictionary={"Bıçak":1.50,"Karambit":1.65,"Kılıç":1.90,"Büyük Kılıç":2.20,"Katana":2.50}
 	return float(ranges.get(item,1.50))
 
 func _distance_table_value(item:String,distance:float) -> int:
@@ -1325,7 +1326,7 @@ func _hit_nearby_meteor_boss() -> void:
 	var attack_range:=_melee_range(item); var damage:=_melee_total_damage(item)
 	for boss in meteor_bosses.duplicate():
 		if not is_instance_valid(boss): continue
-		var delta:=boss.global_position-player.global_position; delta.y=0.0
+		var delta:Vector3=boss.global_position-player.global_position; delta.y=0.0
 		if delta.length()<=attack_range:
 			var hp:int=int(boss.get_meta("hp",BOSS_MAX_HP))-damage
 			boss.set_meta("hp",hp); boss_targets[boss.get_instance_id()]=player
@@ -1338,7 +1339,7 @@ func _hit_nearby_combat_bot() -> void:
 	var attack_range:=_melee_range(item); var damage:=_melee_total_damage(item)
 	for bot in combat_bots:
 		if not is_instance_valid(bot): continue
-		var delta:=bot.global_position-player.global_position; delta.y=0.0
+		var delta:Vector3=bot.global_position-player.global_position; delta.y=0.0
 		if delta.length()<=attack_range:
 			var id:int=bot.get_instance_id(); bot_aggro_player[id]=true
 			_damage_combat_bot(bot,damage,true)
@@ -2688,7 +2689,43 @@ func _open_inventory_item_actions(key:String,title:String) -> void:
 	actions.add_theme_stylebox_override("panel",panel_style); inventory_panel.add_child(actions)
 	var name_label=Label.new(); name_label.text=title; name_label.position=Vector2(18,15); name_label.size=Vector2(210,34); name_label.add_theme_font_size_override("font_size",18); actions.add_child(name_label)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(238,8); close.size=Vector2(52,48); close.mouse_filter=Control.MOUSE_FILTER_STOP; close.z_index=31; actions.add_child(close); close.button_down.connect(_close_inventory_item_actions)
-	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(45,72); equip.size=Vector2(210,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
+	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(8,72); equip.size=Vector2(88,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
+	var upgrade=Button.new(); upgrade.text="YÜKSELT"; upgrade.position=Vector2(102,72); upgrade.size=Vector2(92,55); upgrade.pressed.connect(_upgrade_weapon_with_card.bind(key)); actions.add_child(upgrade)
+	var exchange=Button.new(); exchange.text="2→1"; exchange.position=Vector2(200,72); exchange.size=Vector2(88,55); exchange.pressed.connect(_exchange_card_to_next_rarity.bind(key)); actions.add_child(exchange)
+
+func _weapon_upgrade_cost(item:String) -> int:
+	var level:=_weapon_level(item)
+	if level>=100: return 0
+	# One matching card at level 1; each completed 5-level band doubles the requirement.
+	return 1 << mini(20,level/5)
+
+func _upgrade_weapon_with_card(key:String) -> void:
+	if "|" not in key: return
+	var parts=key.split("|"); var item:=str(parts[0]); var rarity:=str(parts[1])
+	if not weapon_levels.has(item): return
+	var level:=_weapon_level(item)
+	if level>=100: _flash_message("SİLAH SEVİYESİ ZATEN 100"); return
+	var cost:=_weapon_upgrade_cost(item)
+	var have:=int(crafted_inventory.get(key,0))
+	if have<cost: _flash_message("YÜKSELTME İÇİN %d %s KART GEREKİYOR" % [cost,_rarity_name(rarity)]); return
+	crafted_inventory[key]=have-cost
+	weapon_levels[item]=level+1
+	_save_player_inventory(); _refresh_inventory()
+	_flash_message("%s  SEVİYE %d" % [item,int(weapon_levels[item])])
+
+func _exchange_card_to_next_rarity(key:String) -> void:
+	if "|" not in key: return
+	var parts=key.split("|"); var item:=str(parts[0]); var rarity:=str(parts[1])
+	var rarities=["gumus","yesil","buz","gunes","lav"]
+	var idx:=rarities.find(rarity)
+	if idx<0: return
+	if int(crafted_inventory.get(key,0))<2: _flash_message("TAKAS İÇİN 2 KART GEREKİYOR"); return
+	var target:=rarities[(idx+1)%rarities.size()]
+	crafted_inventory[key]=int(crafted_inventory.get(key,0))-2
+	var target_key:="%s|%s" % [item,target]
+	crafted_inventory[target_key]=int(crafted_inventory.get(target_key,0))+1
+	_save_player_inventory(); _refresh_inventory()
+	_flash_message("2 %s → 1 %s" % [_rarity_name(rarity),_rarity_name(target)])
 
 func _inventory_is_stackable(name:String,rarity:String) -> bool:
 	var store_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
