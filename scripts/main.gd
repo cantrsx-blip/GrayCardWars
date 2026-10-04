@@ -194,14 +194,14 @@ var muzzle_test_offset := Vector3.ZERO
 var muzzle_test_scale := 0.38
 var muzzle_calibration_frozen := false
 var muzzle_offsets: Dictionary = {
-	"Pompalı Tüfek":Vector3.ZERO,
-	"Çift Namlulu Pompalı":Vector3.ZERO,
-	"Keskin Nişancı Tüfeği":Vector3.ZERO
+	"Pompalı Tüfek":Vector3(0.48,0.06,0.00),
+	"Çift Namlulu Pompalı":Vector3(0.50,0.04,0.00),
+	"Keskin Nişancı Tüfeği":Vector3(0.54,0.00,0.04)
 }
 var muzzle_scales: Dictionary = {
-	"Pompalı Tüfek":0.38,
-	"Çift Namlulu Pompalı":0.38,
-	"Keskin Nişancı Tüfeği":0.38
+	"Pompalı Tüfek":0.68,
+	"Çift Namlulu Pompalı":0.73,
+	"Keskin Nişancı Tüfeği":0.73
 }
 var muzzle_test_label: Label
 var muzzle_test_controls: Array[Control] = []
@@ -956,11 +956,12 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 		model.rotation_degrees.y=180.0
 	add_child(bot)
 	bot.set_meta("harmless_to_player",true)
-	var weapon_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	# NPC muzzle/VFX test: every combat bot carries a firearm.
+	var weapon_names=["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
 	var rarities=["gumus","yesil","buz","gunes","lav"]
-	var weapon_name:String=weapon_names[index%weapon_names.size()]
-	var weapon_key:String="%s|%s" % [weapon_name,rarities[index%rarities.size()]]
-	var weapon_type:=2 if weapon_name in ["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"] else (1 if weapon_name in ["Kılıç","Büyük Kılıç","Katana"] else 0)
+	var weapon_name:String=weapon_names[(index-1)%weapon_names.size()]
+	var weapon_key:String="%s|%s" % [weapon_name,rarities[(index-1)%rarities.size()]]
+	var weapon_type:=2
 	bot_weapon_types[bot.get_instance_id()]=weapon_type
 	bot_weapon_keys[bot.get_instance_id()]=weapon_key
 	if model:
@@ -2988,7 +2989,7 @@ func _death_screen_effect():
 	if damage_overlay: damage_overlay.color=Color(.48,.0,.0,.72); damage_time=1.25
 
 
-func _make_muzzle_flame(pos:Vector3,key:String,forward:Vector3,persistent:bool=false) -> Node3D:
+func _make_muzzle_flame(pos:Vector3,key:String,forward:Vector3,persistent:bool=false,flash_scale:float=-1.0) -> Node3D:
 	if fx_root==null: return null
 	var col=_muzzle_color_for_key(key)
 	var flame=Node3D.new(); fx_root.add_child(flame); flame.global_position=pos
@@ -3005,15 +3006,16 @@ func _make_muzzle_flame(pos:Vector3,key:String,forward:Vector3,persistent:bool=f
 		var mat=StandardMaterial3D.new(); mat.albedo_color=col; mat.emission_enabled=true; mat.emission=col; mat.emission_energy_multiplier=6.0; part.material_override=mat; flame.add_child(part)
 	var core=MeshInstance3D.new(); var cm=SphereMesh.new(); cm.radius=.5; cm.height=1.0; core.mesh=cm; core.scale=Vector3(.10,.08,.10)
 	var white=StandardMaterial3D.new(); white.albedo_color=Color.WHITE; white.emission_enabled=true; white.emission=Color.WHITE; white.emission_energy_multiplier=8.0; core.material_override=white; flame.add_child(core)
-	flame.scale=Vector3.ONE*muzzle_test_scale
+	var final_scale:=muzzle_test_scale if flash_scale<0.0 else flash_scale
+	flame.scale=Vector3.ONE*final_scale
 	if not persistent:
 		var timer=get_tree().create_timer(.075); timer.timeout.connect(flame.queue_free)
 	return flame
 
-func _spawn_shot_visual(pos:Vector3,key:String,forward:Vector3) -> void:
+func _spawn_shot_visual(pos:Vector3,key:String,forward:Vector3,flash_scale:float=-1.0) -> void:
 	if fx_root==null: return
 	var col=_muzzle_color_for_key(key)
-	_make_muzzle_flame(pos,key,forward,false)
+	_make_muzzle_flame(pos,key,forward,false,flash_scale)
 	# Smoke is twice the previous visual size and remains twice as long.
 	var smoke=MeshInstance3D.new(); var smoke_mesh=SphereMesh.new(); smoke_mesh.radius=.20; smoke_mesh.height=.40; smoke.mesh=smoke_mesh
 	var smoke_mat=StandardMaterial3D.new(); smoke_mat.albedo_color=Color(.35,.35,.35,.42); smoke_mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; smoke.material_override=smoke_mat
@@ -3037,9 +3039,17 @@ func _spawn_shot_visual(pos:Vector3,key:String,forward:Vector3) -> void:
 
 func _npc_muzzle_flash(bot:Node3D) -> void:
 	if fx_root==null or bot==null or not is_instance_valid(bot): return
-	var key=str(bot_weapon_keys.get(bot,""))
-	var pos=bot.global_position+Vector3(0,1.25,0)+(-bot.global_transform.basis.z*1.0)
-	_spawn_shot_visual(pos,key,-bot.global_transform.basis.z)
+	var id:=bot.get_instance_id()
+	var key=str(bot_weapon_keys.get(id,""))
+	if key.is_empty() or "|" not in key: return
+	var item=str(key.split("|")[0])
+	var weapon:Node3D=bot_weapon_nodes.get(id,null)
+	if weapon==null or not is_instance_valid(weapon): return
+	var offset:Vector3=muzzle_offsets.get(item,Vector3.ZERO)
+	var shot_scale:float=float(muzzle_scales.get(item,0.68))
+	var forward:Vector3=-weapon.global_transform.basis.z
+	var pos:Vector3=weapon.to_global(offset)
+	_spawn_shot_visual(pos,key,forward,shot_scale)
 	var flash=OmniLight3D.new()
 	flash.light_color=_muzzle_color_for_key(key); flash.light_energy=4.0; flash.omni_range=3.5
 	fx_root.add_child(flash); flash.global_position=pos
@@ -3114,7 +3124,7 @@ func _muzzle_flash():
 	if fx_root==null or player_weapon_node==null: return
 	var key:=_selected_weapon_key()
 	_spawn_muzzle_light(player_weapon_node,key,muzzle_test_offset)
-	_spawn_shot_visual(player_weapon_node.to_global(muzzle_test_offset),key,-player_weapon_node.global_transform.basis.z)
+	_spawn_shot_visual(player_weapon_node.to_global(muzzle_test_offset),key,-player_weapon_node.global_transform.basis.z,muzzle_test_scale)
 
 func _create_cheat_ui(layer:CanvasLayer):
 	cheat_label=Label.new(); cheat_label.position=Vector2(510,10); cheat_label.size=Vector2(260,34); cheat_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cheat_label.text=""; cheat_label.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(cheat_label)
