@@ -361,6 +361,7 @@ var bot_aggro_player: Dictionary = {}
 var bot_spawn_index: Dictionary = {}
 var bot_roles: Dictionary = {}
 var bot_wander_targets: Dictionary = {}
+var bot_survivor_ids: Dictionary = {}
 var boss_targets: Dictionary = {}
 const BOT_SPEED := 3.4
 const BOT_ATTACK_RANGE := 2.2
@@ -1226,136 +1227,142 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 		bot.add_child(model)
 		var b:=_node_visual_bounds(model)
 		if b.size.y>0.001: model.scale*=1.75/b.size.y
-		model.position=Vector3(0,-PLAYER_HEIGHT,0)
-		model.rotation_degrees.y=180.0
+		model.position=Vector3(0,-PLAYER_HEIGHT,0); model.rotation_degrees.y=180.0
 	add_child(bot)
 	bot.set_meta("harmless_to_player",true)
-	# Fixed combat classes: 2 knives, 3 swords, remaining NPCs use firearms.
-	var weapon_name:String
-	var rarity:String
-	var slot:=index-1
-	if slot==0: weapon_name="Bıçak"; rarity="gumus"
-	elif slot==1: weapon_name="Karambit"; rarity="yesil"
-	elif slot==2: weapon_name="Kılıç"; rarity="buz"
-	elif slot==3: weapon_name="Büyük Kılıç"; rarity="gunes"
-	elif slot==4: weapon_name="Katana"; rarity="lav"
-	else:
-		var firearms=["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
-		var rarities=["gumus","yesil","buz","gunes","lav"]
-		weapon_name=str(firearms[(slot-5)%firearms.size()])
-		rarity=str(rarities[(slot-5)%rarities.size()])
+	# Professional 19-NPC mission roster. Index 1..19 is stable across respawns.
+	var weapon_name:String="Pompalı Tüfek"
+	var rarity:String="gumus"
+	var role:String="meteor7"
+	match index:
+		1: weapon_name="Pompalı Tüfek"; rarity="gumus"; role="meteor7"
+		2: weapon_name="Çift Namlulu Pompalı"; rarity="yesil"; role="meteor7"
+		3: weapon_name="Keskin Nişancı Tüfeği"; rarity="buz"; role="meteor7"
+		4: weapon_name="Kılıç"; rarity="buz"; role="meteor7"
+		5: weapon_name="Büyük Kılıç"; rarity="gunes"; role="meteor7"
+		6: weapon_name="Katana"; rarity="lav"; role="meteor7"
+		7: weapon_name="Karambit"; rarity="yesil"; role="meteor7"
+		8: weapon_name="Keskin Nişancı Tüfeği"; rarity="gumus"; role="sniper_meteor_boss"
+		9: weapon_name="Keskin Nişancı Tüfeği"; rarity="lav"; role="sniper_npc"
+		10: weapon_name="Pompalı Tüfek"; rarity="buz"; role="close_all"
+		11: weapon_name="Pompalı Tüfek"; rarity="gunes"; role="shotgun_free"
+		12: weapon_name="Çift Namlulu Pompalı"; rarity="gumus"; role="shotgun_free"
+		13: weapon_name="Çift Namlulu Pompalı"; rarity="lav"; role="shotgun_free"
+		14: weapon_name="Kılıç"; rarity="buz"; role="sword_boss"
+		15: weapon_name="Büyük Kılıç"; rarity="gunes"; role="sword_boss"
+		16: weapon_name="Katana"; rarity="lav"; role="sword_boss"
+		17: weapon_name="Bıçak"; rarity="gumus"; role="knife_sniper_hunter"
+		18: weapon_name="Karambit"; rarity="yesil"; role="karambit_duel_meteor"
+		19: weapon_name="Karambit"; rarity="lav"; role="karambit_duel_meteor"
 	var weapon_key:String="%s|%s" % [weapon_name,rarity]
-	var weapon_type:=0 if weapon_name in ["Bıçak","Karambit"] else (1 if weapon_name in ["Kılıç","Büyük Kılıç","Katana"] else 2)
-	bot_weapon_types[bot.get_instance_id()]=weapon_type
-	bot_weapon_keys[bot.get_instance_id()]=weapon_key
+	var weapon_type:int=0 if weapon_name in ["Bıçak","Karambit"] else (1 if weapon_name in ["Kılıç","Büyük Kılıç","Katana"] else 2)
+	var bid:int=bot.get_instance_id()
+	bot_weapon_types[bid]=weapon_type; bot_weapon_keys[bid]=weapon_key
 	if model:
 		var sk:=_find_skeleton(model)
 		if sk:
-			bot_visual_skeletons[bot.get_instance_id()]=sk
+			bot_visual_skeletons[bid]=sk
 			var wn:=_attach_weapon_to_skeleton(sk,weapon_key)
-			if wn: bot_weapon_nodes[bot.get_instance_id()]=wn
+			if wn: bot_weapon_nodes[bid]=wn
 	combat_bots.append(bot)
-	var bid:int=bot.get_instance_id()
-	bot_hp[bid]=COMBAT_MAX_HP
-	bot_loot[bid]={"gj":0,"items":{}}
-	bot_aggro_player[bid]=false
-	bot_spawn_index[bid]=index
-	# Stable mixed personalities: meteor hunters, boss fighters, roamers, bot fighters and boss avoiders.
-	bot_roles[bid]="fight"
-	bot_wander_targets[bid]=Vector3.ZERO
-	bot_attack_cooldowns[bid]=randf_range(.0,BOT_ATTACK_COOLDOWN)
+	bot_hp[bid]=COMBAT_MAX_HP; bot_loot[bid]={"gj":0,"items":{}}
+	bot_aggro_player[bid]=false; bot_spawn_index[bid]=index; bot_roles[bid]=role
+	bot_wander_targets[bid]=Vector3.ZERO; bot_attack_cooldowns[bid]=randf_range(0.0,BOT_ATTACK_COOLDOWN)
+	if index==7: bot_survivor_ids[bid]=true
+
+func _nearest_bot_target(bot:CharacterBody3D,filter_role:String="") -> Node3D:
+	var target:Node3D=null; var best:float=INF
+	for other in combat_bots:
+		if other==bot or not is_instance_valid(other): continue
+		if not filter_role.is_empty() and str(bot_roles.get(other.get_instance_id(),""))!=filter_role: continue
+		var d:float=bot.global_position.distance_to(other.global_position)
+		if d<best: best=d; target=other
+	return target
+
+func _nearest_boss(bot:CharacterBody3D) -> Node3D:
+	var target:Node3D=null; var best:float=INF
+	for boss in meteor_bosses:
+		if not is_instance_valid(boss): continue
+		var d:float=bot.global_position.distance_to(boss.global_position)
+		if d<best: best=d; target=boss
+	return target
 
 func _update_combat_bots(delta:float) -> void:
 	if combat_bots.is_empty(): return
+	var boss_active:bool=not meteor_bosses.is_empty()
 	for bot in combat_bots.duplicate():
 		if not is_instance_valid(bot): combat_bots.erase(bot); continue
 		var id:int=bot.get_instance_id()
-		var weapon_type:int=int(bot_weapon_types.get(id,0))
+		var index:int=int(bot_spawn_index.get(id,0))
 		var role:String=str(bot_roles.get(id,"roam"))
+		var weapon_type:int=int(bot_weapon_types.get(id,0))
 		var cd:float=maxf(0.0,float(bot_attack_cooldowns.get(id,0.0))-delta); bot_attack_cooldowns[id]=cd
 		var target:Node3D=null
 		var flee_from:Node3D=null
-		if bool(bot_aggro_player.get(id,false)) and player!=null:
-			target=player
-		elif role=="meteor" and meteor_node!=null and is_instance_valid(meteor_node):
-			target=meteor_node
-		elif role=="boss" and not meteor_bosses.is_empty():
-			var best:=INF
-			for boss in meteor_bosses:
-				if is_instance_valid(boss):
-					var bd:float=bot.global_position.distance_to(boss.global_position)
-					if bd<best: best=bd; target=boss
-		elif role=="avoid" and not meteor_bosses.is_empty():
-			var best:=INF
-			for boss in meteor_bosses:
-				if is_instance_valid(boss):
-					var bd:float=bot.global_position.distance_to(boss.global_position)
-					if bd<best: best=bd; flee_from=boss
-		elif role=="fight":
-			var best:=INF
+		if role=="meteor7":
+			if boss_active:
+				if index<=3: flee_from=_nearest_boss(bot)
+				else: target=_nearest_boss(bot)
+			elif meteor_node and is_instance_valid(meteor_node): target=meteor_node
+		elif role=="sniper_meteor_boss":
+			target=_nearest_boss(bot) if boss_active else meteor_node
+		elif role=="sniper_npc":
+			target=_nearest_bot_target(bot)
+		elif role=="close_all" or role=="shotgun_free":
+			# Free shotgun team may attack player, NPC, boss or meteor; choose nearest.
+			var candidates:Array[Node3D]=[]
+			if player: candidates.append(player)
+			if meteor_node and is_instance_valid(meteor_node): candidates.append(meteor_node)
+			var nb:=_nearest_bot_target(bot); if nb: candidates.append(nb)
+			var bb:=_nearest_boss(bot); if bb: candidates.append(bb)
+			var best:float=INF
+			for c in candidates:
+				var d:float=bot.global_position.distance_to(c.global_position)
+				if d<best: best=d; target=c
+		elif role=="sword_boss":
+			target=_nearest_boss(bot)
+		elif role=="knife_sniper_hunter":
+			target=_nearest_bot_target(bot,"sniper_npc")
+			if target==null: target=_nearest_bot_target(bot,"sniper_meteor_boss")
+		elif role=="karambit_duel_meteor":
 			for other in combat_bots:
-				if other!=bot and is_instance_valid(other):
-					var other_type:int=int(bot_weapon_types.get(other.get_instance_id(),-1))
-					if other_type!=weapon_type: continue
-					var od:float=bot.global_position.distance_to(other.global_position)
-					if od<best: best=od; target=other
-		# Roamers and boss avoiders without immediate danger wander independently.
+				if other!=bot and is_instance_valid(other) and str(bot_roles.get(other.get_instance_id(),""))=="karambit_duel_meteor": target=other; break
+			if target==null and meteor_node and is_instance_valid(meteor_node): target=meteor_node
 		if target==null and flee_from==null:
 			var wp:Vector3=bot_wander_targets.get(id,Vector3.ZERO)
 			if wp==Vector3.ZERO or bot.global_position.distance_to(wp)<3.0:
-				wp=Vector3(randf_range(-145.0,145.0),0,randf_range(-145.0,145.0)); wp.y=height_at(wp.x,wp.z)+PLAYER_HEIGHT
-				bot_wander_targets[id]=wp
-			var wd:Vector3=wp-bot.global_position; wd.y=0.0
-			_bot_move_smart(bot,wd,weapon_type,delta)
-			continue
-		var dir:Vector3=(bot.global_position-flee_from.global_position) if flee_from!=null else (target.global_position-bot.global_position)
-		dir.y=0.0
+				wp=Vector3(randf_range(-145.0,145.0),0,randf_range(-145.0,145.0)); wp.y=height_at(wp.x,wp.z)+PLAYER_HEIGHT; bot_wander_targets[id]=wp
+			var wd:Vector3=wp-bot.global_position; wd.y=0.0; _bot_move_smart(bot,wd,weapon_type,delta); continue
 		if flee_from!=null:
-			_bot_move_smart(bot,dir,weapon_type,delta)
-			continue
+			var fd:Vector3=bot.global_position-flee_from.global_position; fd.y=0.0; _bot_move_smart(bot,fd,weapon_type,delta); continue
+		var dir:Vector3=target.global_position-bot.global_position; dir.y=0.0
 		var weapon_key:String=str(bot_weapon_keys.get(id,""))
 		var weapon_name:String=str(weapon_key.split("|")[0]) if "|" in weapon_key else ""
-		var sniper:=weapon_name=="Keskin Nişancı Tüfeği"
+		var sniper:bool=weapon_name=="Keskin Nişancı Tüfeği"
 		var attack_range:float=600.0 if sniper else (BOT_METEOR_RANGE if target==meteor_node else BOT_ATTACK_RANGE)
 		if dir.length()>attack_range:
-			if sniper:
-				bot.velocity=Vector3.ZERO
-				_bot_play_animation(bot,"Rifle Aiming Idle")
-				_bot_copy_pose(bot)
-			else:
-				_bot_move_smart(bot,dir,weapon_type,delta)
-		else:
-			bot.velocity=Vector3.ZERO
-			# Varied combat posture instead of every bot using the same stance.
-			if id%4==0:
-				_bot_play_animation(bot,"Rifle Aiming Idle" if weapon_type==2 else ("Great Sword Idle" if weapon_type==1 else "Knife Idle"))
-			else:
-				_bot_play_animation(bot,"Rifle Idle" if weapon_type==2 else ("Great Sword Idle" if weapon_type==1 else "Knife Idle"))
-			_bot_copy_pose(bot)
-			if cd<=0.0:
-				if weapon_type==2:
-					_bot_play_animation(bot,"Firing Rifle")
-					_npc_muzzle_flash(bot)
-				elif weapon_type==1:
-					var sword_moves=["Great Sword Slash (1)","Great Sword Slash","Sword Fight One","Stable Sword Outward Slash"]
-					_bot_play_animation(bot,sword_moves[randi_range(0,sword_moves.size()-1)])
-					_spawn_npc_melee_sharpness(bot)
-				else:
-					_bot_play_animation(bot,"Stabbing")
-					_spawn_npc_melee_sharpness(bot)
-				bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.16)
-				var npc_damage:=_npc_level10_damage(bot,target)
-				if target==player: _apply_damage(npc_damage)
-				elif target in meteor_bosses:
-					boss_targets[target.get_instance_id()]=bot
-					var hp:=int(target.get_meta("hp",COMBAT_MAX_HP))-npc_damage; target.set_meta("hp",hp)
-					if hp<=0:
-						boss_targets.erase(target.get_instance_id()); meteor_bosses.erase(target); boss_attack_cooldowns.erase(target.get_instance_id()); target.queue_free()
-				elif target==meteor_node:
-					meteor_hits+=1
-					_apply_meteor_damage(npc_damage)
-				elif target in combat_bots:
-					_damage_combat_bot(target,npc_damage)
+			if sniper: bot.velocity=Vector3.ZERO; _bot_play_animation(bot,"Rifle Aiming Idle"); _bot_copy_pose(bot)
+			else: _bot_move_smart(bot,dir,weapon_type,delta)
+			continue
+		bot.velocity=Vector3.ZERO
+		_bot_play_animation(bot,"Rifle Aiming Idle" if weapon_type==2 else ("Great Sword Idle" if weapon_type==1 else "Knife Idle")); _bot_copy_pose(bot)
+		if cd>0.0: continue
+		if weapon_type==2: _bot_play_animation(bot,"Firing Rifle"); _npc_muzzle_flash(bot)
+		elif weapon_type==1:
+			var sword_moves:Array[String]=["Great Sword Slash (1)","Great Sword Slash","Sword Fight One","Stable Sword Outward Slash"]
+			_bot_play_animation(bot,sword_moves[randi_range(0,3)]); _spawn_npc_melee_sharpness(bot)
+		else: _bot_play_animation(bot,"Stabbing"); _spawn_npc_melee_sharpness(bot)
+		bot_attack_cooldowns[id]=BOT_ATTACK_COOLDOWN+randf_range(0.0,.16)
+		var npc_damage:int=_npc_level10_damage(bot,target)
+		if target==player:
+			if not (cheat_mode and weapon_name in ["Pompalı Tüfek","Çift Namlulu Pompalı"]): _apply_damage(npc_damage)
+		elif target in meteor_bosses:
+			boss_targets[target.get_instance_id()]=bot
+			var hp:int=int(target.get_meta("hp",BOSS_MAX_HP))-npc_damage; target.set_meta("hp",hp)
+			if hp<=0: boss_targets.erase(target.get_instance_id()); meteor_bosses.erase(target); boss_attack_cooldowns.erase(target.get_instance_id()); target.queue_free()
+		elif target==meteor_node:
+			meteor_hits+=1; _apply_meteor_damage(npc_damage)
+		elif target in combat_bots: _damage_combat_bot(target,npc_damage)
 
 func _npc_level10_damage(bot:Node3D,target:Node3D) -> int:
 	var key:String=str(bot_weapon_keys.get(bot.get_instance_id(),""))
@@ -1430,6 +1437,9 @@ func _drop_half_bot_loot_to_meteor(id:int) -> void:
 func _damage_combat_bot(bot:Node3D,amount:int,caused_by_player:bool=false) -> void:
 	if bot==null or not is_instance_valid(bot): return
 	var id:int=bot.get_instance_id()
+	if bot_survivor_ids.has(id) and int(bot_hp.get(id,COMBAT_MAX_HP))-amount<=0 and not meteor_bosses.is_empty():
+		bot_hp[id]=1
+		return
 	bot_hp[id]=int(bot_hp.get(id,COMBAT_MAX_HP))-amount
 	if int(bot_hp[id])<=0:
 		if caused_by_player: _spawn_local_kill_sharpness()
@@ -1465,7 +1475,7 @@ func _respawn_combat_bot(bot:CharacterBody3D) -> void:
 	var index:int=int(bot_spawn_index.get(old_id,1))
 	combat_bots.erase(bot)
 	_drop_half_bot_loot_to_meteor(old_id)
-	bot_attack_cooldowns.erase(old_id); bot_weapon_types.erase(old_id); bot_weapon_keys.erase(old_id); bot_weapon_nodes.erase(old_id); bot_hp.erase(old_id); bot_loot.erase(old_id); bot_aggro_player.erase(old_id); bot_spawn_index.erase(old_id); bot_roles.erase(old_id); bot_wander_targets.erase(old_id)
+	bot_survivor_ids.erase(old_id); bot_attack_cooldowns.erase(old_id); bot_weapon_types.erase(old_id); bot_weapon_keys.erase(old_id); bot_weapon_nodes.erase(old_id); bot_hp.erase(old_id); bot_loot.erase(old_id); bot_aggro_player.erase(old_id); bot_spawn_index.erase(old_id); bot_roles.erase(old_id); bot_wander_targets.erase(old_id)
 	bot_anim_players.erase(old_id); bot_visual_skeletons.erase(old_id); bot_anim_skeletons.erase(old_id); bot_anim_names.erase(old_id); bot_anim_scenes.erase(old_id)
 	bot.queue_free()
 	if index>=0 and index<spawn_points.size(): _spawn_combat_bot(spawn_points[index],index)
