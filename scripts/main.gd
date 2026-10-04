@@ -1379,8 +1379,27 @@ func _bot_move_smart(bot:CharacterBody3D,dir:Vector3,weapon_type:int,delta:float
 	# Gravity plus a small automatic hop lets bots climb low lips around the meteor arena.
 	if not bot.is_on_floor(): bot.velocity.y-=18.0*delta
 	elif bot.velocity.y<0.0: bot.velocity.y=0.0
+	# Keep NPCs inside the playable terrain and reject moves that would cut through
+	# the steep mountain ring. Ground them to the terrain after movement as a safety net.
+	var before:Vector3=bot.global_position
+	var probe:Vector3=before+desired*BOT_SPEED*delta
+	var safe_limit:float=MAP_HALF-18.0
+	var current_ground:float=height_at(before.x,before.z)+PLAYER_HEIGHT
+	var probe_ground:float=height_at(probe.x,probe.z)+PLAYER_HEIGHT
+	var too_steep:bool=absf(probe_ground-current_ground)>2.2
+	var outside:bool=absf(probe.x)>safe_limit or absf(probe.z)>safe_limit
+	if too_steep or outside:
+		var tangent:=Vector3(-desired.z,0,desired.x)
+		if bot.get_instance_id()%2==0: tangent=-tangent
+		desired=tangent.normalized()
 	bot.velocity.x=desired.x*BOT_SPEED; bot.velocity.z=desired.z*BOT_SPEED
 	bot.move_and_slide()
+	bot.global_position.x=clampf(bot.global_position.x,-safe_limit,safe_limit)
+	bot.global_position.z=clampf(bot.global_position.z,-safe_limit,safe_limit)
+	var terrain_y:float=height_at(bot.global_position.x,bot.global_position.z)+PLAYER_HEIGHT
+	if bot.global_position.y<terrain_y-.15:
+		bot.global_position.y=terrain_y
+		bot.velocity.y=0.0
 	if bot.get_slide_collision_count()>0:
 		var low_block:=false
 		for i in range(bot.get_slide_collision_count()):
