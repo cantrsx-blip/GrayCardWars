@@ -2940,12 +2940,39 @@ func _death_screen_effect():
 	if damage_overlay: damage_overlay.color=Color(.48,.0,.0,.72); damage_time=1.25
 
 
+func _spawn_shot_visual(pos:Vector3,key:String,forward:Vector3) -> void:
+	if fx_root==null: return
+	var col=_muzzle_color_for_key(key)
+	var burst=Node3D.new(); fx_root.add_child(burst); burst.global_position=pos
+	for angle in [0.0,45.0,90.0,135.0]:
+		var ray=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(.48,.035,.035); ray.mesh=bm
+		var mat=StandardMaterial3D.new(); mat.albedo_color=col; mat.emission_enabled=true; mat.emission=col; mat.emission_energy_multiplier=4.0
+		ray.material_override=mat; ray.rotation_degrees.z=angle; burst.add_child(ray)
+	var core=MeshInstance3D.new(); var smesh=SphereMesh.new(); smesh.radius=.12; smesh.height=.24; core.mesh=smesh
+	var cmat=StandardMaterial3D.new(); cmat.albedo_color=col; cmat.emission_enabled=true; cmat.emission=col; cmat.emission_energy_multiplier=5.0; core.material_override=cmat; burst.add_child(core)
+	var bt=get_tree().create_timer(.065); bt.timeout.connect(burst.queue_free)
+	var smoke=MeshInstance3D.new(); var smoke_mesh=SphereMesh.new(); smoke_mesh.radius=.10; smoke_mesh.height=.20; smoke.mesh=smoke_mesh
+	var smoke_mat=StandardMaterial3D.new(); smoke_mat.albedo_color=Color(.35,.35,.35,.42); smoke_mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; smoke.material_override=smoke_mat
+	fx_root.add_child(smoke); smoke.global_position=pos
+	var st=create_tween(); st.set_parallel(true); st.tween_property(smoke,"position",smoke.position+Vector3(0,.32,0)+forward.normalized()*.18,.42); st.tween_property(smoke,"scale",Vector3(2.2,2.2,2.2),.42); st.tween_property(smoke_mat,"albedo_color:a",0.0,.42); st.chain().tween_callback(smoke.queue_free)
+	for i in 4:
+		var spark=MeshInstance3D.new(); var sp=SphereMesh.new(); sp.radius=.018; sp.height=.036; spark.mesh=sp
+		var spmat=StandardMaterial3D.new(); spmat.albedo_color=col; spmat.emission_enabled=true; spmat.emission=col; spmat.emission_energy_multiplier=3.0; spark.material_override=spmat
+		fx_root.add_child(spark); spark.global_position=pos
+		var tw=create_tween(); tw.tween_property(spark,"position",spark.position+forward.normalized()*randf_range(.18,.42)+Vector3(randf_range(-.18,.18),randf_range(-.10,.22),randf_range(-.18,.18)),.13); tw.tween_callback(spark.queue_free)
+	var casing=MeshInstance3D.new(); var shell=CylinderMesh.new(); shell.top_radius=.018; shell.bottom_radius=.018; shell.height=.055; casing.mesh=shell
+	var shell_mat=StandardMaterial3D.new(); shell_mat.albedo_color=Color(.72,.48,.12); shell_mat.metallic=.75; shell_mat.roughness=.35; casing.material_override=shell_mat
+	fx_root.add_child(casing); casing.global_position=pos+Vector3(.08,.02,0)
+	var ct=create_tween(); ct.tween_property(casing,"position",casing.position+Vector3(.32,.22,.08),.13); ct.tween_property(casing,"position",casing.position+Vector3(.52,-.33,.18),.28); ct.tween_interval(1.6); ct.tween_callback(casing.queue_free)
+
 func _npc_muzzle_flash(bot:Node3D) -> void:
 	if fx_root==null or bot==null or not is_instance_valid(bot): return
+	var key=str(bot_weapon_keys.get(bot,""))
+	var pos=bot.global_position+Vector3(0,1.25,0)+(-bot.global_transform.basis.z*1.0)
+	_spawn_shot_visual(pos,key,-bot.global_transform.basis.z)
 	var flash=OmniLight3D.new()
-	flash.light_color=Color(1.0,.62,.22); flash.light_energy=4.0; flash.omni_range=3.5
-	flash.global_position=bot.global_position+Vector3(0,1.25,0)+(-bot.global_transform.basis.z*1.0)
-	fx_root.add_child(flash)
+	flash.light_color=_muzzle_color_for_key(key); flash.light_energy=4.0; flash.omni_range=3.5
+	fx_root.add_child(flash); flash.global_position=pos
 	var t=get_tree().create_timer(.07); t.timeout.connect(flash.queue_free)
 
 func _muzzle_test_move(delta_position:Vector3) -> void:
@@ -2988,7 +3015,9 @@ func _preview_muzzle_flash() -> void:
 
 func _muzzle_flash():
 	if fx_root==null or player_weapon_node==null: return
-	_spawn_muzzle_light(player_weapon_node,_selected_weapon_key(),muzzle_test_offset)
+	var key:=_selected_weapon_key()
+	_spawn_muzzle_light(player_weapon_node,key,muzzle_test_offset)
+	_spawn_shot_visual(player_weapon_node.to_global(muzzle_test_offset),key,-player_weapon_node.global_transform.basis.z)
 
 func _create_cheat_ui(layer:CanvasLayer):
 	cheat_label=Label.new(); cheat_label.position=Vector2(510,10); cheat_label.size=Vector2(260,34); cheat_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; cheat_label.text=""; cheat_label.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(cheat_label)
