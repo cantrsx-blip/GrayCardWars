@@ -166,6 +166,13 @@ var cheat_mode := false
 var cheat_menu_panel: VBoxContainer
 var cheat_weapon_tuner := false
 var cheat_muzzle_tuner := false
+var cheat_sharpness_tuner := 0
+var sharpness_preview_node: Node3D
+var sharpness_test_offset := Vector3.ZERO
+var sharpness_test_scale := 1.0
+var sharpness_test_angle := 0.0
+var sharpness_test_label: Label
+var sharpness_test_controls: Array[Control] = []
 var cheat_infinite_weapons := false
 var cheat_infinite_gj := false
 var muzzle_preview_node: Node3D
@@ -546,6 +553,7 @@ func _refresh_player_weapon_model() -> void:
 	player_weapon_node=_attach_weapon_to_skeleton(player_skeleton,key,true) if not key.is_empty() else null
 	_load_muzzle_calibration()
 	_preview_muzzle_flash()
+	_preview_sharpness()
 
 func _find_skeleton(node:Node) -> Skeleton3D:
 	if node is Skeleton3D:
@@ -748,6 +756,7 @@ func _is_sword_equipped() -> bool:
 func _sword_attack(anim_name:String) -> void:
 	if _panel_open() or player==null or not _is_sword_equipped(): return
 	_play_ybot_anim(anim_name)
+	_spawn_melee_sharpness(_selected_weapon_key())
 	_meteor_strike()
 	_finish_attack_animation(.75)
 
@@ -778,8 +787,10 @@ func _player_attack() -> void:
 		return
 	if firearm:
 		_play_ybot_anim("Firing Rifle"); _play_sfx("gun"); _muzzle_flash()
-	elif knife: _play_ybot_anim("Stabbing")
-	elif sword: _play_ybot_anim("Stable Sword Outward Slash")
+	elif knife:
+		_play_ybot_anim("Stabbing"); _spawn_melee_sharpness(_selected_weapon_key())
+	elif sword:
+		_play_ybot_anim("Stable Sword Outward Slash"); _spawn_melee_sharpness(_selected_weapon_key())
 	else: _play_ybot_anim("Stabbing")
 	_meteor_strike()
 	_finish_attack_animation(.30)
@@ -1670,10 +1681,12 @@ func _build_hud():
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15)
 		b.pressed.connect(actions[i][1]); layer.add_child(b)
 	_update_fly_button_styles()
-	cheat_menu_panel=VBoxContainer.new(); cheat_menu_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT); cheat_menu_panel.position=Vector2(-300,56); cheat_menu_panel.size=Vector2(288,220); cheat_menu_panel.visible=false; layer.add_child(cheat_menu_panel)
+	cheat_menu_panel=VBoxContainer.new(); cheat_menu_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT); cheat_menu_panel.position=Vector2(-300,56); cheat_menu_panel.size=Vector2(288,286); cheat_menu_panel.visible=false; layer.add_child(cheat_menu_panel)
 	var cheat_items=[
 		["SİLAH KONUMU",_toggle_weapon_tuner],
 		["NAMLU ATEŞİ KONUMU",_toggle_muzzle_tuner],
+		["KESKİNLİK 1",_toggle_sharpness_1],
+		["KESKİNLİK 2",_toggle_sharpness_2],
 		["UÇMA MODU",_toggle_cheat_fly],
 		["ALÇAL",_fly_down],
 		["SINIRSIZ SİLAH",_toggle_infinite_weapons],
@@ -1681,7 +1694,7 @@ func _build_hud():
 	]
 	for entry in cheat_items:
 		var cb=Button.new(); cb.text=entry[0]; cb.custom_minimum_size=Vector2(288,32); cb.add_theme_font_size_override("font_size",13); cb.pressed.connect(entry[1]); cheat_menu_panel.add_child(cb)
-	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-300,286); lobby_btn.size=Vector2(288,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
+	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-300,352); lobby_btn.size=Vector2(288,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
 	# Live weapon tuner stays available: rotation plus grip-position nudging.
 	weapon_test_label=Label.new(); weapon_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); weapon_test_label.position=Vector2(176,52); weapon_test_label.size=Vector2(620,30); weapon_test_label.add_theme_font_size_override("font_size",14); layer.add_child(weapon_test_label); weapon_test_controls.append(weapon_test_label)
 	var axis_buttons=[["X-",Vector3(-15,0,0)],["X+",Vector3(15,0,0)],["Y-",Vector3(0,-15,0)],["Y+",Vector3(0,15,0)],["Z-",Vector3(0,0,-15)],["Z+",Vector3(0,0,15)]]
@@ -1698,6 +1711,14 @@ func _build_hud():
 	var muzzle_size_buttons=[["BOYUT -",-0.05],["BOYUT +",0.05]]
 	for si in muzzle_size_buttons.size():
 		var sb=Button.new(); sb.text=muzzle_size_buttons[si][0]; sb.set_anchors_preset(Control.PRESET_TOP_LEFT); sb.position=Vector2(176+si*110,232); sb.size=Vector2(104,34); sb.add_theme_font_size_override("font_size",11); sb.pressed.connect(_muzzle_test_resize.bind(float(muzzle_size_buttons[si][1]))); layer.add_child(sb); muzzle_test_controls.append(sb)
+	sharpness_test_label=Label.new(); sharpness_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); sharpness_test_label.position=Vector2(176,270); sharpness_test_label.size=Vector2(620,28); sharpness_test_label.add_theme_font_size_override("font_size",12); layer.add_child(sharpness_test_label); sharpness_test_controls.append(sharpness_test_label)
+	var sharp_move=[["K SOL",Vector3(-0.03,0,0)],["K SAĞ",Vector3(0.03,0,0)],["K YUKARI",Vector3(0,0.03,0)],["K AŞAĞI",Vector3(0,-0.03,0)],["K GERİ",Vector3(0,0,-0.03)],["K İLERİ",Vector3(0,0,0.03)]]
+	for ki in sharp_move.size():
+		var kb=Button.new(); kb.text=sharp_move[ki][0]; kb.set_anchors_preset(Control.PRESET_TOP_LEFT); kb.position=Vector2(176+ki*76,300); kb.size=Vector2(72,32); kb.add_theme_font_size_override("font_size",9); kb.pressed.connect(_sharpness_move.bind(sharp_move[ki][1])); layer.add_child(kb); sharpness_test_controls.append(kb)
+	var sharp_ops=[["BOYUT -",-0.10,0],["BOYUT +",0.10,0],["AÇI -",0,-10],["AÇI +",0,10]]
+	for oi in sharp_ops.size():
+		var ob=Button.new(); ob.text=sharp_ops[oi][0]; ob.set_anchors_preset(Control.PRESET_TOP_LEFT); ob.position=Vector2(176+oi*100,336); ob.size=Vector2(94,32); ob.add_theme_font_size_override("font_size",10); ob.pressed.connect(_sharpness_adjust.bind(float(sharp_ops[oi][1]),float(sharp_ops[oi][2]))); layer.add_child(ob); sharpness_test_controls.append(ob)
+	_update_sharpness_label()
 	_update_muzzle_test_label()
 	_update_cheat_button_style()
 	_create_minimap(layer)
@@ -1934,6 +1955,8 @@ func _update_cheat_button_style():
 		if is_instance_valid(control): control.visible=cheat_mode and cheat_weapon_tuner
 	for control in muzzle_test_controls:
 		if is_instance_valid(control): control.visible=cheat_mode and cheat_muzzle_tuner
+	for control in sharpness_test_controls:
+		if is_instance_valid(control): control.visible=cheat_mode and cheat_sharpness_tuner>0
 	if cheat_menu_panel: cheat_menu_panel.visible=cheat_mode
 
 func _physics_process(delta):
@@ -3133,7 +3156,7 @@ func _toggle_cheat_mode():
 	if _panel_open(): return
 	cheat_mode=!cheat_mode
 	if not cheat_mode:
-		cheat_weapon_tuner=false; cheat_muzzle_tuner=false; cheat_infinite_weapons=false; cheat_infinite_gj=false; muzzle_calibration_frozen=false; player_action_locked=false
+		cheat_weapon_tuner=false; cheat_muzzle_tuner=false; cheat_sharpness_tuner=0; cheat_infinite_weapons=false; cheat_infinite_gj=false; muzzle_calibration_frozen=false; _clear_sharpness_preview(); player_action_locked=false
 		if fly_mode: fly_mode=false
 		_clear_muzzle_preview()
 	if cheat_menu_panel: cheat_menu_panel.visible=cheat_mode
@@ -3147,9 +3170,71 @@ func _toggle_weapon_tuner() -> void:
 	cheat_weapon_tuner=!cheat_weapon_tuner
 	_update_cheat_button_style()
 
+func _is_melee_key(key:String) -> bool:
+	if key.is_empty() or "|" not in key: return false
+	return str(key.split("|")[0]) in ["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana"]
+
+func _make_sharpness_effect(parent:Node3D,key:String,mode:int,persistent:bool=true) -> Node3D:
+	var root=Node3D.new(); parent.add_child(root)
+	var col=_muzzle_color_for_key(key)
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(col.r,col.g,col.b,.88); mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; mat.emission_enabled=true; mat.emission=col; mat.emission_energy_multiplier=5.5
+	# Two parallel claw-like luminous cuts.
+	for n in 2:
+		var cut=MeshInstance3D.new(); var mesh=BoxMesh.new()
+		mesh.size=Vector3(0.035,1.15 if mode==1 else 2.35,0.028); cut.mesh=mesh; cut.material_override=mat
+		cut.position=Vector3((-0.10 if n==0 else 0.10),0.18 if mode==1 else 0.0,0.0)
+		cut.rotation_degrees.z=(-18.0 if n==0 else -10.0)
+		root.add_child(cut)
+	root.position=sharpness_test_offset; root.rotation_degrees.z=sharpness_test_angle; root.scale=Vector3.ONE*sharpness_test_scale
+	if not persistent:
+		var tw=create_tween(); tw.tween_property(root,"scale",root.scale*1.16,.10); tw.parallel().tween_property(mat,"albedo_color:a",0.0,.16); tw.tween_callback(root.queue_free)
+	return root
+
+func _clear_sharpness_preview() -> void:
+	if sharpness_preview_node and is_instance_valid(sharpness_preview_node): sharpness_preview_node.queue_free()
+	sharpness_preview_node=null
+
+func _preview_sharpness() -> void:
+	_clear_sharpness_preview()
+	if not cheat_mode or cheat_sharpness_tuner<=0: return
+	var key:=_selected_weapon_key()
+	if not _is_melee_key(key) or player_weapon_node==null: return
+	if cheat_sharpness_tuner==1:
+		sharpness_preview_node=_make_sharpness_effect(player_weapon_node,key,1,true)
+	else:
+		var anchor=Node3D.new(); fx_root.add_child(anchor); anchor.global_position=player.global_position+Vector3(0,1.15,0)-player.global_transform.basis.z*1.25; anchor.global_rotation=player.global_rotation
+		sharpness_preview_node=_make_sharpness_effect(anchor,key,2,true)
+
+func _sharpness_move(v:Vector3) -> void:
+	sharpness_test_offset+=v; _update_sharpness_label(); _preview_sharpness()
+
+func _sharpness_adjust(ds:float,da:float) -> void:
+	sharpness_test_scale=clampf(sharpness_test_scale+ds,.2,3.0); sharpness_test_angle=fposmod(sharpness_test_angle+da+180.0,360.0)-180.0; _update_sharpness_label(); _preview_sharpness()
+
+func _update_sharpness_label() -> void:
+	if sharpness_test_label: sharpness_test_label.text="KESKİNLİK %d  X:%.2f Y:%.2f Z:%.2f  BOYUT:%d%% AÇI:%d°" % [cheat_sharpness_tuner,sharpness_test_offset.x,sharpness_test_offset.y,sharpness_test_offset.z,roundi(sharpness_test_scale*100.0),roundi(sharpness_test_angle)]
+
+func _toggle_sharpness_1() -> void:
+	if not cheat_mode: return
+	cheat_sharpness_tuner=0 if cheat_sharpness_tuner==1 else 1
+	cheat_muzzle_tuner=false; _clear_muzzle_preview(); _update_sharpness_label(); _preview_sharpness(); _update_cheat_button_style()
+
+func _toggle_sharpness_2() -> void:
+	if not cheat_mode: return
+	cheat_sharpness_tuner=0 if cheat_sharpness_tuner==2 else 2
+	cheat_muzzle_tuner=false; _clear_muzzle_preview(); _update_sharpness_label(); _preview_sharpness(); _update_cheat_button_style()
+
+func _spawn_melee_sharpness(key:String) -> void:
+	if not _is_melee_key(key) or player_weapon_node==null: return
+	_make_sharpness_effect(player_weapon_node,key,1,false)
+	var anchor=Node3D.new(); fx_root.add_child(anchor); anchor.global_position=player.global_position+Vector3(0,1.15,0)-player.global_transform.basis.z*1.25; anchor.global_rotation=player.global_rotation
+	_make_sharpness_effect(anchor,key,2,false)
+	var timer=get_tree().create_timer(.20); timer.timeout.connect(anchor.queue_free)
+
 func _toggle_muzzle_tuner() -> void:
 	if not cheat_mode: return
 	cheat_muzzle_tuner=!cheat_muzzle_tuner
+	if cheat_muzzle_tuner: cheat_sharpness_tuner=0; _clear_sharpness_preview()
 	if not cheat_muzzle_tuner:
 		muzzle_calibration_frozen=false
 		player_action_locked=false
