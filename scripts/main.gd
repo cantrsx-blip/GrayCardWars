@@ -319,6 +319,7 @@ var meteor_hp_label: Label3D
 var gj_balance := 0
 var gj_drops: Array[Node3D] = []
 var meteor_card_drops: Array[Node3D] = []
+var collect_button: Button
 var meteor_reward_thresholds_claimed: Dictionary = {}
 var weapon_levels: Dictionary = {
 	"Bıçak":1,"Karambit":1,"Kılıç":1,"Büyük Kılıç":1,"Katana":1,
@@ -610,6 +611,7 @@ func _copy_ybot_pose() -> void:
 
 func _process(_delta:float) -> void:
 	_copy_ybot_pose()
+	_update_collect_button_visibility()
 
 func _find_animation_player(node:Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
@@ -843,6 +845,15 @@ func _player_attack() -> void:
 	_finish_attack_animation(.30)
 
 func _weapon_level(item:String) -> int:
+	var selected_key:=_selected_weapon_key()
+	if not selected_key.is_empty() and str(selected_key.split("|")[0])==item and weapon_levels.has(selected_key):
+		return clampi(int(weapon_levels.get(selected_key,1)),1,100)
+	return clampi(int(weapon_levels.get(item,1)),1,100)
+
+func _weapon_level_for_key(key:String) -> int:
+	if key.is_empty(): return 1
+	if weapon_levels.has(key): return clampi(int(weapon_levels.get(key,1)),1,100)
+	var item:=str(key.split("|")[0])
 	return clampi(int(weapon_levels.get(item,1)),1,100)
 
 func _melee_total_damage(item:String) -> int:
@@ -977,7 +988,8 @@ func _spawn_card_drop(item:String,rarity:String,amount:int=1) -> void:
 	if meteor_node==null or amount<=0: return
 	var root=Node3D.new(); root.name="CardDrop_%s_%s" % [item,rarity]; add_child(root)
 	root.global_position=meteor_node.global_position+Vector3(randf_range(-2.7,2.7),.55,randf_range(-2.7,2.7))
-	root.set_meta("card_key","%s|%s" % [item,rarity]); root.set_meta("card_amount",amount)
+	var card_key:="%s|%s" % [item,rarity] if item=="Kart" else "Kart:%s|%s" % [item,rarity]
+	root.set_meta("card_key",card_key); root.set_meta("card_amount",amount)
 	var mesh_node=MeshInstance3D.new(); var mesh=BoxMesh.new(); mesh.size=Vector3(.42,.58,.06); mesh_node.mesh=mesh; root.add_child(mesh_node)
 	var colors:Dictionary={"gumus":Color(.78,.82,.86),"yesil":Color(.12,.82,.24),"buz":Color(.18,.58,1.0),"gunes":Color(1.0,.72,.08),"lav":Color(.95,.08,.04)}
 	var mat=StandardMaterial3D.new(); mat.albedo_color=colors.get(rarity,Color.WHITE); mat.metallic=.35; mesh_node.material_override=mat
@@ -1002,6 +1014,17 @@ func _process_meteor_card_rewards(before:int,after:int) -> void:
 
 func _same_reward_square(a:Vector3,b:Vector3) -> bool:
 	return floori(a.x/REWARD_GRID_SIZE)==floori(b.x/REWARD_GRID_SIZE) and floori(a.z/REWARD_GRID_SIZE)==floori(b.z/REWARD_GRID_SIZE)
+
+func _reward_in_player_square() -> bool:
+	if player==null: return false
+	for drop in gj_drops:
+		if is_instance_valid(drop) and _same_reward_square(player.global_position,drop.global_position): return true
+	for drop in meteor_card_drops:
+		if is_instance_valid(drop) and _same_reward_square(player.global_position,drop.global_position): return true
+	return false
+
+func _update_collect_button_visibility() -> void:
+	if collect_button: collect_button.visible=_reward_in_player_square()
 
 func _collect_reward_square() -> void:
 	if player==null: return
@@ -1942,7 +1965,7 @@ func _build_hud():
 	var scope_btn=Button.new(); scope_btn.text="🔭"; scope_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); scope_btn.position=Vector2(-350,-320); scope_btn.size=Vector2(82,82); scope_btn.add_theme_font_size_override("font_size",28)
 	var scope_style=StyleBoxFlat.new(); scope_style.bg_color=Color(.10,.10,.10,.30); scope_style.corner_radius_top_left=41; scope_style.corner_radius_top_right=41; scope_style.corner_radius_bottom_left=41; scope_style.corner_radius_bottom_right=41
 	scope_btn.add_theme_stylebox_override("normal",scope_style); scope_btn.add_theme_stylebox_override("pressed",scope_style); scope_btn.pressed.connect(_toggle_scope); layer.add_child(scope_btn)
-	var collect_btn=Button.new(); collect_btn.text="TOPLA"; collect_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); collect_btn.position=Vector2(-455,-310); collect_btn.size=Vector2(92,62); collect_btn.add_theme_font_size_override("font_size",17); collect_btn.pressed.connect(_collect_reward_square); layer.add_child(collect_btn)
+	collect_button=Button.new(); collect_button.text="TOPLA"; collect_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); collect_button.position=Vector2(-455,-310); collect_button.size=Vector2(92,62); collect_button.add_theme_font_size_override("font_size",17); collect_button.pressed.connect(_collect_reward_square); collect_button.visible=false; layer.add_child(collect_button)
 	crouch_button=Button.new(); crouch_button.text="↓ Çömel"; crouch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); crouch_button.position=Vector2(-238,-104); crouch_button.size=Vector2(104,80); crouch_button.add_theme_font_size_override("font_size",18)
 	var crouch_style=StyleBoxFlat.new(); crouch_style.bg_color=Color(.12,.12,.12,.34); crouch_style.corner_radius_top_left=40; crouch_style.corner_radius_top_right=40; crouch_style.corner_radius_bottom_left=40; crouch_style.corner_radius_bottom_right=40
 	crouch_button.add_theme_stylebox_override("normal",crouch_style); crouch_button.add_theme_stylebox_override("pressed",crouch_style); crouch_button.pressed.connect(_toggle_crouch); layer.add_child(crouch_button)
@@ -2421,7 +2444,7 @@ func _apply_damage(amount:float):
 		var health_damage:int=whole-protection_damage
 		var absorbed:=mini(protection,protection_damage)
 		protection-=absorbed
-		health_damage+=protection_damage-absorbed
+		# Protection's half never spills into health when protection is empty.
 		health=max(0,health-health_damage)
 		damage_buffer-=whole
 		_update_vitals_ui()
@@ -2519,7 +2542,11 @@ func _update_map_dot():
 func _respawn():
 	_clear_meteor_bosses()
 	wood /= 2; stone /= 2; grass_n /= 2; wheat_n /= 2; mushroom_n /= 2
-	health=100; protection=100; _update_vitals_ui(); hunger=70.0; thirst=80.0; damage_buffer=0.0; player.velocity=Vector3.ZERO; player.position=Vector3(0,PLAYER_HEIGHT,0)
+	health=100; protection=100; _update_vitals_ui(); hunger=70.0; thirst=80.0; damage_buffer=0.0; player.velocity=Vector3.ZERO
+	if not spawn_points.is_empty():
+		var pp:=spawn_points[0]; player.position=Vector3(pp.x,pp.y+PLAYER_HEIGHT+.38,pp.z)
+	else:
+		player.position=Vector3(0,PLAYER_HEIGHT,0)
 	if map_panel: map_panel.visible=false
 	if respawn_label:
 		respawn_label.text="YENIDEN DOGDUN  •  Kaynaklarin yarisi kaybedildi  •  Kartlar korundu"; respawn_label.visible=true; message_time=3.5
@@ -2691,45 +2718,69 @@ func _open_inventory_item_actions(key:String,title:String) -> void:
 	var close=Button.new(); close.text="✕"; close.position=Vector2(238,8); close.size=Vector2(52,48); close.mouse_filter=Control.MOUSE_FILTER_STOP; close.z_index=31; actions.add_child(close); close.button_down.connect(_close_inventory_item_actions)
 	var equip=Button.new(); equip.text="KUŞAN"; equip.position=Vector2(8,72); equip.size=Vector2(88,55); equip.pressed.connect(_equip_inventory_item.bind(key)); actions.add_child(equip)
 	var upgrade=Button.new(); upgrade.text="YÜKSELT"; upgrade.position=Vector2(102,72); upgrade.size=Vector2(92,55); upgrade.pressed.connect(_upgrade_weapon_with_card.bind(key)); actions.add_child(upgrade)
-	var exchange=Button.new(); exchange.text="2→1"; exchange.position=Vector2(200,72); exchange.size=Vector2(88,55); exchange.pressed.connect(_exchange_card_to_next_rarity.bind(key)); actions.add_child(exchange)
+	var exchange=Button.new(); exchange.text="2→1"; exchange.position=Vector2(200,72); exchange.size=Vector2(88,55); exchange.pressed.connect(_open_card_exchange_choices.bind(key)); actions.add_child(exchange)
 
-func _weapon_upgrade_cost(item:String) -> int:
-	var level:=_weapon_level(item)
-	if level>=100: return 0
-	# One matching card at level 1; each completed 5-level band doubles the requirement.
-	return 1 << mini(20,level/5)
+func _general_card_cost_for_target_level(target_level:int) -> int:
+	# General colour-card cost doubles per target level: Lv2=2, Lv3=4, Lv4=8...
+	# Godot integers are signed 64-bit, so saturate only beyond the representable range.
+	if target_level<=1: return 0
+	if target_level>=63: return 9223372036854775807
+	return 1 << (target_level-1)
 
 func _upgrade_weapon_with_card(key:String) -> void:
 	if "|" not in key: return
 	var parts=key.split("|"); var item:=str(parts[0]); var rarity:=str(parts[1])
-	if not weapon_levels.has(item): return
-	var level:=_weapon_level(item)
+	if item.begins_with("Kart:"): item=item.trim_prefix("Kart:")
+	var store_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
+	if item not in store_names: return
+	var weapon_key:="%s|%s" % [item,rarity]
+	var level:=_weapon_level_for_key(weapon_key)
 	if level>=100: _flash_message("SİLAH SEVİYESİ ZATEN 100"); return
-	var cost:=_weapon_upgrade_cost(item)
-	var have:=int(crafted_inventory.get(key,0))
-	if have<cost: _flash_message("YÜKSELTME İÇİN %d %s KART GEREKİYOR" % [cost,_rarity_name(rarity)]); return
-	crafted_inventory[key]=have-cost
-	weapon_levels[item]=level+1
+	var target_level:=level+1
+	var weapon_card_key:="Kart:%s|%s" % [item,rarity]
+	var general_card_key:="Kart|%s" % rarity
+	var weapon_card_cost:=target_level
+	var general_card_cost:=_general_card_cost_for_target_level(target_level)
+	var weapon_cards:=int(crafted_inventory.get(weapon_card_key,0))
+	var general_cards:=int(crafted_inventory.get(general_card_key,0))
+	if weapon_cards<weapon_card_cost:
+		_flash_message("SEVİYE %d İÇİN %d %s %s KARTI GEREKİYOR" % [target_level,weapon_card_cost,_rarity_name(rarity),item]); return
+	if general_cards<general_card_cost:
+		_flash_message("SEVİYE %d İÇİN %d %s GENEL KART GEREKİYOR" % [target_level,general_card_cost,_rarity_name(rarity)]); return
+	crafted_inventory[weapon_card_key]=weapon_cards-weapon_card_cost
+	crafted_inventory[general_card_key]=general_cards-general_card_cost
+	weapon_levels[weapon_key]=target_level
 	_save_player_inventory(); _refresh_inventory()
-	_flash_message("%s  SEVİYE %d" % [item,int(weapon_levels[item])])
+	_flash_message("%s %s  SEVİYE %d" % [_rarity_name(rarity),item,target_level])
 
-func _exchange_card_to_next_rarity(key:String) -> void:
-	if "|" not in key: return
-	var parts=key.split("|"); var item:=str(parts[0]); var rarity:=str(parts[1])
-	var rarities=["gumus","yesil","buz","gunes","lav"]
-	var idx:=rarities.find(rarity)
-	if idx<0: return
+func _open_card_exchange_choices(key:String) -> void:
+	if "|" not in key or inventory_panel==null: return
+	var parts=key.split("|"); var item:=str(parts[0]); var source_rarity:=str(parts[1])
+	if item!="Kart": _flash_message("2→1 TAKAS GENEL RENK KARTLARI İÇİNDİR"); return
 	if int(crafted_inventory.get(key,0))<2: _flash_message("TAKAS İÇİN 2 KART GEREKİYOR"); return
-	var target:String=str(rarities[(idx+1)%rarities.size()])
-	crafted_inventory[key]=int(crafted_inventory.get(key,0))-2
-	var target_key:String="%s|%s" % [item,target]
+	var actions=inventory_panel.get_node_or_null("ItemActions")
+	if actions==null: return
+	for child in actions.get_children():
+		if child is Button and child.text in ["GÜMÜŞ","ZEHİR","BUZ","GÜNEŞ","LAV"]: child.queue_free()
+	actions.size=Vector2(300,215)
+	var rarities=["gumus","yesil","buz","gunes","lav"]
+	for i in range(rarities.size()):
+		var target_rarity:String=str(rarities[i])
+		var b=Button.new(); b.text=_rarity_name(target_rarity).to_upper(); b.position=Vector2(8+i*57,140); b.size=Vector2(54,54); b.add_theme_font_size_override("font_size",10)
+		b.pressed.connect(_exchange_general_card.bind(source_rarity,target_rarity)); actions.add_child(b)
+
+func _exchange_general_card(source_rarity:String,target_rarity:String) -> void:
+	var source_key:="Kart|%s" % source_rarity
+	if int(crafted_inventory.get(source_key,0))<2: _flash_message("TAKAS İÇİN 2 KART GEREKİYOR"); return
+	crafted_inventory[source_key]=int(crafted_inventory.get(source_key,0))-2
+	var target_key:="Kart|%s" % target_rarity
 	crafted_inventory[target_key]=int(crafted_inventory.get(target_key,0))+1
 	_save_player_inventory(); _refresh_inventory()
-	_flash_message("2 %s → 1 %s" % [_rarity_name(rarity),_rarity_name(target)])
+	_flash_message("2 %s → 1 %s" % [_rarity_name(source_rarity),_rarity_name(target_rarity)])
 
 func _inventory_is_stackable(name:String,rarity:String) -> bool:
 	var store_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
-	return name in ["Ok","Tabanca Mermisi","Pompalı Mermisi","Tüfek Mermisi"] or (name in store_names and rarity in ["gumus","yesil","buz","gunes","lav"])
+	return name in ["Ok","Tabanca Mermisi","Pompalı Mermisi","Tüfek Mermisi","Kart"] or name.begins_with("Kart:") or (name in store_names and rarity in ["gumus","yesil","buz","gunes","lav"])
 
 func _save_player_inventory() -> void:
 	var cfg=ConfigFile.new()
@@ -2754,10 +2805,13 @@ func _refresh_inventory():
 		var name=str(parts[0]); var rarity=str(parts[1])
 		var tex=null
 		var store_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
-		var store_row=store_names.find(name)+1
+		var display_name:=name.trim_prefix("Kart:") if name.begins_with("Kart:") else name
+		var store_row=store_names.find(display_name)+1
 		if store_row>0 and rarity in ["gumus","yesil","buz","gunes","lav"]:
 			tex=_store_png_texture("res://weapon%d%s.png" % [store_row,rarity])
-		var title="%s %s" % [_rarity_name(rarity),name]
+		var title="%s %s" % [_rarity_name(rarity),display_name]
+		if name.begins_with("Kart:"): title+=" KARTI"
+		elif name=="Kart": title+=" GENEL KART"
 		var stackable=_inventory_is_stackable(name,rarity)
 		var remaining=count
 		while remaining>0:
