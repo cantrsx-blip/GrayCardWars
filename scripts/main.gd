@@ -163,6 +163,12 @@ const ANIMAL_AI_INTERVAL := 0.20
 var meteor_nodes: Array[Node3D] = []
 var creative_panel: Control
 var cheat_mode := false
+var cheat_menu_panel: VBoxContainer
+var cheat_weapon_tuner := false
+var cheat_muzzle_tuner := false
+var cheat_infinite_weapons := false
+var cheat_infinite_gj := false
+var muzzle_preview_node: Node3D
 var fx_root: Node3D
 var structure_hp_default := 100
 var ammo_762 := 48
@@ -494,7 +500,7 @@ func _attach_weapon_to_skeleton(skeleton:Skeleton3D,key:String,use_live_tuner:bo
 	var cal=calibrated.get(item,{"pos":Vector3.ZERO,"rot":Vector3.ZERO})
 	weapon.position=g.pos-(wb.get_center()*scale_value)+cal.pos
 	weapon.rotation_degrees=g.rot+cal.rot
-	if use_live_tuner and cheat_mode:
+	if use_live_tuner and cheat_mode and cheat_weapon_tuner:
 		weapon.position+=weapon_test_position
 		weapon.rotation_degrees+=weapon_test_rotation
 	return weapon
@@ -526,6 +532,7 @@ func _refresh_player_weapon_model() -> void:
 	if attachment:
 		for child in attachment.get_children(): child.queue_free()
 	player_weapon_node=_attach_weapon_to_skeleton(player_skeleton,key,true) if not key.is_empty() else null
+	_preview_muzzle_flash()
 
 func _find_skeleton(node:Node) -> Skeleton3D:
 	if node is Skeleton3D:
@@ -1627,7 +1634,7 @@ func _build_hud():
 	joystick_knob=ColorRect.new(); joystick_knob.position=Vector2(64,64); joystick_knob.size=Vector2(72,72); joystick_knob.color=Color(.92,.92,.92,.55); joystick_base.add_child(joystick_knob)
 	for item in [["↑",Vector2(88,4)],["↓",Vector2(88,168)],["←",Vector2(8,86)],["→",Vector2(168,86)]]:
 		var jl=Label.new(); jl.text=item[0]; jl.position=item[1]; jl.size=Vector2(28,28); jl.add_theme_font_size_override("font_size",22); jl.mouse_filter=Control.MOUSE_FILTER_IGNORE; joystick_base.add_child(jl)
-	var actions=[["ENVANTER",_toggle_inventory],["UC",_toggle_fly_mode],["ALCAL",_fly_down]]
+	var actions=[["ENVANTER",_toggle_inventory],["HILE",_toggle_cheat_mode]]
 	for i in actions.size():
 		var b=Button.new(); b.text=actions[i][0]; b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		if actions[i][0]=="HILE":
@@ -1638,7 +1645,18 @@ func _build_hud():
 		var col=i%2; var row=int(i/2); b.position=Vector2(-300+col*148,12+row*42); b.size=Vector2(140,38); b.add_theme_font_size_override("font_size",15)
 		b.pressed.connect(actions[i][1]); layer.add_child(b)
 	_update_fly_button_styles()
-	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-300,96); lobby_btn.size=Vector2(288,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
+	cheat_menu_panel=VBoxContainer.new(); cheat_menu_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT); cheat_menu_panel.position=Vector2(-300,56); cheat_menu_panel.size=Vector2(288,220); cheat_menu_panel.visible=false; layer.add_child(cheat_menu_panel)
+	var cheat_items=[
+		["SİLAH KONUMU",_toggle_weapon_tuner],
+		["NAMLU ATEŞİ KONUMU",_toggle_muzzle_tuner],
+		["UÇMA MODU",_toggle_cheat_fly],
+		["ALÇAL",_fly_down],
+		["SINIRSIZ SİLAH",_toggle_infinite_weapons],
+		["SINIRSIZ GJ",_toggle_infinite_gj]
+	]
+	for entry in cheat_items:
+		var cb=Button.new(); cb.text=entry[0]; cb.custom_minimum_size=Vector2(288,32); cb.add_theme_font_size_override("font_size",13); cb.pressed.connect(entry[1]); cheat_menu_panel.add_child(cb)
+	var lobby_btn=Button.new(); lobby_btn.text="LOBİYE DÖN"; lobby_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT); lobby_btn.position=Vector2(-300,286); lobby_btn.size=Vector2(288,38); lobby_btn.add_theme_font_size_override("font_size",15); lobby_btn.pressed.connect(_return_to_lobby); layer.add_child(lobby_btn)
 	# Live weapon tuner stays available: rotation plus grip-position nudging.
 	weapon_test_label=Label.new(); weapon_test_label.set_anchors_preset(Control.PRESET_TOP_LEFT); weapon_test_label.position=Vector2(176,52); weapon_test_label.size=Vector2(620,30); weapon_test_label.add_theme_font_size_override("font_size",14); layer.add_child(weapon_test_label); weapon_test_controls.append(weapon_test_label)
 	var axis_buttons=[["X-",Vector3(-15,0,0)],["X+",Vector3(15,0,0)],["Y-",Vector3(0,-15,0)],["Y+",Vector3(0,15,0)],["Z-",Vector3(0,0,-15)],["Z+",Vector3(0,0,15)]]
@@ -1885,9 +1903,10 @@ func _update_cheat_button_style():
 	cheat_button.add_theme_stylebox_override("hover",normal)
 	cheat_button.add_theme_stylebox_override("pressed",normal)
 	for control in weapon_test_controls:
-		if is_instance_valid(control): control.visible=cheat_mode
+		if is_instance_valid(control): control.visible=cheat_mode and cheat_weapon_tuner
 	for control in muzzle_test_controls:
-		if is_instance_valid(control): control.visible=cheat_mode
+		if is_instance_valid(control): control.visible=cheat_mode and cheat_muzzle_tuner
+	if cheat_menu_panel: cheat_menu_panel.visible=cheat_mode
 
 func _physics_process(delta):
 	if player == null or camera == null or hud == null or zone_label == null:
@@ -2940,30 +2959,50 @@ func _death_screen_effect():
 	if damage_overlay: damage_overlay.color=Color(.48,.0,.0,.72); damage_time=1.25
 
 
+func _make_muzzle_flame(pos:Vector3,key:String,forward:Vector3,persistent:bool=false) -> Node3D:
+	if fx_root==null: return null
+	var col=_muzzle_color_for_key(key)
+	var flame=Node3D.new(); fx_root.add_child(flame); flame.global_position=pos
+	var dir=forward.normalized()
+	if dir.length()<0.1: dir=Vector3(0,0,-1)
+	flame.look_at(pos+dir,Vector3.UP)
+	# Short dense muzzle flame: bright core plus two irregular forward cones.
+	for data in [[.13,.02,.34,0.0],[.085,.0,.52,-.16],[.055,.0,.68,-.30]]:
+		var part=MeshInstance3D.new(); var cone=CylinderMesh.new()
+		cone.top_radius=float(data[1]); cone.bottom_radius=float(data[0]); cone.height=float(data[2]); cone.radial_segments=7
+		part.mesh=cone; part.rotation_degrees.x=90.0; part.position.z=float(data[3])
+		part.rotation_degrees.z=randf_range(-18.0,18.0)
+		var mat=StandardMaterial3D.new(); mat.albedo_color=col; mat.emission_enabled=true; mat.emission=col; mat.emission_energy_multiplier=5.0
+		part.material_override=mat; flame.add_child(part)
+	var core=OmniLight3D.new(); core.light_color=col; core.light_energy=4.5; core.omni_range=2.8; flame.add_child(core)
+	if not persistent:
+		var timer=get_tree().create_timer(.075); timer.timeout.connect(flame.queue_free)
+	return flame
+
 func _spawn_shot_visual(pos:Vector3,key:String,forward:Vector3) -> void:
 	if fx_root==null: return
 	var col=_muzzle_color_for_key(key)
-	var burst=Node3D.new(); fx_root.add_child(burst); burst.global_position=pos
-	for angle in [0.0,45.0,90.0,135.0]:
-		var ray=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(.48,.035,.035); ray.mesh=bm
-		var mat=StandardMaterial3D.new(); mat.albedo_color=col; mat.emission_enabled=true; mat.emission=col; mat.emission_energy_multiplier=4.0
-		ray.material_override=mat; ray.rotation_degrees.z=angle; burst.add_child(ray)
-	var core=MeshInstance3D.new(); var smesh=SphereMesh.new(); smesh.radius=.12; smesh.height=.24; core.mesh=smesh
-	var cmat=StandardMaterial3D.new(); cmat.albedo_color=col; cmat.emission_enabled=true; cmat.emission=col; cmat.emission_energy_multiplier=5.0; core.material_override=cmat; burst.add_child(core)
-	var bt=get_tree().create_timer(.065); bt.timeout.connect(burst.queue_free)
-	var smoke=MeshInstance3D.new(); var smoke_mesh=SphereMesh.new(); smoke_mesh.radius=.10; smoke_mesh.height=.20; smoke.mesh=smoke_mesh
+	_make_muzzle_flame(pos,key,forward,false)
+	# Smoke is twice the previous visual size and remains twice as long.
+	var smoke=MeshInstance3D.new(); var smoke_mesh=SphereMesh.new(); smoke_mesh.radius=.20; smoke_mesh.height=.40; smoke.mesh=smoke_mesh
 	var smoke_mat=StandardMaterial3D.new(); smoke_mat.albedo_color=Color(.35,.35,.35,.42); smoke_mat.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA; smoke.material_override=smoke_mat
 	fx_root.add_child(smoke); smoke.global_position=pos
-	var st=create_tween(); st.set_parallel(true); st.tween_property(smoke,"position",smoke.position+Vector3(0,.32,0)+forward.normalized()*.18,.42); st.tween_property(smoke,"scale",Vector3(2.2,2.2,2.2),.42); st.tween_property(smoke_mat,"albedo_color:a",0.0,.42); st.chain().tween_callback(smoke.queue_free)
+	var st=create_tween(); st.set_parallel(true); st.tween_property(smoke,"position",smoke.position+Vector3(0,.48,0)+forward.normalized()*.28,.84); st.tween_property(smoke,"scale",Vector3(4.4,4.4,4.4),.84); st.tween_property(smoke_mat,"albedo_color:a",0.0,.84); st.chain().tween_callback(smoke.queue_free)
 	for i in 4:
 		var spark=MeshInstance3D.new(); var sp=SphereMesh.new(); sp.radius=.018; sp.height=.036; spark.mesh=sp
 		var spmat=StandardMaterial3D.new(); spmat.albedo_color=col; spmat.emission_enabled=true; spmat.emission=col; spmat.emission_energy_multiplier=3.0; spark.material_override=spmat
 		fx_root.add_child(spark); spark.global_position=pos
 		var tw=create_tween(); tw.tween_property(spark,"position",spark.position+forward.normalized()*randf_range(.18,.42)+Vector3(randf_range(-.18,.18),randf_range(-.10,.22),randf_range(-.18,.18)),.13); tw.tween_callback(spark.queue_free)
+	# Casings keep the liked ejection side, but land with random spread and sit exactly on terrain.
 	var casing=MeshInstance3D.new(); var shell=CylinderMesh.new(); shell.top_radius=.018; shell.bottom_radius=.018; shell.height=.055; casing.mesh=shell
 	var shell_mat=StandardMaterial3D.new(); shell_mat.albedo_color=Color(.72,.48,.12); shell_mat.metallic=.75; shell_mat.roughness=.35; casing.material_override=shell_mat
 	fx_root.add_child(casing); casing.global_position=pos+Vector3(.08,.02,0)
-	var ct=create_tween(); ct.tween_property(casing,"position",casing.position+Vector3(.32,.22,.08),.13); ct.tween_property(casing,"position",casing.position+Vector3(.52,-.33,.18),.28); ct.tween_interval(1.6); ct.tween_callback(casing.queue_free)
+	var side=Vector3(randf_range(.28,.62),0.0,randf_range(-.18,.30))
+	var apex=casing.global_position+side+Vector3(0,randf_range(.18,.30),0)
+	var land_x=casing.global_position.x+side.x+randf_range(-.20,.20)
+	var land_z=casing.global_position.z+side.z+randf_range(-.20,.20)
+	var land=Vector3(land_x,height_at(land_x,land_z)+.035,land_z)
+	var ct=create_tween(); ct.tween_property(casing,"global_position",apex,.14); ct.tween_property(casing,"global_position",land,.34); ct.parallel().tween_property(casing,"rotation_degrees",Vector3(randf_range(70,110),randf_range(0,180),randf_range(-25,25)),.34); ct.tween_interval(4.8); ct.tween_callback(casing.queue_free)
 
 func _npc_muzzle_flash(bot:Node3D) -> void:
 	if fx_root==null or bot==null or not is_instance_valid(bot): return
@@ -2976,7 +3015,7 @@ func _npc_muzzle_flash(bot:Node3D) -> void:
 	var t=get_tree().create_timer(.07); t.timeout.connect(flash.queue_free)
 
 func _muzzle_test_move(delta_position:Vector3) -> void:
-	if not cheat_mode: return
+	if not cheat_mode or not cheat_muzzle_tuner: return
 	muzzle_test_offset+=delta_position
 	_update_muzzle_test_label()
 	_preview_muzzle_flash()
@@ -3006,12 +3045,18 @@ func _spawn_muzzle_light(origin:Node3D,key:String,local_offset:Vector3) -> void:
 	fx_root.add_child(flash); flash.global_position=origin.to_global(local_offset)
 	var timer=get_tree().create_timer(.07); timer.timeout.connect(flash.queue_free)
 
+func _clear_muzzle_preview() -> void:
+	if muzzle_preview_node!=null and is_instance_valid(muzzle_preview_node): muzzle_preview_node.queue_free()
+	muzzle_preview_node=null
+
 func _preview_muzzle_flash() -> void:
+	_clear_muzzle_preview()
+	if not cheat_mode or not cheat_muzzle_tuner: return
 	var key:=_selected_weapon_key()
 	if key.is_empty() or player_weapon_node==null: return
 	var item=str(key.split("|")[0])
 	if not item in ["Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]: return
-	_spawn_muzzle_light(player_weapon_node,key,muzzle_test_offset)
+	muzzle_preview_node=_make_muzzle_flame(player_weapon_node.to_global(muzzle_test_offset),key,-player_weapon_node.global_transform.basis.z,true)
 
 func _muzzle_flash():
 	if fx_root==null or player_weapon_node==null: return
@@ -3024,18 +3069,43 @@ func _create_cheat_ui(layer:CanvasLayer):
 
 func _toggle_cheat_mode():
 	if _panel_open(): return
-	cheat_mode = !cheat_mode
-	if cheat_label:
-		cheat_label.text = ("HILE ACIK" if cheat_mode else "HILE KAPALI")
-	if creative_panel:
-		creative_panel.visible = false
-	_sync_cheat_weapons()
-	_save_player_inventory()
-	_refresh_hotbar()
-	if inventory_panel and inventory_panel.visible:
-		_refresh_inventory()
+	cheat_mode=!cheat_mode
+	if not cheat_mode:
+		cheat_weapon_tuner=false; cheat_muzzle_tuner=false; cheat_infinite_weapons=false; cheat_infinite_gj=false
+		if fly_mode: fly_mode=false
+		_clear_muzzle_preview()
+	if cheat_menu_panel: cheat_menu_panel.visible=cheat_mode
+	_sync_cheat_weapons(); _save_player_inventory(); _refresh_hotbar()
+	if inventory_panel and inventory_panel.visible: _refresh_inventory()
 	_update_cheat_button_style()
 	_flash_message("HILE ACIK" if cheat_mode else "HILE KAPALI")
+
+func _toggle_weapon_tuner() -> void:
+	if not cheat_mode: return
+	cheat_weapon_tuner=!cheat_weapon_tuner
+	_update_cheat_button_style()
+
+func _toggle_muzzle_tuner() -> void:
+	if not cheat_mode: return
+	cheat_muzzle_tuner=!cheat_muzzle_tuner
+	_update_cheat_button_style()
+	_preview_muzzle_flash()
+
+func _toggle_cheat_fly() -> void:
+	if not cheat_mode: return
+	_toggle_fly_mode()
+
+func _toggle_infinite_weapons() -> void:
+	if not cheat_mode: return
+	cheat_infinite_weapons=!cheat_infinite_weapons
+	_sync_cheat_weapons(); _save_player_inventory(); _refresh_hotbar()
+	if inventory_panel and inventory_panel.visible: _refresh_inventory()
+	_flash_message("SINIRSIZ SILAH ACIK" if cheat_infinite_weapons else "SINIRSIZ SILAH KAPALI")
+
+func _toggle_infinite_gj() -> void:
+	if not cheat_mode: return
+	cheat_infinite_gj=!cheat_infinite_gj
+	_flash_message("SINIRSIZ GJ ACIK" if cheat_infinite_gj else "SINIRSIZ GJ KAPALI")
 
 func _sync_cheat_weapons() -> void:
 	var weapon_names=["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
@@ -3043,11 +3113,11 @@ func _sync_cheat_weapons() -> void:
 	for weapon_name in weapon_names:
 		for rarity in weapon_rarities:
 			var weapon_key="%s|%s" % [weapon_name,rarity]
-			if cheat_mode:
+			if cheat_mode and cheat_infinite_weapons:
 				crafted_inventory[weapon_key]=1
 			else:
 				crafted_inventory.erase(weapon_key)
-	if not cheat_mode:
+	if not (cheat_mode and cheat_infinite_weapons):
 		for i in range(hotbar_items.size()):
 			if "|" in str(hotbar_items[i]):
 				hotbar_items[i]=""
