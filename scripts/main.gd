@@ -191,6 +191,18 @@ var weapon_test_position := Vector3.ZERO
 var weapon_test_label: Label
 var weapon_test_controls: Array[Control] = []
 var muzzle_test_offset := Vector3.ZERO
+var muzzle_test_scale := 0.38
+var muzzle_calibration_frozen := false
+var muzzle_offsets: Dictionary = {
+	"Pompalı Tüfek":Vector3.ZERO,
+	"Çift Namlulu Pompalı":Vector3.ZERO,
+	"Keskin Nişancı Tüfeği":Vector3.ZERO
+}
+var muzzle_scales: Dictionary = {
+	"Pompalı Tüfek":0.38,
+	"Çift Namlulu Pompalı":0.38,
+	"Keskin Nişancı Tüfeği":0.38
+}
 var muzzle_test_label: Label
 var muzzle_test_controls: Array[Control] = []
 var viewmodel_root: Node3D
@@ -532,6 +544,7 @@ func _refresh_player_weapon_model() -> void:
 	if attachment:
 		for child in attachment.get_children(): child.queue_free()
 	player_weapon_node=_attach_weapon_to_skeleton(player_skeleton,key,true) if not key.is_empty() else null
+	_load_muzzle_calibration()
 	_preview_muzzle_flash()
 
 func _find_skeleton(node:Node) -> Skeleton3D:
@@ -752,6 +765,17 @@ func _player_attack() -> void:
 	var firearm=("pompal" in item or "tüfek" in item or "tufek" in item or "nişancı" in item or "nisanci" in item)
 	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
 	var sword=("kılıç" in item or "kilic" in item or "katana" in item)
+	if firearm and cheat_mode and cheat_muzzle_tuner:
+		if muzzle_calibration_frozen:
+			muzzle_calibration_frozen=false; player_action_locked=false; player_anim_name=&""
+		else:
+			_play_ybot_anim("Firing Rifle")
+			player_action_token+=1; player_action_locked=true; muzzle_calibration_frozen=true
+			await get_tree().create_timer(maxf(.08,minf(player_action_duration*.42,.28))).timeout
+			if player_anim and is_instance_valid(player_anim):
+				player_anim.pause()
+		_update_muzzle_test_label(); _preview_muzzle_flash()
+		return
 	if firearm:
 		_play_ybot_anim("Firing Rifle"); _play_sfx("gun"); _muzzle_flash()
 	elif knife: _play_ybot_anim("Stabbing")
@@ -1592,7 +1616,7 @@ func _play_ybot_anim(wanted:String)->void:
 
 func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
 	if player_visual==null: return
-	if player_action_locked: return
+	if player_action_locked or muzzle_calibration_frozen: return
 	var item=selected_tool.to_lower()
 	var firearm=("pompal" in item or "tüfek" in item or "tufek" in item or "nişancı" in item or "nisanci" in item)
 	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
@@ -1670,6 +1694,9 @@ func _build_hud():
 	var muzzle_buttons=[["M SOL",Vector3(-0.02,0,0)],["M SAĞ",Vector3(0.02,0,0)],["M YUKARI",Vector3(0,0.02,0)],["M AŞAĞI",Vector3(0,-0.02,0)],["M GERİ",Vector3(0,0,-0.02)],["M İLERİ",Vector3(0,0,0.02)]]
 	for mi in muzzle_buttons.size():
 		var mb=Button.new(); mb.text=muzzle_buttons[mi][0]; mb.set_anchors_preset(Control.PRESET_TOP_LEFT); mb.position=Vector2(176+mi*76,194); mb.size=Vector2(72,34); mb.add_theme_font_size_override("font_size",10); mb.pressed.connect(_muzzle_test_move.bind(muzzle_buttons[mi][1])); layer.add_child(mb); muzzle_test_controls.append(mb)
+	var muzzle_size_buttons=[["BOYUT -",-0.05],["BOYUT +",0.05]]
+	for si in muzzle_size_buttons.size():
+		var sb=Button.new(); sb.text=muzzle_size_buttons[si][0]; sb.set_anchors_preset(Control.PRESET_TOP_LEFT); sb.position=Vector2(176+si*110,232); sb.size=Vector2(104,34); sb.add_theme_font_size_override("font_size",11); sb.pressed.connect(_muzzle_test_resize.bind(float(muzzle_size_buttons[si][1]))); layer.add_child(sb); muzzle_test_controls.append(sb)
 	_update_muzzle_test_label()
 	_update_cheat_button_style()
 	_create_minimap(layer)
@@ -1934,10 +1961,12 @@ func _physics_process(delta):
 		shoot_flash_time-=delta
 		if shoot_flash_time<=0.0 and hit_label: hit_label.visible=false
 	var v = move_touch
-	if Input.is_key_pressed(KEY_W): v.y = -1
-	if Input.is_key_pressed(KEY_S): v.y = 1
-	if Input.is_key_pressed(KEY_A): v.x = -1
-	if Input.is_key_pressed(KEY_D): v.x = 1
+	if muzzle_calibration_frozen:
+		v=Vector2.ZERO
+	if not muzzle_calibration_frozen and Input.is_key_pressed(KEY_W): v.y = -1
+	if not muzzle_calibration_frozen and Input.is_key_pressed(KEY_S): v.y = 1
+	if not muzzle_calibration_frozen and Input.is_key_pressed(KEY_A): v.x = -1
+	if not muzzle_calibration_frozen and Input.is_key_pressed(KEY_D): v.x = 1
 	# Mobile movement follows what the camera/player is facing: up=forward, down=back.
 	var forward=Vector3(0,0,-1)
 	var right=Vector3(1,0,0)
@@ -2965,16 +2994,18 @@ func _make_muzzle_flame(pos:Vector3,key:String,forward:Vector3,persistent:bool=f
 	var flame=Node3D.new(); fx_root.add_child(flame); flame.global_position=pos
 	var dir=forward.normalized()
 	if dir.length()<0.1: dir=Vector3(0,0,-1)
-	flame.look_at(pos+dir,Vector3.UP)
-	# Short dense muzzle flame: bright core plus two irregular forward cones.
-	for data in [[.13,.02,.34,0.0],[.085,.0,.52,-.16],[.055,.0,.68,-.30]]:
-		var part=MeshInstance3D.new(); var cone=CylinderMesh.new()
-		cone.top_radius=float(data[1]); cone.bottom_radius=float(data[0]); cone.height=float(data[2]); cone.radial_segments=7
-		part.mesh=cone; part.rotation_degrees.x=90.0; part.position.z=float(data[3])
-		part.rotation_degrees.z=randf_range(-18.0,18.0)
-		var mat=StandardMaterial3D.new(); mat.albedo_color=col; mat.emission_enabled=true; mat.emission=col; mat.emission_energy_multiplier=5.0
-		part.material_override=mat; flame.add_child(part)
-	var core=OmniLight3D.new(); core.light_color=col; core.light_energy=4.5; core.omni_range=2.8; flame.add_child(core)
+	# Compact irregular flash. No long cone/arrow geometry.
+	var blobs=[
+		[Vector3.ZERO,Vector3(.20,.15,.20)],
+		[dir*.10+Vector3(.025,.018,0),Vector3(.15,.11,.20)],
+		[dir*.18+Vector3(-.018,-.012,0),Vector3(.09,.07,.16)]
+	]
+	for data in blobs:
+		var part=MeshInstance3D.new(); var mesh=SphereMesh.new(); mesh.radius=.5; mesh.height=1.0; part.mesh=mesh; part.position=data[0]; part.scale=data[1]
+		var mat=StandardMaterial3D.new(); mat.albedo_color=col; mat.emission_enabled=true; mat.emission=col; mat.emission_energy_multiplier=6.0; part.material_override=mat; flame.add_child(part)
+	var core=MeshInstance3D.new(); var cm=SphereMesh.new(); cm.radius=.5; cm.height=1.0; core.mesh=cm; core.scale=Vector3(.10,.08,.10)
+	var white=StandardMaterial3D.new(); white.albedo_color=Color.WHITE; white.emission_enabled=true; white.emission=Color.WHITE; white.emission_energy_multiplier=8.0; core.material_override=white; flame.add_child(core)
+	flame.scale=Vector3.ONE*muzzle_test_scale
 	if not persistent:
 		var timer=get_tree().create_timer(.075); timer.timeout.connect(flame.queue_free)
 	return flame
@@ -3014,15 +3045,36 @@ func _npc_muzzle_flash(bot:Node3D) -> void:
 	fx_root.add_child(flash); flash.global_position=pos
 	var t=get_tree().create_timer(.07); t.timeout.connect(flash.queue_free)
 
+func _muzzle_weapon_name() -> String:
+	var key:=_selected_weapon_key()
+	if key.is_empty() or "|" not in key: return ""
+	return str(key.split("|")[0])
+
+func _load_muzzle_calibration() -> void:
+	var item:=_muzzle_weapon_name()
+	if muzzle_offsets.has(item): muzzle_test_offset=muzzle_offsets[item]
+	if muzzle_scales.has(item): muzzle_test_scale=float(muzzle_scales[item])
+	_update_muzzle_test_label()
+
 func _muzzle_test_move(delta_position:Vector3) -> void:
 	if not cheat_mode or not cheat_muzzle_tuner: return
 	muzzle_test_offset+=delta_position
+	var item:=_muzzle_weapon_name()
+	if not item.is_empty(): muzzle_offsets[item]=muzzle_test_offset
+	_update_muzzle_test_label()
+	_preview_muzzle_flash()
+
+func _muzzle_test_resize(delta_scale:float) -> void:
+	if not cheat_mode or not cheat_muzzle_tuner: return
+	muzzle_test_scale=clampf(muzzle_test_scale+delta_scale,0.10,1.20)
+	var item:=_muzzle_weapon_name()
+	if not item.is_empty(): muzzle_scales[item]=muzzle_test_scale
 	_update_muzzle_test_label()
 	_preview_muzzle_flash()
 
 func _update_muzzle_test_label() -> void:
 	if muzzle_test_label:
-		muzzle_test_label.text="NAMLU TEST  X:%.2f Y:%.2f Z:%.2f" % [muzzle_test_offset.x,muzzle_test_offset.y,muzzle_test_offset.z]
+		muzzle_test_label.text="NAMLU TEST X:%.2f Y:%.2f Z:%.2f  BOYUT:%d%%  %s" % [muzzle_test_offset.x,muzzle_test_offset.y,muzzle_test_offset.z,roundi(muzzle_test_scale*100.0),("DONUK" if muzzle_calibration_frozen else "SERBEST")]
 
 func _selected_weapon_key() -> String:
 	for hotkey in hotbar_items:
@@ -3071,7 +3123,7 @@ func _toggle_cheat_mode():
 	if _panel_open(): return
 	cheat_mode=!cheat_mode
 	if not cheat_mode:
-		cheat_weapon_tuner=false; cheat_muzzle_tuner=false; cheat_infinite_weapons=false; cheat_infinite_gj=false
+		cheat_weapon_tuner=false; cheat_muzzle_tuner=false; cheat_infinite_weapons=false; cheat_infinite_gj=false; muzzle_calibration_frozen=false; player_action_locked=false
 		if fly_mode: fly_mode=false
 		_clear_muzzle_preview()
 	if cheat_menu_panel: cheat_menu_panel.visible=cheat_mode
@@ -3088,6 +3140,10 @@ func _toggle_weapon_tuner() -> void:
 func _toggle_muzzle_tuner() -> void:
 	if not cheat_mode: return
 	cheat_muzzle_tuner=!cheat_muzzle_tuner
+	if not cheat_muzzle_tuner:
+		muzzle_calibration_frozen=false
+		player_action_locked=false
+	_load_muzzle_calibration()
 	_update_cheat_button_style()
 	_preview_muzzle_flash()
 
