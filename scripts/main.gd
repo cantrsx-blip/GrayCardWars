@@ -2720,9 +2720,9 @@ func _exchange_card_to_next_rarity(key:String) -> void:
 	var idx:=rarities.find(rarity)
 	if idx<0: return
 	if int(crafted_inventory.get(key,0))<2: _flash_message("TAKAS İÇİN 2 KART GEREKİYOR"); return
-	var target:=rarities[(idx+1)%rarities.size()]
+	var target:String=str(rarities[(idx+1)%rarities.size()])
 	crafted_inventory[key]=int(crafted_inventory.get(key,0))-2
-	var target_key:="%s|%s" % [item,target]
+	var target_key:String="%s|%s" % [item,target]
 	crafted_inventory[target_key]=int(crafted_inventory.get(target_key,0))+1
 	_save_player_inventory(); _refresh_inventory()
 	_flash_message("2 %s → 1 %s" % [_rarity_name(rarity),_rarity_name(target)])
