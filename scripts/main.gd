@@ -785,6 +785,24 @@ func _build_center_settlement_mound() -> void:
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.015,.015,.018); mat.roughness=1.0; mesh.material_override=mat; body.add_child(mesh)
 	var cs=CollisionShape3D.new(); var shape=CylinderShape3D.new(); shape.radius=19.0; shape.height=0.36; cs.shape=shape; body.add_child(cs)
 
+func _build_meteor_arena_ruin() -> void:
+	# Lightweight Tripo arena shell around the existing meteor platform.
+	# The meteor/platform stay untouched; the ruin is grounded as one visual asset.
+	var ruin:=_load_asset("res://ruined arena 3d model.glb")
+	if ruin==null: return
+	ruin.name="MeteorArenaRuin"
+	add_child(ruin)
+	ruin.position=Vector3.ZERO
+	# Fit the outside of the ruin around the 19 m meteor platform while keeping
+	# its open courtyard and four entrances usable.
+	var b:=_node_visual_bounds(ruin)
+	var footprint:=maxf(b.size.x,b.size.z)
+	if footprint>0.001:
+		ruin.scale*=48.0/footprint
+	_ground_asset_to_terrain(ruin,0,0)
+	# Keep the authored north/south/east/west orientation for the first test.
+	ruin.rotation.y=0.0
+
 func _build_meteor_encounter() -> void:
 	if meteor_node!=null and is_instance_valid(meteor_node): return
 	meteor_node=_load_asset("res://meteor.glb")
@@ -1270,6 +1288,7 @@ func _build_world_base():
 	_build_world_light()
 	_build_terrain_mesh()
 	_build_center_settlement_mound()
+	_build_meteor_arena_ruin()
 	_build_meteor_encounter()
 	_build_spawn_system()
 	_build_map_edge_mountains()
