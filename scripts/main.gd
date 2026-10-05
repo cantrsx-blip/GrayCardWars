@@ -772,7 +772,6 @@ func _build_meteor_encounter() -> void:
 	add_child(meteor_node)
 	meteor_node.position=Vector3(0,0.36,0)
 	meteor_hp=2000; meteor_damage_total=0
-	meteor_hp_label=Label3D.new(); meteor_hp_label.position=Vector3(0,5.8,0); meteor_hp_label.font_size=72; meteor_hp_label.outline_size=12; meteor_hp_label.billboard=BaseMaterial3D.BILLBOARD_ENABLED; meteor_node.add_child(meteor_hp_label); _update_meteor_hp_label()
 	_ground_asset_to_terrain(meteor_node,0,0)
 	# Restore the previous meteor scale.
 	var bounds:=_node_visual_bounds(meteor_node)
@@ -780,6 +779,18 @@ func _build_meteor_encounter() -> void:
 		var target_h:=PLAYER_HEIGHT*8.0
 		meteor_node.scale*=target_h/bounds.size.y
 		_ground_asset_to_terrain(meteor_node,0,0)
+	# HP label is a world-space sibling, not a child of the scaled meteor model.
+	# This keeps its height/size stable and visible from normal ground-level play.
+	var scaled_bounds:=_node_visual_bounds(meteor_node)
+	meteor_hp_label=Label3D.new()
+	meteor_hp_label.name="MeteorHP"
+	meteor_hp_label.position=Vector3(meteor_node.position.x,scaled_bounds.position.y+scaled_bounds.size.y+1.25,meteor_node.position.z)
+	meteor_hp_label.font_size=42
+	meteor_hp_label.outline_size=7
+	meteor_hp_label.pixel_size=.008
+	meteor_hp_label.billboard=BaseMaterial3D.BILLBOARD_ENABLED
+	add_child(meteor_hp_label)
+	_update_meteor_hp_label()
 	# Solid meteor collision: player and CharacterBody3D bosses cannot pass through it.
 	var solid=StaticBody3D.new()
 	solid.name="MeteorSolidCollision"
