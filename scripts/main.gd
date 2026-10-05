@@ -448,8 +448,12 @@ func _trench_cut_amount(x:float,z:float) -> float:
 		var side_dist:=p.distance_to(closest)
 		# 2.6 m half-floor, then 4.4 m of gentle bank on each side.
 		var cross:float=1.0-smoothstep(2.6,7.0,side_dist)
-		# Soft ramps at spawn and meteor ends prevent lips/steps.
-		var along:float=smoothstep(0.0,.055,t)*(1.0-smoothstep(.945,1.0,t))
+		# Spawn side enters gently. On the meteor side the trench climbs much earlier:
+		# the cut is fully gone before the black boss platform begins, so player/NPC
+		# arrive on top of the arena instead of underneath its edge.
+		var spawn_ramp:float=smoothstep(0.0,.055,t)
+		var meteor_ramp:float=1.0-smoothstep(.84,.925,t)
+		var along:float=spawn_ramp*meteor_ramp
 		best=maxf(best,cross*along)
 	return best
 
