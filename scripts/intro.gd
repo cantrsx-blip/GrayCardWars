@@ -824,10 +824,12 @@ func _build_character_control():
 		var minus=Button.new(); minus.text="−"; minus.position=Vector2(584,130+row*34); minus.size=Vector2(48,30); minus.pressed.connect(_character_control_adjust.bind(i,-1)); character_control_panel.add_child(minus)
 		var plus=Button.new(); plus.text="+"; plus.position=Vector2(638,130+row*34); plus.size=Vector2(48,30); plus.pressed.connect(_character_control_adjust.bind(i,1)); character_control_panel.add_child(plus)
 
-	var motion_title=Label.new(); motion_title.text="90 HAREKET / İSKELET TESTLERİ"; motion_title.position=Vector2(790,72); motion_title.size=Vector2(360,28); motion_title.add_theme_font_size_override("font_size",17); character_control_panel.add_child(motion_title)
-	var motion_scroll=ScrollContainer.new(); motion_scroll.position=Vector2(790,105); motion_scroll.size=Vector2(730,555); character_control_panel.add_child(motion_scroll)
-	var motion_grid=GridContainer.new(); motion_grid.columns=3; motion_grid.name="MotionGrid"; motion_grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL; motion_scroll.add_child(motion_grid)
-	for i in range(character_control_motion_names.size()):
+	# 90-movement studio is parked for later; keep its code, do not render it yet.
+	if false:
+		var motion_title=Label.new(); motion_title.text="90 HAREKET / İSKELET TESTLERİ"; motion_title.position=Vector2(790,72); motion_title.size=Vector2(360,28); motion_title.add_theme_font_size_override("font_size",17); character_control_panel.add_child(motion_title)
+		var motion_scroll=ScrollContainer.new(); motion_scroll.position=Vector2(790,105); motion_scroll.size=Vector2(730,555); character_control_panel.add_child(motion_scroll)
+		var motion_grid=GridContainer.new(); motion_grid.columns=3; motion_grid.name="MotionGrid"; motion_grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL; motion_scroll.add_child(motion_grid)
+		for i in range(character_control_motion_names.size()):
 		var mb=Button.new(); mb.text="%02d  %s" % [i+1,character_control_motion_names[i]]; mb.custom_minimum_size=Vector2(230,42); mb.clip_text=true; mb.add_theme_font_size_override("font_size",11); mb.pressed.connect(_character_control_test_motion.bind(i)); motion_grid.add_child(mb)
 
 	character_control_status=Label.new(); character_control_status.position=Vector2(16,505); character_control_status.size=Vector2(744,82); character_control_status.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; character_control_status.add_theme_font_size_override("font_size",12); character_control_panel.add_child(character_control_status)
