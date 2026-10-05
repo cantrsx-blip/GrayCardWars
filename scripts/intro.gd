@@ -498,12 +498,6 @@ func _open_weapon_inspector(row:int,variant:String):
 	store_preview.add_child(weapon_inspect_panel)
 	var title=Label.new(); title.text="%s %s • 3D İNCELEME" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]; title.position=Vector2(18,8); title.size=Vector2(520,34); title.add_theme_font_size_override("font_size",20); weapon_inspect_panel.add_child(title)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(574,6); close.size=Vector2(48,38); close.pressed.connect(_close_weapon_inspector); weapon_inspect_panel.add_child(close)
-	var selected_motion=Label.new(); selected_motion.name="SelectedMotion"; selected_motion.position=Vector2(1010,66); selected_motion.size=Vector2(490,58); selected_motion.text="HAREKET SEÇİLMEDİ"; selected_motion.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; selected_motion.add_theme_font_size_override("font_size",16); character_control_panel.add_child(selected_motion)
-
-	var motion_grid=GridContainer.new(); motion_grid.name="MotionGrid"; motion_grid.columns=10; motion_grid.position=Vector2(790,132); motion_grid.size=Vector2(710,420); character_control_panel.add_child(motion_grid)
-	for i in range(90):
-		var mb=Button.new(); mb.text=str(i+1); mb.custom_minimum_size=Vector2(62,36); mb.pressed.connect(_character_control_select_motion.bind(i)); motion_grid.add_child(mb)
-
 	var sub=SubViewport.new(); sub.size=Vector2i(600,390); sub.transparent_bg=true; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; weapon_inspect_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
 	var env=WorldEnvironment.new(); var e=Environment.new(); e.background_mode=Environment.BG_COLOR; e.background_color=Color(.055,.065,.08); e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; e.ambient_light_color=Color.WHITE; e.ambient_light_energy=1.2; env.environment=e; world.add_child(env)
