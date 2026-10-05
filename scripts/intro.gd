@@ -498,11 +498,11 @@ func _open_weapon_inspector(row:int,variant:String):
 	store_preview.add_child(weapon_inspect_panel)
 	var title=Label.new(); title.text="%s %s • 3D İNCELEME" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]; title.position=Vector2(18,8); title.size=Vector2(520,34); title.add_theme_font_size_override("font_size",20); weapon_inspect_panel.add_child(title)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(574,6); close.size=Vector2(48,38); close.pressed.connect(_close_weapon_inspector); weapon_inspect_panel.add_child(close)
-	var selected_motion=Label.new(); selected_motion.name="SelectedMotion"; selected_motion.set_anchors_preset(Control.PRESET_TOP_RIGHT); selected_motion.position=Vector2(-250,64); selected_motion.size=Vector2(230,54); selected_motion.text="HAREKET SEÇİLMEDİ"; selected_motion.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; selected_motion.add_theme_font_size_override("font_size",13); character_control_panel.add_child(selected_motion)
+	var selected_motion=Label.new(); selected_motion.name="SelectedMotion"; selected_motion.position=Vector2(1010,66); selected_motion.size=Vector2(490,58); selected_motion.text="HAREKET SEÇİLMEDİ"; selected_motion.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; selected_motion.add_theme_font_size_override("font_size",16); character_control_panel.add_child(selected_motion)
 
-	var motion_grid=GridContainer.new(); motion_grid.columns=10; motion_grid.set_anchors_preset(Control.PRESET_TOP_RIGHT); motion_grid.position=Vector2(-510,128); motion_grid.size=Vector2(490,360); character_control_panel.add_child(motion_grid)
+	var motion_grid=GridContainer.new(); motion_grid.name="MotionGrid"; motion_grid.columns=10; motion_grid.position=Vector2(790,132); motion_grid.size=Vector2(710,420); character_control_panel.add_child(motion_grid)
 	for i in range(90):
-		var mb=Button.new(); mb.text=str(i+1); mb.custom_minimum_size=Vector2(43,32); mb.pressed.connect(_character_control_select_motion.bind(i)); motion_grid.add_child(mb)
+		var mb=Button.new(); mb.text=str(i+1); mb.custom_minimum_size=Vector2(62,36); mb.pressed.connect(_character_control_select_motion.bind(i)); motion_grid.add_child(mb)
 
 	var sub=SubViewport.new(); sub.size=Vector2i(600,390); sub.transparent_bg=true; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; weapon_inspect_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
@@ -789,7 +789,7 @@ func _build_character_control():
 	add_child(character_control_panel)
 
 	var title=Label.new(); title.text="KARAKTER KONTROL • MESHY TEST"; title.position=Vector2(18,10); title.size=Vector2(600,34); title.add_theme_font_size_override("font_size",22); character_control_panel.add_child(title)
-	var close=Button.new(); close.text="KARAKTER KONTROLDEN ÇIK"; close.set_anchors_preset(Control.PRESET_TOP_RIGHT); close.position=Vector2(-250,14); close.size=Vector2(230,44); close.pressed.connect(_toggle_character_control); character_control_panel.add_child(close)
+	var close=Button.new(); close.text="KARAKTER KONTROLDEN ÇIK"; close.position=Vector2(1260,14); close.size=Vector2(250,44); close.pressed.connect(_toggle_character_control); character_control_panel.add_child(close)
 
 	var sub=SubViewport.new(); sub.size=Vector2i(470,400); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; character_control_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
@@ -993,7 +993,6 @@ func _character_control_select_motion(index:int):
 	if index<0 or index>=character_control_motion_names.size(): return
 	character_control_motion_index=index
 	var box=character_control_panel.get_node_or_null("SelectedMotion") if character_control_panel else null
-	if box: box.text="%d - %s" % [index+1,character_control_motion_names[index]]
 	var n=index+1
 	if n==2: _character_control_load_anim("Walking")
 	elif n in [3,4,6,7,8,9,13,20,21,22,30,31,32,33,55,68,77,78,79]: _character_control_load_anim("Running")
@@ -1001,6 +1000,8 @@ func _character_control_select_motion(index:int):
 	elif n in [66,88,89]: _character_control_load_anim("Dead")
 	elif n in [67,68]: _character_control_load_anim("Skill_03")
 	else: _character_control_load_anim("Walking")
+	box=character_control_panel.get_node_or_null("SelectedMotion") if character_control_panel else null
+	if box: box.text="%d - %s" % [index+1,character_control_motion_names[index]]
 
 
 func _character_control_update_labels():
