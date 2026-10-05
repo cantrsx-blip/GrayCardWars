@@ -420,8 +420,7 @@ func _build_world_staged() -> void:
 	# Raiders and bosses intentionally disabled for the KARA KIYI rebuild.
 	zone_label.text=""
 
-func height_at(_x: float, _z: float) -> float:
-	var h:=0.0
+func _spawn_site_vectors() -> Array[Vector2]:
 	var edge:=164.0
 	var lanes=[-132.0,-66.0,0.0,66.0,132.0]
 	var sites:Array[Vector2]=[]
@@ -429,6 +428,34 @@ func height_at(_x: float, _z: float) -> float:
 	for z in lanes: sites.append(Vector2(edge,z))
 	for x in lanes: sites.append(Vector2(-x,edge))
 	for z in lanes: sites.append(Vector2(-edge,-z))
+	return sites
+
+func _trench_cut_amount(x:float,z:float) -> float:
+	# Real terrain cut: flat-ish 5.2 m floor plus broad sloped shoulders.
+	# The shoulders deliberately stay walkable so player/NPC can leave a trench sideways anywhere.
+	var p:=Vector2(x,z)
+	var best:float=0.0
+	for site in _spawn_site_vectors():
+		var radial:=site.length()
+		if radial<1.0: continue
+		var inward:=(-site).normalized()
+		var end:=inward*(METEOR_ARENA_RADIUS+1.5)
+		var seg:=end-site
+		var len2:=seg.length_squared()
+		if len2<=0.001: continue
+		var t:=clampf((p-site).dot(seg)/len2,0.0,1.0)
+		var closest:=site+seg*t
+		var side_dist:=p.distance_to(closest)
+		# 2.6 m half-floor, then 4.4 m of gentle bank on each side.
+		var cross:float=1.0-smoothstep(2.6,7.0,side_dist)
+		# Soft ramps at spawn and meteor ends prevent lips/steps.
+		var along:float=smoothstep(0.0,.055,t)*(1.0-smoothstep(.945,1.0,t))
+		best=maxf(best,cross*along)
+	return best
+
+func height_at(_x: float, _z: float) -> float:
+	var h:=0.0
+	var sites:=_spawn_site_vectors()
 	var here:=Vector2(_x,_z)
 	for site in sites:
 		var d:=here.distance_to(site)
@@ -440,6 +467,8 @@ func height_at(_x: float, _z: float) -> float:
 				var rt:float=1.0-absf(d-11.0)/4.0
 				ring=maxf(0.0,rt)*(1.15+0.35*sin(_x*.31+_z*.23))
 			h+=bowl+ring
+	# Cut the actual terrain, not a hidden floor under an unchanged surface.
+	h-=2.15*_trench_cut_amount(_x,_z)
 	return h
 
 func _near_poi(x: float, z: float) -> bool:
@@ -657,15 +686,10 @@ func _place_asset(path:String, parent:Node, pos:Vector3, scale_v:=Vector3.ONE, r
 	if n==null: return null
 	n.position=pos; n.scale=scale_v; n.rotation_degrees=rot; parent.add_child(n); return n
 
-func _ground_color(h:float, z:float=0.0)->Color:
-	# KARA KIYI south-shore blend. Keep water material untouched.
-	if z < -170.0:
-		var shore_t=clampf((-170.0-z)/18.0,0.0,1.0)
-		return Color(.78,.70,.42).lerp(Color(.50,.42,.31),shore_t)
-	if h < -1.5: return Color(.29,.22,.14)
-	if h < .4: return Color(.42,.34,.20)
-	if h > 6.0: return Color(.43,.40,.32)
-	return Color(.48,.43,.27)
+func _ground_color(h:float, z:float=0.0, x:float=0.0)->Color:
+	var cut:=_trench_cut_amount(x,z)
+	if cut>0.08: return Color.WHITE.lerp(Color(.34,.21,.10),clampf(cut,0.0,1.0))
+	return Color.WHITE
 
 func _ground_asset_to_terrain(n:Node3D, x:float, z:float)->void:
 	var ymin:=INF
@@ -689,12 +713,12 @@ func _terrain_surface(cells:int) -> ArrayMesh:
 		for x in cells:
 			var x0=-MAP_HALF+x*step; var x1=x0+step; var z0=-MAP_HALF+z*step; var z1=z0+step
 			var a=Vector3(x0,height_at(x0,z0),z0); var b=Vector3(x1,height_at(x1,z0),z0); var cc=Vector3(x1,height_at(x1,z1),z1); var d=Vector3(x0,height_at(x0,z1),z1)
-			st.set_color(_ground_color(a.y,a.z)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
-			st.set_color(_ground_color(b.y,b.z)); st.set_uv(Vector2(x1/8.0,z0/8.0)); st.add_vertex(b)
-			st.set_color(_ground_color(cc.y,cc.z)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(cc)
-			st.set_color(_ground_color(a.y,a.z)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
-			st.set_color(_ground_color(cc.y,cc.z)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(cc)
-			st.set_color(_ground_color(d.y,d.z)); st.set_uv(Vector2(x0/8.0,z1/8.0)); st.add_vertex(d)
+			st.set_color(_ground_color(a.y,a.z,a.x)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
+			st.set_color(_ground_color(b.y,b.z,b.x)); st.set_uv(Vector2(x1/8.0,z0/8.0)); st.add_vertex(b)
+			st.set_color(_ground_color(cc.y,cc.z,cc.x)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(cc)
+			st.set_color(_ground_color(a.y,a.z,a.x)); st.set_uv(Vector2(x0/8.0,z0/8.0)); st.add_vertex(a)
+			st.set_color(_ground_color(cc.y,cc.z,cc.x)); st.set_uv(Vector2(x1/8.0,z1/8.0)); st.add_vertex(cc)
+			st.set_color(_ground_color(d.y,d.z,d.x)); st.set_uv(Vector2(x0/8.0,z1/8.0)); st.add_vertex(d)
 	st.generate_normals()
 	return st.commit()
 
@@ -713,7 +737,7 @@ func _terrain_visual_mesh(cells:int)->ArrayMesh:
 
 func _terrain_material(path:String)->StandardMaterial3D:
 	var mat=StandardMaterial3D.new()
-	mat.albedo_color=Color.WHITE; mat.roughness=.96; mat.vertex_color_use_as_albedo=false
+	mat.albedo_color=Color.WHITE; mat.roughness=.96; mat.vertex_color_use_as_albedo=true
 	mat.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	mat.texture_repeat=true
 	if ResourceLoader.exists(path):
@@ -726,7 +750,7 @@ func _build_terrain_mesh() -> void:
 	var terrain_material=_terrain_material("res://z13.jpg")
 	if mesh.get_surface_count()>0: mesh.surface_set_material(0,terrain_material)
 	var terrain=MeshInstance3D.new(); terrain.name="Terrain"; terrain.mesh=mesh; add_child(terrain)
-	var collision_mesh=_terrain_surface(24)
+	var collision_mesh=_terrain_surface(64)
 	var body=StaticBody3D.new(); body.name="TerrainCollision"
 	var cs=CollisionShape3D.new(); cs.shape=collision_mesh.create_trimesh_shape(); body.add_child(cs); add_child(body)
 
@@ -1208,7 +1232,6 @@ func _build_world_base():
 	_build_center_settlement_mound()
 	_build_meteor_encounter()
 	_build_spawn_system()
-	_build_spawn_meteor_trenches()
 	_build_map_edge_mountains()
 	_build_god_watchers()
 
@@ -1244,36 +1267,6 @@ func _build_spawn_system() -> void:
 	if player:
 		var pp:=spawn_points[0]; player.position=Vector3(pp.x,pp.y+PLAYER_HEIGHT+.38,pp.z)
 	for i in range(1,spawn_points.size()): _spawn_combat_bot(spawn_points[i],i)
-
-func _build_spawn_meteor_trenches() -> void:
-	# Twenty direct shortcuts from every spawn pad to the outside edge of the meteor arena.
-	# The trench is an open, brown-earth corridor now; its roof can be added later as a separate layer.
-	var root=Node3D.new(); root.name="SpawnMeteorTrenches"; add_child(root)
-	var brown:=Color(.31,.19,.09)
-	var trench_width:float=5.2
-	var segment_len:float=5.0
-	var trench_depth:float=1.15
-	for spawn in spawn_points:
-		var start:=Vector3(spawn.x,0.0,spawn.z)
-		var flat:=Vector2(start.x,start.z)
-		if flat.length()<=METEOR_ARENA_RADIUS+3.0: continue
-		var dir2:=(-flat).normalized()
-		var end2:=dir2*(METEOR_ARENA_RADIUS+1.5)
-		var distance:=flat.distance_to(end2)
-		var count:=maxi(1,int(ceil(distance/segment_len)))
-		var step_len:=distance/float(count)
-		var yaw:=atan2(dir2.x,dir2.y)
-		for j in count:
-			var d:float=(float(j)+.5)*step_len
-			var x:float=start.x+dir2.x*d
-			var z:float=start.z+dir2.y*d
-			var ground:float=height_at(x,z)
-			# Brown floor sits slightly below the normal terrain, giving a clear trench/shortcut read.
-			var floor=StaticBody3D.new(); floor.position=Vector3(x,ground-trench_depth,z); floor.rotation.y=yaw
-			var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(trench_width,.22,step_len+.12); mi.mesh=bm
-			var mat=StandardMaterial3D.new(); mat.albedo_color=brown; mat.roughness=1.0; mi.material_override=mat; floor.add_child(mi)
-			var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=bm.size; cs.shape=sh; floor.add_child(cs)
-			root.add_child(floor)
 
 func _spawn_combat_bot(p:Vector3,index:int) -> void:
 	var bot=CharacterBody3D.new()
