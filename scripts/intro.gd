@@ -67,7 +67,7 @@ const STORE_WEAPON_COSTS := [2,4,8,16,32,64,128,256]
 const CARD_PRICE_GJ := 2
 const STORE_SLOT_BG := ["res://gumus.png","res://zehir.png","res://buz.jpg","res://gunes.png","res://lav.png"]
 
-const CHARACTERS := ["KAYA", "S.A.Z", "AKREP"]
+const CHARACTERS := ["KAYA", "S.A.Z", "AKREP", "KARAKTER 2"]
 const MAPS := ["KARA KIYI"]
 
 func _ready():
