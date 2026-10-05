@@ -1993,10 +1993,15 @@ func _build_player():
 	player.add_child(col)
 	add_child(player)
 
-	# Third-person Y Bot test character.
-	player_visual=_load_asset("res://Y Bot.fbx")
+	# Player can keep the original Y Bot or choose the new Meshy Character 2 from the lobby.
+	var cfg=ConfigFile.new()
+	cfg.load("user://player.cfg")
+	var chosen_character:String=str(cfg.get_value("player","character","KAYA"))
+	var use_meshy_player:bool=chosen_character=="KARAKTER 2"
+	player.set_meta("meshy_player",use_meshy_player)
+	player_visual=_load_asset("res://YBot_Walking_withSkin.glb" if use_meshy_player else "res://Y Bot.fbx")
 	if player_visual:
-		player_visual.name="YBotVisual"
+		player_visual.name="MeshyCharacter2" if use_meshy_player else "YBotVisual"
 		player.add_child(player_visual)
 		var bounds:=_node_visual_bounds(player_visual)
 		if bounds.size.y>0.001:
@@ -2007,7 +2012,7 @@ func _build_player():
 		player_anim=_find_animation_player(player_visual)
 		player_skeleton=_find_skeleton(player_visual)
 		if player_anim: player_anim.stop()
-		player_visual.set_meta("anim_source","res://Y Bot.fbx")
+		player_visual.set_meta("anim_source","res://YBot_Walking_withSkin.glb" if use_meshy_player else "res://Y Bot.fbx")
 
 	# Real third-person shoulder rig. The pivot rotates around the player so the
 	# camera stays behind the Y Bot instead of behaving like the old FPS camera.
@@ -2041,8 +2046,44 @@ func _ybot_anim_source(anim_name:String)->String:
 	}
 	return "res://"+str(files.get(anim_name,""))
 
+
+func _meshy_player_anim_path(wanted:String)->String:
+	if wanted in ["Run","Rifle Run"]: return "res://YBot_Running_withSkin.glb"
+	if wanted in ["Firing Rifle","Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One"]: return "res://YBot_Attack_withSkin.glb"
+	return "res://YBot_Walking_withSkin.glb"
+
+func _play_meshy_player_anim(wanted:String)->void:
+	if player_visual==null: return
+	var path:=_meshy_player_anim_path(wanted)
+	if str(player_visual.get_meta("meshy_anim",""))==path: return
+	var old=player.get_node_or_null("MeshyPlayerAnimationCarrier")
+	if old: old.queue_free()
+	if not ResourceLoader.exists(path): return
+	var carrier:=_load_asset(path)
+	if carrier==null: return
+	carrier.name="MeshyPlayerAnimationCarrier"; carrier.visible=false; player.add_child(carrier)
+	var ap:=_find_animation_player(carrier); var src:=_find_skeleton(carrier)
+	if ap==null or src==null: carrier.queue_free(); return
+	var chosen:StringName=&""
+	for lib_name in ap.get_animation_library_list():
+		var lib=ap.get_animation_library(lib_name)
+		if lib:
+			for an in lib.get_animation_list():
+				if str(an).to_lower()!="reset": chosen=an; break
+		if chosen!=&"": break
+	if chosen==&"": carrier.queue_free(); return
+	var animation=ap.get_animation(chosen)
+	if animation and path!="res://YBot_Attack_withSkin.glb": animation.loop_mode=Animation.LOOP_LINEAR
+	player_anim=ap
+	player_anim_skeleton=src
+	player_visual.set_meta("meshy_anim",path)
+	ap.play(chosen,0.05)
+
 func _play_ybot_anim(wanted:String)->void:
 	if player_visual==null: return
+	if player and bool(player.get_meta("meshy_player",false)):
+		_play_meshy_player_anim(wanted)
+		return
 	var path:=_ybot_anim_source(wanted)
 	if path.is_empty() or not ResourceLoader.exists(path): return
 	var one_shot_attack=wanted in ["Firing Rifle","Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One"]
