@@ -48,6 +48,10 @@ var character_control_weapon_rot := Vector3.ZERO
 var character_control_muzzle_pos := Vector3(0,0,0.55)
 var character_control_status: Label
 var character_control_anim_name := "Running"
+var character_control_base_scale := Vector3.ONE
+var character_control_zoom := 1.0
+var character_control_spin := Vector2.ZERO
+var character_control_auto_spin := false
 
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
@@ -549,6 +553,11 @@ func _inspect_zoom(factor:float):
 	weapon_inspect_model.scale=weapon_inspect_base_scale*weapon_inspect_zoom
 
 func _process(delta:float):
+	if character_control_model!=null:
+		if character_control_auto_spin: character_control_model.rotate_y(delta)
+		if character_control_spin!=Vector2.ZERO:
+			character_control_model.rotate_y(-character_control_spin.x*delta*1.6)
+			character_control_model.rotate_x(-character_control_spin.y*delta*1.6)
 	if weapon_inspect_model!=null:
 		if weapon_inspect_auto_spin:
 			weapon_inspect_model.rotate_y(delta*1.0)
@@ -758,6 +767,13 @@ func _build_character_control():
 
 	var view=TextureRect.new(); view.position=Vector2(16,48); view.size=Vector2(470,400); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_IGNORE; character_control_panel.add_child(view)
 
+	var rotate_buttons=[["←",Vector2(16,414),Vector2(-1,0)],["→",Vector2(76,414),Vector2(1,0)],["↑",Vector2(136,414),Vector2(0,-1)],["↓",Vector2(196,414),Vector2(0,1)]]
+	for data in rotate_buttons:
+		var rb=Button.new(); rb.text=data[0]; rb.position=data[1]; rb.size=Vector2(54,34); rb.button_down.connect(_character_control_spin_start.bind(data[2])); rb.button_up.connect(_character_control_spin_stop); character_control_panel.add_child(rb)
+	var zin=Button.new(); zin.text="+"; zin.position=Vector2(260,414); zin.size=Vector2(54,34); zin.pressed.connect(_character_control_zoom.bind(1.15)); character_control_panel.add_child(zin)
+	var zout=Button.new(); zout.text="−"; zout.position=Vector2(320,414); zout.size=Vector2(54,34); zout.pressed.connect(_character_control_zoom.bind(0.87)); character_control_panel.add_child(zout)
+	var reset_view=Button.new(); reset_view.text="SIFIRLA"; reset_view.position=Vector2(380,414); reset_view.size=Vector2(86,34); reset_view.pressed.connect(_character_control_reset_view); character_control_panel.add_child(reset_view)
+
 	var anims=[["KOŞ","Running"],["YÜRÜ","Walking"],["SALDIR","Attack"],["YETENEK","Skill_03"],["ÖL","Dead"]]
 	for i in anims.size():
 		var b=Button.new(); b.text=anims[i][0]; b.position=Vector2(16+i*92,456); b.size=Vector2(86,38); b.pressed.connect(_character_control_load_anim.bind(anims[i][1])); character_control_panel.add_child(b)
@@ -841,8 +857,27 @@ func _character_control_fit_model():
 		else: merged=merged.merge(box)
 	var h=maxf(merged.size.y,0.001)
 	var sc=1.85/h
-	character_control_model.scale=Vector3.ONE*sc
+	character_control_base_scale=Vector3.ONE*sc
+	character_control_model.scale=character_control_base_scale*character_control_zoom
 	character_control_model.position=Vector3(0,-merged.position.y*sc,0)
+
+func _character_control_spin_start(dir:Vector2):
+	character_control_spin=dir
+
+func _character_control_spin_stop():
+	character_control_spin=Vector2.ZERO
+
+func _character_control_zoom(factor:float):
+	character_control_zoom=clampf(character_control_zoom*factor,0.45,2.5)
+	if character_control_model:
+		character_control_model.scale=character_control_base_scale*character_control_zoom
+
+func _character_control_reset_view():
+	character_control_zoom=1.0
+	character_control_spin=Vector2.ZERO
+	if character_control_model:
+		character_control_model.rotation_degrees=Vector3.ZERO
+		character_control_model.scale=character_control_base_scale
 
 func _character_control_right_hand()->BoneAttachment3D:
 	if character_control_skeleton==null: return null
