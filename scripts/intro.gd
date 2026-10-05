@@ -59,6 +59,19 @@ var character_control_base_scale := Vector3.ONE
 var character_control_zoom := 1.0
 var character_control_spin := Vector2.ZERO
 var character_control_auto_spin := false
+var character_control_lobby_hidden:Array[CanvasItem]=[]
+var character_control_motion_index:=0
+var character_control_motion_names := [
+	"Normal Bekleme","Yürüme","Koşma","Depar / Hızlı Koşma","Geri Geri Yürüme","Geri Geri Koşma","Sağa Strafe","Sola Strafe","Koşarken Sağa/Sola Dönüş","Ani 180° Dönüş",
+	"Dönüşte Gövde Yatırma","Zıplama","Koşarak Zıplama","Havada / Düşüş Pozu","Havada Yön Değiştirme","Normal İniş","Sert İniş","Yüksekten Düşme Tepkisi","Çömelme","Çömelerek Yürüme",
+	"Çömelerek Geri Gitme","Çömelerek Sağa/Sola","Çömelerek Nişan","Çömelerek Ateş","Ayağa Kalkma","Kamera Yönüne Bakış","Hedefe Bakış","Üst Gövde Hedefe Dönüş","Yukarı/Aşağı Nişan","Yürürken Nişan",
+	"Koşarken Silah Taşıma","Geri Giderken Nişan","Strafe Hedef Kilidi","Zıplarken Silah Tutma","Zıplarken Ateş","Ateşli Silah Tutuşu","Pompalı Tutuşu","Çift Namlulu Tutuşu","Sniper Tutuşu","İki Elle Silah Tutma",
+	"Sol El Silah Kilidi","Silahı Omuza Hizalama","Dürbün Kafa/Göz Hizası","Normal Geri Tepme","Pompalı Güçlü Geri Tepme","Sniper Güçlü Geri Tepme","Ateş Sonrası Toparlanma","Silah Değiştirme","Bıçak Bekleme","Bıçak Saldırısı",
+	"Bıçak Saldırı Varyasyonu","Kılıç Bekleme","Kılıç Saldırısı","Kılıç Savurma Varyasyonu","Koşarak Yakın Dövüş","Yakın Dövüş Combo","VUR → 1 → 2 → 3","Saldırırken Hedefe Dönüş","Hafif Hasar Tepkisi","Ağır Hasar Tepkisi",
+	"Önden Vurulma","Arkadan Vurulma","Sağ/Soldan Vurulma","Sendeleme","Dengeyi Toparlama","Ölüm","Skill / Yetenek","Koşarken Skill","Yorgunluk","Boşta Etrafa Bakış",
+	"Ağırlık Aktarma","Nefes / Mikro Hareket","Eğimli Zeminde Ayak","Otomatik Adım","Küçük Engel Atlama","Duvar Çarpma Tepkisi","Hıza Göre Animasyon","Yürüme → Koşma","Koşma → Durma","Yumuşak Animasyon Geçişi",
+	"Bağımsız Üst Gövde Nişan","Ayak Kaymasını Azaltma","Silah Kaymasını Azaltma","El IK","Ayak IK","Silah Hedefleme IK","Bölgesel Kemik Tepkisi","Ragdoll Ölüm","Kontrollü Ragdoll","NPC Hareket Testi"
+]
 
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
@@ -752,19 +765,33 @@ func _preview_message(t:String):
 func _toggle_character_control():
 	if character_control_panel==null:
 		_build_character_control()
+	_character_control_set_studio(not character_control_panel.visible)
+
+func _character_control_set_studio(opening:bool):
+	if character_control_panel==null: return
+	character_control_panel.visible=opening
+	if opening:
+		character_control_lobby_hidden.clear()
+		for child in get_children():
+			if child is CanvasItem and child!=character_control_panel and child.visible:
+				character_control_lobby_hidden.append(child)
+				child.visible=false
+		character_control_panel.visible=true
 	else:
-		character_control_panel.visible=not character_control_panel.visible
+		for item in character_control_lobby_hidden:
+			if is_instance_valid(item): item.visible=true
+		character_control_lobby_hidden.clear()
 
 func _build_character_control():
 	character_control_panel=Panel.new()
-	character_control_panel.set_anchors_preset(Control.PRESET_CENTER)
-	character_control_panel.position=Vector2(-390,-300)
-	character_control_panel.size=Vector2(780,600)
+	character_control_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	character_control_panel.position=Vector2.ZERO
+	character_control_panel.size=Vector2.ZERO
 	character_control_panel.z_index=250
 	add_child(character_control_panel)
 
 	var title=Label.new(); title.text="KARAKTER KONTROL • MESHY TEST"; title.position=Vector2(18,10); title.size=Vector2(600,34); title.add_theme_font_size_override("font_size",22); character_control_panel.add_child(title)
-	var close=Button.new(); close.text="✕"; close.position=Vector2(716,8); close.size=Vector2(48,38); close.pressed.connect(_toggle_character_control); character_control_panel.add_child(close)
+	var close=Button.new(); close.text="KARAKTER KONTROLDEN ÇIK"; close.set_anchors_preset(Control.PRESET_TOP_RIGHT); close.position=Vector2(-250,14); close.size=Vector2(230,44); close.pressed.connect(_toggle_character_control); character_control_panel.add_child(close)
 
 	var sub=SubViewport.new(); sub.size=Vector2i(470,400); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; character_control_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
@@ -796,6 +823,12 @@ func _build_character_control():
 		var lab=Label.new(); lab.text=labels[i]; lab.position=Vector2(500,132+row*34); lab.size=Vector2(80,30); lab.add_theme_font_size_override("font_size",12); character_control_panel.add_child(lab)
 		var minus=Button.new(); minus.text="−"; minus.position=Vector2(584,130+row*34); minus.size=Vector2(48,30); minus.pressed.connect(_character_control_adjust.bind(i,-1)); character_control_panel.add_child(minus)
 		var plus=Button.new(); plus.text="+"; plus.position=Vector2(638,130+row*34); plus.size=Vector2(48,30); plus.pressed.connect(_character_control_adjust.bind(i,1)); character_control_panel.add_child(plus)
+
+	var motion_title=Label.new(); motion_title.text="90 HAREKET / İSKELET TESTLERİ"; motion_title.position=Vector2(790,72); motion_title.size=Vector2(360,28); motion_title.add_theme_font_size_override("font_size",17); character_control_panel.add_child(motion_title)
+	var motion_scroll=ScrollContainer.new(); motion_scroll.position=Vector2(790,105); motion_scroll.size=Vector2(730,555); character_control_panel.add_child(motion_scroll)
+	var motion_grid=GridContainer.new(); motion_grid.columns=3; motion_grid.name="MotionGrid"; motion_grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL; motion_scroll.add_child(motion_grid)
+	for i in range(character_control_motion_names.size()):
+		var mb=Button.new(); mb.text="%02d  %s" % [i+1,character_control_motion_names[i]]; mb.custom_minimum_size=Vector2(230,42); mb.clip_text=true; mb.add_theme_font_size_override("font_size",11); mb.pressed.connect(_character_control_test_motion.bind(i)); motion_grid.add_child(mb)
 
 	character_control_status=Label.new(); character_control_status.position=Vector2(16,505); character_control_status.size=Vector2(744,82); character_control_status.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; character_control_status.add_theme_font_size_override("font_size",12); character_control_panel.add_child(character_control_status)
 	character_control_panel.set_meta("world",world)
@@ -964,12 +997,55 @@ func _character_control_adjust(axis:int,dir:int):
 	_character_control_attach_weapon()
 	_character_control_update_labels()
 
+func _character_control_test_motion(index:int):
+	character_control_motion_index=index
+	var n:=character_control_motion_names[index]
+	if index in [1,4,6,7,19,20,21,24,29,31,32,47,48,51,64,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,89]:
+		_character_control_load_anim("Walking")
+	elif index in [2,3,5,8,9,10,12,14,30,54,67]:
+		_character_control_load_anim("Running")
+	elif index in [49,50,52,53,55,56,57,58,59,60,61,62,63]:
+		_character_control_load_anim("Attack")
+	elif index in [66]:
+		_character_control_load_anim("Skill_03")
+	elif index in [65,87,88]:
+		_character_control_load_anim("Dead")
+	else:
+		_character_control_load_anim("Walking")
+	_character_control_apply_procedural_pose(index)
+	_character_control_update_labels()
+
+func _character_control_apply_procedural_pose(index:int):
+	if character_control_model==null: return
+	character_control_model.rotation_degrees.x=0.0
+	character_control_model.rotation_degrees.z=0.0
+	character_control_model.position.y=0.0
+	# Preview-only procedural poses. These never alter gameplay.
+	if index in [18,19,20,21,22,23]:
+		character_control_model.position.y=-0.38
+	elif index in [11,12,13,14]:
+		character_control_model.position.y=0.35
+	elif index==9:
+		character_control_model.rotation_degrees.y+=180.0
+	elif index==10:
+		character_control_model.rotation_degrees.z=-12.0
+	elif index in [16,17,63]:
+		character_control_model.rotation_degrees.x=-12.0
+	elif index in [58,60]:
+		character_control_model.rotation_degrees.x=10.0
+	elif index==61:
+		character_control_model.rotation_degrees.x=-10.0
+	elif index==62:
+		character_control_model.rotation_degrees.z=10.0
+	elif index in [43,44,45]:
+		character_control_model.rotation_degrees.x=-6.0
+
 func _character_control_update_labels():
 	if character_control_panel==null: return
 	var name=character_control_panel.get_node_or_null("WeaponName")
 	if name: name.text=STORE_WEAPON_NAMES[character_control_weapon_index]
 	if character_control_status:
-		character_control_status.text="%s • %s\nSilah konum: %.2f, %.2f, %.2f   Dönüş: %.0f°, %.0f°, %.0f°   Namlu: %.2f, %.2f, %.2f" % [character_control_anim_name,STORE_WEAPON_NAMES[character_control_weapon_index],character_control_weapon_pos.x,character_control_weapon_pos.y,character_control_weapon_pos.z,character_control_weapon_rot.x,character_control_weapon_rot.y,character_control_weapon_rot.z,character_control_muzzle_pos.x,character_control_muzzle_pos.y,character_control_muzzle_pos.z]
+		character_control_status.text="%s • %s • HAREKET: %s\nSilah konum: %.2f, %.2f, %.2f   Dönüş: %.0f°, %.0f°, %.0f°   Namlu: %.2f, %.2f, %.2f" % [character_control_anim_name,STORE_WEAPON_NAMES[character_control_weapon_index],character_control_motion_names[character_control_motion_index],character_control_weapon_pos.x,character_control_weapon_pos.y,character_control_weapon_pos.z,character_control_weapon_rot.x,character_control_weapon_rot.y,character_control_weapon_rot.z,character_control_muzzle_pos.x,character_control_muzzle_pos.y,character_control_muzzle_pos.z]
 
 
 func _enter_game():
