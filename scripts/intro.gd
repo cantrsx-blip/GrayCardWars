@@ -62,6 +62,7 @@ var character_control_auto_spin := false
 var character_control_lobby_hidden:Array[CanvasItem]=[]
 var character_control_motion_index := -1
 var character_control_motion_time := 0.0
+var character_control_base_y := 0.0
 var character_control_motion_names := [
 	"Normal bekleme","Yürüme","Koşma","Depar / hızlı koşma","Geri geri yürüme","Geri geri koşma","Sağa strafe","Sola strafe","Koşarken sağa/sola dönüş","Ani 180° dönüş","Dönüşlerde gövdenin yana yatması","Zıplama","Koşarak zıplama","Havada bekleme/düşüş pozu","Havada yön değiştirme","Normal iniş","Sert iniş","Yüksekten düşme tepkisi","Çömelme","Çömelerek yürüme","Çömelerek geri gitme","Çömelerek sağa/sola hareket","Çömelerek nişan alma","Çömelerek ateş etme","Ayağa kalkma geçişi","Kamera yönüne kafa çevirme","Hedefe kafa çevirme","Üst gövdeyi hedefe döndürme","Yukarı/aşağı nişan alma","Yürürken nişan alma","Koşarken silah taşıma","Geri giderken nişan alma","Strafe yaparken hedefte kalma","Zıplarken silah tutma","Zıplarken ateş etme","Tabanca/tüfek tipi silah tutuşu","Pompalı tutuşu","Çift namlulu tutuşu","Sniper tutuşu","İki elle ateşli silah tutma","Sol eli silahın ön kısmına kilitleme","Silahı omuza hizalama","Dürbüne kafa/göz hizalama","Normal ateş geri tepmesi","Pompalı güçlü geri tepmesi","Sniper güçlü geri tepmesi","Ateş sonrası toparlanma","Silah değiştirme hareketi","Bıçak bekleme duruşu","Bıçak saldırısı","Farklı bıçak saldırı açıları","Kılıç bekleme duruşu","Kılıç saldırısı","Farklı kılıç savurma açıları","Koşarak yakın dövüş saldırısı","Yakın dövüş combo sistemi","VUR → 1 → 2 → 3 saldırı zinciri","Saldırı sırasında hedefe dönme","Hafif hasar tepkisi","Ağır hasar tepkisi","Önden vurulma tepkisi","Arkadan vurulma tepkisi","Sağdan/soldan vurulma tepkisi","Sendeleme","Dengeyi toparlama","Ölüm animasyonu","Skill/Yetenek hareketi","Koşarken Skill kullanma geçişi","Yorgunluk hareketi","Boşta başını etrafa çevirme","Ağırlığı bir bacaktan diğerine verme","Nefes alma/gövde mikro hareketleri","Eğimli zemine göre ayak basışı","Merdiven/engel yüksekliğine göre otomatik adım","Küçük engellerin üzerinden otomatik atlama","Duvara/engele çarpınca hareket tepkisi","Hareket hızına göre adım ve animasyon hızını eşleme","Yürümeden koşmaya yumuşak geçiş","Koşmadan durmaya yumuşak geçiş","Animasyonlar arasında yumuşak blend/geçiş","Alt gövde hareket ederken üst gövdenin bağımsız nişan alması","Ayakların zeminde kaymasını azaltma","Silahın elde kaymasını azaltma","Eller için IK","Ayaklar için IK","Silah hedefleme IK","Vurulan bölgeye göre kemik tepkisi","Ragdoll ölüm sistemi","Ragdoll'dan kontrollü fizik tepkileri","NPC'lerin aynı hareket sistemini kullanabilmesi"
 ]
@@ -894,6 +895,7 @@ func _character_control_fit_model():
 	character_control_base_scale=Vector3.ONE*sc
 	character_control_model.scale=character_control_base_scale*character_control_zoom
 	character_control_model.position=Vector3(0,-merged.position.y*sc,0)
+	character_control_base_y=character_control_model.position.y
 
 func _character_control_spin_start(dir:Vector2):
 	character_control_spin=dir
@@ -1000,75 +1002,258 @@ func _character_control_adjust(axis:int,dir:int):
 func _character_control_set_anim_speed(speed:float):
 	if character_control_anim: character_control_anim.speed_scale=speed
 
+func _cc_bone(candidates:Array[String])->int:
+	if character_control_skeleton==null: return -1
+	for name in candidates:
+		var idx=character_control_skeleton.find_bone(name)
+		if idx>=0: return idx
+	return -1
+
+func _cc_rotate_bone(candidates:Array[String],deg:Vector3,weight:float=1.0):
+	var idx=_cc_bone(candidates)
+	if idx<0: return
+	var base=character_control_skeleton.get_bone_pose_rotation(idx)
+	var add=Quaternion.from_euler(Vector3(deg.x,deg.y,deg.z)*PI/180.0)
+	character_control_skeleton.set_bone_pose_rotation(idx,base.slerp(base*add,clampf(weight,0.0,1.0)))
+
+func _cc_pose_torso(deg:Vector3,weight:float=1.0):
+	_cc_rotate_bone(["mixamorig_Spine","Spine","spine"],deg*0.35,weight)
+	_cc_rotate_bone(["mixamorig_Spine1","Spine1","spine_01"],deg*0.35,weight)
+	_cc_rotate_bone(["mixamorig_Spine2","Spine2","spine_02","Chest"],deg*0.30,weight)
+
+func _cc_pose_head(deg:Vector3,weight:float=1.0):
+	_cc_rotate_bone(["mixamorig_Neck","Neck","neck_01"],deg*0.35,weight)
+	_cc_rotate_bone(["mixamorig_Head","Head","head"],deg*0.65,weight)
+
+func _cc_pose_arms(right:Vector3,left:Vector3,weight:float=1.0):
+	_cc_rotate_bone(["mixamorig_RightArm","RightArm","upperarm_r","UpperArm.R"],right,weight)
+	_cc_rotate_bone(["mixamorig_RightForeArm","RightForeArm","lowerarm_r","ForeArm.R"],Vector3(right.x*0.55,right.y*0.25,right.z*0.35),weight)
+	_cc_rotate_bone(["mixamorig_LeftArm","LeftArm","upperarm_l","UpperArm.L"],left,weight)
+	_cc_rotate_bone(["mixamorig_LeftForeArm","LeftForeArm","lowerarm_l","ForeArm.L"],Vector3(left.x*0.55,left.y*0.25,left.z*0.35),weight)
+
+func _cc_pose_legs(right:Vector3,left:Vector3,weight:float=1.0):
+	_cc_rotate_bone(["mixamorig_RightUpLeg","RightUpLeg","thigh_r","UpperLeg.R"],right,weight)
+	_cc_rotate_bone(["mixamorig_LeftUpLeg","LeftUpLeg","thigh_l","UpperLeg.L"],left,weight)
+	_cc_rotate_bone(["mixamorig_RightLeg","RightLeg","calf_r","LowerLeg.R"],Vector3(-abs(right.x)*0.65,0,0),weight)
+	_cc_rotate_bone(["mixamorig_LeftLeg","LeftLeg","calf_l","LowerLeg.L"],Vector3(-abs(left.x)*0.65,0,0),weight)
+
+func _cc_weapon_pose(kind:int,recoil:float=0.0):
+	# Layered upper-body poses: 0 generic, 1 shotgun, 2 double barrel, 3 sniper.
+	var shoulder=-38.0 if kind==0 else (-46.0 if kind<3 else -52.0)
+	_cc_pose_torso(Vector3(-5.0-recoil*0.18,0,0))
+	_cc_pose_arms(Vector3(shoulder-recoil,4,8),Vector3(shoulder-8-recoil*0.45,-12,-12))
+	if kind==3: _cc_pose_head(Vector3(-5,0,0))
+
+func _character_control_set_anim_speed(speed:float):
+	if character_control_anim: character_control_anim.speed_scale=speed
+
 func _character_control_select_motion(index:int):
 	if index<0 or index>=character_control_motion_names.size(): return
 	character_control_motion_index=index
 	character_control_motion_time=0.0
 	var n=index+1
-	if n==1:
-		_character_control_load_anim("Walking")
-		if character_control_anim: character_control_anim.pause()
-	elif n==2:
-		_character_control_load_anim("Walking")
-		_character_control_set_anim_speed(1.0)
-	elif n==3:
-		_character_control_load_anim("Running")
-		_character_control_set_anim_speed(1.0)
-	elif n==4:
-		_character_control_load_anim("Running")
-		_character_control_set_anim_speed(1.75)
-	elif n==5:
-		_character_control_load_anim("Walking")
-		_character_control_set_anim_speed(-1.0)
-	elif n==6:
-		_character_control_load_anim("Running")
-		_character_control_set_anim_speed(-1.25)
-	elif n in [7,8,9,10]:
-		_character_control_load_anim("Running")
-		_character_control_set_anim_speed(1.0)
-	elif n in [13,20,21,22,30,31,32,33,55,68,77,78,79]:
-		_character_control_load_anim("Running")
-	elif n in [50,51,53,54,56,57,58]:
-		_character_control_load_anim("Attack")
-	elif n in [66,88,89]:
-		_character_control_load_anim("Dead")
-	elif n in [67,68]:
-		_character_control_load_anim("Skill_03")
-	else:
-		_character_control_load_anim("Walking")
+	var clip="Walking"
+	if n in [3,4,6,7,8,9,10,11,13,15,20,21,22,30,31,32,33,34,35,55,68,74,75,77,78,79,80,81,82,83,84,85,86,90]: clip="Running"
+	elif n in [24,44,45,46,47,50,51,53,54,56,57,58,59,60,61,62,63,64,65,76,87]: clip="Attack"
+	elif n in [66,88,89]: clip="Dead"
+	elif n in [67,68]: clip="Skill_03"
+	_character_control_load_anim(clip)
+	_character_control_set_anim_speed(1.0)
+	if n==1 and character_control_anim: character_control_anim.pause()
+	elif n==4: _character_control_set_anim_speed(1.75)
+	elif n==5: _character_control_set_anim_speed(-1.0)
+	elif n==6: _character_control_set_anim_speed(-1.25)
+	elif n in [12,14,16,17,18,19,23,25,26,27,28,29,36,37,38,39,40,41,42,43,48,49,52,69,70,71,72,73]: _character_control_set_anim_speed(0.32)
 	var box=character_control_panel.get_node_or_null("SelectedMotion") if character_control_panel else null
-	if box: box.text="%d - %s" % [index+1,character_control_motion_names[index]]
+	if box: box.text="%d - %s" % [n,character_control_motion_names[index]]
 
 func _character_control_process_motion(delta:float):
 	if character_control_motion_index<0 or character_control_model==null: return
 	character_control_motion_time+=delta
+	var t=character_control_motion_time
 	var n=character_control_motion_index+1
+	# Each clip reload starts from its fitted base, so motion offsets are absolute and never drift.
+	character_control_model.position.y=character_control_base_y
+	character_control_model.rotation_degrees=Vector3.ZERO
 	match n:
 		1:
 			pass
 		4:
-			# Sprint: faster running animation, with a small forward lean.
-			character_control_model.rotation_degrees.x=-7.0
+			character_control_model.rotation_degrees.x=-8.0
 		5,6:
-			# Reverse locomotion is the source walk/run played backwards.
-			character_control_model.rotation_degrees.x=0.0
-		7:
-			# Right strafe: run cycle turned sideways.
-			character_control_model.rotation_degrees.y=-90.0
-		8:
-			# Left strafe: mirrored sideways direction.
-			character_control_model.rotation_degrees.y=90.0
-		9:
-			# Running turn: keep running while visibly carving left/right.
-			character_control_model.rotation_degrees.y=sin(character_control_motion_time*2.2)*38.0
-			character_control_model.rotation_degrees.z=-sin(character_control_motion_time*2.2)*6.0
-		10:
-			# One quick half-turn, then hold the 180-degree facing.
-			var t=clampf(character_control_motion_time/0.32,0.0,1.0)
-			var eased=t*t*(3.0-2.0*t)
-			character_control_model.rotation_degrees.y=180.0*eased
-		_:
 			pass
+		7:
+			character_control_model.rotation_degrees.y=-90.0
+			_cc_pose_torso(Vector3(0,0,7))
+		8:
+			character_control_model.rotation_degrees.y=90.0
+			_cc_pose_torso(Vector3(0,0,-7))
+		9:
+			var turn=sin(t*2.2)
+			character_control_model.rotation_degrees.y=turn*38.0
+			_cc_pose_torso(Vector3(0,0,-turn*12.0))
+		10:
+			var p=clampf(t/0.32,0.0,1.0); p=p*p*(3.0-2.0*p)
+			character_control_model.rotation_degrees.y=180.0*p
+		11:
+			_cc_pose_torso(Vector3(0,0,sin(t*2.2)*16.0))
+		12:
+			character_control_model.position.y=character_control_base_y+sin(minf(t,0.72)/0.72*PI)*0.48
+			_cc_pose_legs(Vector3(-22,0,0),Vector3(-22,0,0)); _cc_pose_arms(Vector3(-18,0,12),Vector3(-18,0,-12))
+		13:
+			character_control_model.position.y=character_control_base_y+sin(fmod(t,0.82)/0.82*PI)*0.55
+			_cc_pose_torso(Vector3(-12,0,0))
+		14:
+			character_control_model.position.y=character_control_base_y+0.32
+			_cc_pose_legs(Vector3(-18,0,5),Vector3(-8,0,-5)); _cc_pose_arms(Vector3(-20,0,18),Vector3(-20,0,-18))
+		15:
+			character_control_model.position.y=character_control_base_y+0.30
+			character_control_model.rotation_degrees.y=sin(t*2.0)*30.0; _cc_pose_torso(Vector3(-8,sin(t*2.0)*12,0))
+		16:
+			var q=clampf(t/0.45,0.0,1.0); _cc_pose_legs(Vector3(-28*(1.0-q),0,0),Vector3(-28*(1.0-q),0,0))
+			character_control_model.position.y=character_control_base_y+0.10*(1.0-q)
+		17:
+			var q=clampf(t/0.55,0.0,1.0); _cc_pose_legs(Vector3(-48*(1.0-q),0,0),Vector3(-48*(1.0-q),0,0)); _cc_pose_torso(Vector3(25*(1.0-q),0,0))
+		18:
+			var q=clampf(t/0.75,0.0,1.0); _cc_pose_legs(Vector3(-62*(1.0-q),0,0),Vector3(-62*(1.0-q),0,0)); _cc_pose_torso(Vector3(38*(1.0-q),0,0)); _cc_pose_arms(Vector3(-35,0,25),Vector3(-35,0,-25),1.0-q)
+		19:
+			_cc_pose_legs(Vector3(-48,0,0),Vector3(-48,0,0)); _cc_pose_torso(Vector3(18,0,0))
+		20:
+			_cc_pose_legs(Vector3(-30,0,0),Vector3(-30,0,0)); _cc_pose_torso(Vector3(15,0,0))
+		21:
+			_cc_pose_legs(Vector3(-34,0,0),Vector3(-34,0,0)); _cc_pose_torso(Vector3(16,0,0))
+		22:
+			character_control_model.rotation_degrees.y=sin(t*1.7)*45.0; _cc_pose_legs(Vector3(-32,0,0),Vector3(-32,0,0))
+		23:
+			_cc_pose_legs(Vector3(-45,0,0),Vector3(-45,0,0)); _cc_weapon_pose(0)
+		24:
+			_cc_pose_legs(Vector3(-45,0,0),Vector3(-45,0,0)); _cc_weapon_pose(0,8.0*(0.5+0.5*sin(t*12.0)))
+		25:
+			var q=clampf(t/0.55,0.0,1.0); _cc_pose_legs(Vector3(-45*(1.0-q),0,0),Vector3(-45*(1.0-q),0,0))
+		26:
+			_cc_pose_head(Vector3(0,sin(t*0.8)*38.0,0))
+		27:
+			_cc_pose_head(Vector3(sin(t*.7)*8.0,sin(t*.9)*28.0,0))
+		28:
+			_cc_pose_torso(Vector3(0,sin(t*.8)*35.0,0)); _cc_pose_head(Vector3(0,sin(t*.8)*12.0,0))
+		29:
+			var aim=sin(t*.7)*28.0; _cc_pose_torso(Vector3(aim*.35,0,0)); _cc_pose_head(Vector3(aim*.65,0,0)); _cc_weapon_pose(0)
+		30,31,32,33:
+			_cc_weapon_pose(0)
+			if n==32: character_control_model.rotation_degrees.y=180.0
+			if n==33: character_control_model.rotation_degrees.y=sin(t*1.6)*55.0
+		34:
+			character_control_model.position.y=character_control_base_y+sin(fmod(t,.85)/.85*PI)*.48; _cc_weapon_pose(0)
+		35:
+			character_control_model.position.y=character_control_base_y+sin(fmod(t,.85)/.85*PI)*.48; _cc_weapon_pose(0,7.0*(.5+.5*sin(t*13.0)))
+		36,40:
+			_cc_weapon_pose(0)
+		37:
+			_cc_weapon_pose(1)
+		38:
+			_cc_weapon_pose(2)
+		39,43:
+			_cc_weapon_pose(3); _cc_pose_head(Vector3(-7,0,0))
+		41:
+			_cc_weapon_pose(0); _cc_rotate_bone(["mixamorig_LeftForeArm","LeftForeArm","lowerarm_l"],Vector3(-18,-8,0))
+		42:
+			_cc_weapon_pose(0); _cc_pose_torso(Vector3(-8,0,0))
+		44:
+			_cc_weapon_pose(0,8.0*(.5+.5*sin(t*14.0)))
+		45:
+			_cc_weapon_pose(1,15.0*(.5+.5*sin(t*11.0))); _cc_pose_torso(Vector3(-10,0,0))
+		46:
+			_cc_weapon_pose(3,20.0*(.5+.5*sin(t*9.0))); _cc_pose_torso(Vector3(-14,0,0))
+		47:
+			var q=maxf(0.0,1.0-clampf(t/0.7,0.0,1.0)); _cc_weapon_pose(0,14.0*q)
+		48:
+			_cc_pose_arms(Vector3(-25,sin(t*4.0)*24,8),Vector3(-40,-18,-10)); _cc_pose_torso(Vector3(8,sin(t*2.0)*8,0))
+		49:
+			_cc_pose_arms(Vector3(-12,0,18),Vector3(-8,0,-10)); _cc_pose_torso(Vector3(-5,12,0))
+		50,51:
+			_cc_pose_torso(Vector3(-8,sin(t*8.0)*18,0)); _cc_pose_arms(Vector3(-35,-18+sin(t*9.0)*25,20),Vector3(-15,0,-10))
+		52:
+			_cc_pose_arms(Vector3(-25,0,22),Vector3(-28,0,-18)); _cc_pose_torso(Vector3(-8,8,0))
+		53,54:
+			_cc_pose_torso(Vector3(-10,sin(t*7.0)*28,0)); _cc_pose_arms(Vector3(-55,sin(t*7.0)*35,25),Vector3(-45,-sin(t*7.0)*25,-18))
+		55:
+			_cc_pose_torso(Vector3(-16,sin(t*8.0)*18,0)); _cc_pose_arms(Vector3(-45,-20,24),Vector3(-28,0,-12))
+		56:
+			_cc_pose_torso(Vector3(-8,sin(t*11.0)*32,0)); _cc_pose_arms(Vector3(-48,sin(t*11.0)*35,22),Vector3(-32,-sin(t*11.0)*20,-16))
+		57:
+			var phase=fmod(t,2.0); _cc_pose_torso(Vector3(-10,sin(phase*PI*2.0)*34,0)); _cc_pose_arms(Vector3(-52,sin(phase*PI*2.0)*40,25),Vector3(-35,-sin(phase*PI*2.0)*24,-18))
+		58:
+			character_control_model.rotation_degrees.y=sin(t*4.0)*35.0; _cc_pose_torso(Vector3(-10,sin(t*6.0)*20,0))
+		59:
+			_cc_pose_torso(Vector3(4,0,sin(t*12.0)*7.0))
+		60:
+			_cc_pose_torso(Vector3(18,0,sin(t*9.0)*15.0)); _cc_pose_head(Vector3(10,0,0))
+		61:
+			_cc_pose_torso(Vector3(18,0,0)); _cc_pose_head(Vector3(8,0,0))
+		62:
+			_cc_pose_torso(Vector3(-20,0,0)); _cc_pose_head(Vector3(-8,0,0))
+		63:
+			_cc_pose_torso(Vector3(0,0,sin(t*8.0)*20.0)); _cc_pose_head(Vector3(0,0,sin(t*8.0)*8.0))
+		64:
+			_cc_pose_torso(Vector3(12,sin(t*6.0)*12,sin(t*7.0)*18)); character_control_model.rotation_degrees.z=sin(t*7.0)*7.0
+		65:
+			var q=maxf(0.0,1.0-clampf(t/0.8,0.0,1.0)); _cc_pose_torso(Vector3(10*q,0,16*q))
+		66:
+			pass
+		67:
+			_cc_pose_arms(Vector3(-65,20,30),Vector3(-65,-20,-30)); _cc_pose_torso(Vector3(-12,0,0))
+		68:
+			_cc_pose_arms(Vector3(-55,18,25),Vector3(-55,-18,-25)); _cc_pose_torso(Vector3(-18,0,0))
+		69:
+			_cc_pose_torso(Vector3(22,0,0)); _cc_pose_arms(Vector3(18,0,12),Vector3(18,0,-12))
+		70:
+			_cc_pose_head(Vector3(sin(t*.8)*6,sin(t*.55)*30,0))
+		71:
+			_cc_pose_torso(Vector3(0,0,sin(t*.8)*7)); _cc_pose_legs(Vector3(0,0,sin(t*.8)*4),Vector3(0,0,-sin(t*.8)*4))
+		72:
+			_cc_pose_torso(Vector3(sin(t*1.5)*2.2,0,0)); _cc_pose_head(Vector3(sin(t*1.5)*.8,0,0))
+		73:
+			_cc_pose_legs(Vector3(sin(t*.8)*12,0,0),Vector3(-sin(t*.8)*12,0,0)); character_control_model.rotation_degrees.z=sin(t*.8)*6
+		74:
+			character_control_model.position.y=character_control_base_y+maxf(0.0,sin(t*2.0))*0.18; _cc_pose_legs(Vector3(-28,0,0),Vector3(12,0,0))
+		75:
+			character_control_model.position.y=character_control_base_y+sin(fmod(t,.7)/.7*PI)*.34; _cc_pose_torso(Vector3(-16,0,0))
+		76:
+			var q=maxf(0.0,1.0-clampf(t/.5,0.0,1.0)); _cc_pose_torso(Vector3(28*q,0,0)); _cc_pose_arms(Vector3(-35,0,20),Vector3(-35,0,-20),q)
+		77:
+			_character_control_set_anim_speed(0.75+0.55*(0.5+0.5*sin(t*.7)))
+		78:
+			_character_control_set_anim_speed(clampf(t/1.2,0.35,1.0)); _cc_pose_torso(Vector3(-8*clampf(t/1.2,0,1),0,0))
+		79:
+			_character_control_set_anim_speed(maxf(0.08,1.0-clampf(t/1.0,0,1)))
+		80:
+			var q=0.5+0.5*sin(t*PI); _cc_pose_torso(Vector3(-8*q,0,0))
+		81:
+			_cc_weapon_pose(0); _cc_pose_torso(Vector3(0,sin(t*.8)*30,0))
+		82:
+			# In-place preview: feet remain visually planted while locomotion cycles.
+			_cc_pose_legs(Vector3(sin(t*6.0)*4,0,0),Vector3(-sin(t*6.0)*4,0,0))
+		83:
+			_cc_weapon_pose(0)
+		84:
+			# Hand-IK preview: lock both arms into a stable two-hand weapon pose.
+			_cc_weapon_pose(0); _cc_rotate_bone(["mixamorig_LeftHand","LeftHand","hand_l"],Vector3(0,-8,-10))
+		85:
+			# Foot-IK preview: compensate alternating terrain heights through leg chains.
+			var h=sin(t*.9)*10.0; _cc_pose_legs(Vector3(h,0,0),Vector3(-h,0,0))
+		86:
+			_cc_weapon_pose(3); _cc_pose_head(Vector3(-6,sin(t*.5)*8,0))
+		87:
+			var side=sin(t*10.0); _cc_pose_torso(Vector3(abs(side)*8,0,side*18)); _cc_pose_head(Vector3(0,0,side*8))
+		88:
+			# Dead clip supplies the collapse pose; keep it unlooped.
+			pass
+		89:
+			_cc_pose_torso(Vector3(18,sin(t*2.0)*15,sin(t*2.7)*20)); character_control_model.rotation_degrees.z=sin(t*2.7)*12
+		90:
+			# Same locomotion/skeleton stack used by NPC-compatible preview.
+			_cc_pose_torso(Vector3(-5,sin(t*.8)*8,0))
+
 
 func _character_control_update_labels():
 	if character_control_panel==null: return
