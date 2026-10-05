@@ -785,6 +785,12 @@ func _build_character_control():
 	var title=Label.new(); title.text="KARAKTER KONTROL • MESHY TEST"; title.position=Vector2(18,10); title.size=Vector2(600,34); title.add_theme_font_size_override("font_size",22); character_control_panel.add_child(title)
 	var close=Button.new(); close.text="KARAKTER KONTROLDEN ÇIK"; close.position=Vector2(1260,14); close.size=Vector2(250,44); close.pressed.connect(_toggle_character_control); character_control_panel.add_child(close)
 
+	var selected_motion=Label.new(); selected_motion.name="SelectedMotion"; selected_motion.position=Vector2(790,66); selected_motion.size=Vector2(720,52); selected_motion.text="HAREKET SEÇİLMEDİ"; selected_motion.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; selected_motion.add_theme_font_size_override("font_size",16); character_control_panel.add_child(selected_motion)
+	var motion_scroll=ScrollContainer.new(); motion_scroll.position=Vector2(790,126); motion_scroll.size=Vector2(720,430); character_control_panel.add_child(motion_scroll)
+	var motion_grid=GridContainer.new(); motion_grid.name="MotionGrid"; motion_grid.columns=10; motion_grid.custom_minimum_size=Vector2(690,390); motion_scroll.add_child(motion_grid)
+	for i in range(90):
+		var mb=Button.new(); mb.text=str(i+1); mb.custom_minimum_size=Vector2(62,36); mb.pressed.connect(_character_control_select_motion.bind(i)); motion_grid.add_child(mb)
+
 	var sub=SubViewport.new(); sub.size=Vector2i(470,400); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; character_control_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
 	var env=WorldEnvironment.new(); var e=Environment.new(); e.background_mode=Environment.BG_COLOR; e.background_color=Color(.035,.04,.05); e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; e.ambient_light_color=Color.WHITE; e.ambient_light_energy=1.35; env.environment=e; world.add_child(env)
@@ -953,7 +959,13 @@ func _character_control_make_muzzle_marker():
 	character_control_weapon.add_child(marker)
 
 func _character_control_cycle_weapon(dir:int):
-	character_control_weapon_index=posmod(character_control_weapon_index+dir,STORE_WEAPON_NAMES.size())
+	var variants=["gumus","zehir","buz","gunes","lav"]
+	var vi=variants.find(character_control_variant)
+	if vi<0: vi=0
+	var flat=character_control_weapon_index*variants.size()+vi
+	flat=posmod(flat+dir,STORE_WEAPON_NAMES.size()*variants.size())
+	character_control_weapon_index=int(flat/variants.size())
+	character_control_variant=variants[flat%variants.size()]
 	_character_control_apply_weapon_preset()
 	character_control_muzzle_pos=Vector3(0,0,.55)
 	_character_control_attach_weapon()
@@ -1000,10 +1012,12 @@ func _character_control_select_motion(index:int):
 
 func _character_control_update_labels():
 	if character_control_panel==null: return
+	var variant_names={"gumus":"Gümüş","zehir":"Zehir","buz":"Buz","gunes":"Güneş","lav":"Lav"}
+	var full_weapon_name="%s %s" % [variant_names.get(character_control_variant,character_control_variant),STORE_WEAPON_NAMES[character_control_weapon_index]]
 	var name=character_control_panel.get_node_or_null("WeaponName")
-	if name: name.text=STORE_WEAPON_NAMES[character_control_weapon_index]
+	if name: name.text=full_weapon_name
 	if character_control_status:
-		character_control_status.text="%s • %s\nSilah konum: %.2f, %.2f, %.2f   Dönüş: %.0f°, %.0f°, %.0f°   Namlu: %.2f, %.2f, %.2f" % [character_control_anim_name,STORE_WEAPON_NAMES[character_control_weapon_index],character_control_weapon_pos.x,character_control_weapon_pos.y,character_control_weapon_pos.z,character_control_weapon_rot.x,character_control_weapon_rot.y,character_control_weapon_rot.z,character_control_muzzle_pos.x,character_control_muzzle_pos.y,character_control_muzzle_pos.z]
+		character_control_status.text="%s • %s\nSilah konum: %.2f, %.2f, %.2f   Dönüş: %.0f°, %.0f°, %.0f°   Namlu: %.2f, %.2f, %.2f" % [character_control_anim_name,full_weapon_name,character_control_weapon_pos.x,character_control_weapon_pos.y,character_control_weapon_pos.z,character_control_weapon_rot.x,character_control_weapon_rot.y,character_control_weapon_rot.z,character_control_muzzle_pos.x,character_control_muzzle_pos.y,character_control_muzzle_pos.z]
 
 
 func _enter_game():
