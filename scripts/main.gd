@@ -1208,6 +1208,7 @@ func _build_world_base():
 	_build_center_settlement_mound()
 	_build_meteor_encounter()
 	_build_spawn_system()
+	_build_spawn_meteor_trenches()
 	_build_map_edge_mountains()
 	_build_god_watchers()
 
@@ -1243,6 +1244,36 @@ func _build_spawn_system() -> void:
 	if player:
 		var pp:=spawn_points[0]; player.position=Vector3(pp.x,pp.y+PLAYER_HEIGHT+.38,pp.z)
 	for i in range(1,spawn_points.size()): _spawn_combat_bot(spawn_points[i],i)
+
+func _build_spawn_meteor_trenches() -> void:
+	# Twenty direct shortcuts from every spawn pad to the outside edge of the meteor arena.
+	# The trench is an open, brown-earth corridor now; its roof can be added later as a separate layer.
+	var root=Node3D.new(); root.name="SpawnMeteorTrenches"; add_child(root)
+	var brown:=Color(.31,.19,.09)
+	var trench_width:float=5.2
+	var segment_len:float=5.0
+	var trench_depth:float=1.15
+	for spawn in spawn_points:
+		var start:=Vector3(spawn.x,0.0,spawn.z)
+		var flat:=Vector2(start.x,start.z)
+		if flat.length()<=METEOR_ARENA_RADIUS+3.0: continue
+		var dir2:=(-flat).normalized()
+		var end2:=dir2*(METEOR_ARENA_RADIUS+1.5)
+		var distance:=flat.distance_to(end2)
+		var count:=maxi(1,int(ceil(distance/segment_len)))
+		var step_len:=distance/float(count)
+		var yaw:=atan2(dir2.x,dir2.y)
+		for j in count:
+			var d:float=(float(j)+.5)*step_len
+			var x:float=start.x+dir2.x*d
+			var z:float=start.z+dir2.y*d
+			var ground:float=height_at(x,z)
+			# Brown floor sits slightly below the normal terrain, giving a clear trench/shortcut read.
+			var floor=StaticBody3D.new(); floor.position=Vector3(x,ground-trench_depth,z); floor.rotation.y=yaw
+			var mi=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(trench_width,.22,step_len+.12); mi.mesh=bm
+			var mat=StandardMaterial3D.new(); mat.albedo_color=brown; mat.roughness=1.0; mi.material_override=mat; floor.add_child(mi)
+			var cs=CollisionShape3D.new(); var sh=BoxShape3D.new(); sh.size=bm.size; cs.shape=sh; floor.add_child(cs)
+			root.add_child(floor)
 
 func _spawn_combat_bot(p:Vector3,index:int) -> void:
 	var bot=CharacterBody3D.new()
