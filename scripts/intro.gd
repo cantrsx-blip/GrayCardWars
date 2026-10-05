@@ -46,6 +46,13 @@ var character_control_variant := "gumus"
 var character_control_weapon_pos := Vector3.ZERO
 var character_control_weapon_rot := Vector3.ZERO
 var character_control_muzzle_pos := Vector3(0,0,0.55)
+var character_control_weapon_presets := {
+	0: {"pos":Vector3(0.18,0.08,0.02),"rot":Vector3(0,0,0)},
+	1: {"pos":Vector3(0.08,0.06,0.10),"rot":Vector3(-345,310,15)},
+	2: {"pos":Vector3(0.26,0.06,0.04),"rot":Vector3(0,0,0)},
+	3: {"pos":Vector3(0.46,0.10,0.20),"rot":Vector3(185,-15,-10)},
+	4: {"pos":Vector3(0.36,0.06,0.06),"rot":Vector3(190,-5,0)}
+}
 var character_control_status: Label
 var character_control_anim_name := "Running"
 var character_control_base_scale := Vector3.ONE
@@ -928,11 +935,19 @@ func _character_control_make_muzzle_marker():
 
 func _character_control_cycle_weapon(dir:int):
 	character_control_weapon_index=posmod(character_control_weapon_index+dir,STORE_WEAPON_NAMES.size())
-	character_control_weapon_pos=Vector3.ZERO
-	character_control_weapon_rot=Vector3.ZERO
+	_character_control_apply_weapon_preset()
 	character_control_muzzle_pos=Vector3(0,0,.55)
 	_character_control_attach_weapon()
 	_character_control_update_labels()
+
+func _character_control_apply_weapon_preset():
+	if character_control_weapon_presets.has(character_control_weapon_index):
+		var preset:Dictionary=character_control_weapon_presets[character_control_weapon_index]
+		character_control_weapon_pos=preset["pos"]
+		character_control_weapon_rot=preset["rot"]
+	else:
+		character_control_weapon_pos=Vector3.ZERO
+		character_control_weapon_rot=Vector3.ZERO
 
 func _character_control_adjust(axis:int,dir:int):
 	var d=float(dir)
