@@ -781,9 +781,9 @@ func _build_terrain_mesh() -> void:
 
 func _build_center_settlement_mound() -> void:
 	var body=StaticBody3D.new(); body.name="CenterSettlementMound"; body.position=Vector3(0,0.18,0); add_child(body)
-	var mesh=MeshInstance3D.new(); var cylinder=CylinderMesh.new(); cylinder.top_radius=18.0; cylinder.bottom_radius=19.0; cylinder.height=0.36; cylinder.radial_segments=64; mesh.mesh=cylinder
+	var mesh=MeshInstance3D.new(); var cylinder=CylinderMesh.new(); cylinder.top_radius=14.5; cylinder.bottom_radius=15.5; cylinder.height=0.36; cylinder.radial_segments=64; mesh.mesh=cylinder
 	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(.015,.015,.018); mat.roughness=1.0; mesh.material_override=mat; body.add_child(mesh)
-	var cs=CollisionShape3D.new(); var shape=CylinderShape3D.new(); shape.radius=19.0; shape.height=0.36; cs.shape=shape; body.add_child(cs)
+	var cs=CollisionShape3D.new(); var shape=CylinderShape3D.new(); shape.radius=15.5; shape.height=0.36; cs.shape=shape; body.add_child(cs)
 
 func _build_meteor_arena_ruin() -> void:
 	# Lightweight Tripo arena shell around the existing meteor platform.
@@ -802,6 +802,24 @@ func _build_meteor_arena_ruin() -> void:
 	_ground_asset_to_terrain(ruin,0,0)
 	# Keep the authored north/south/east/west orientation for the first test.
 	ruin.rotation.y=0.0
+	_add_ruin_mesh_collisions(ruin)
+
+func _add_ruin_mesh_collisions(root:Node3D) -> void:
+	# Concave static collision follows the visible ruin mesh, so broken openings
+	# and the four authored gates remain traversable instead of becoming a solid box.
+	var stack:Array[Node]=[root]
+	while not stack.is_empty():
+		var n:Node=stack.pop_back()
+		if n is MeshInstance3D and n.mesh!=null:
+			var body:=StaticBody3D.new()
+			body.name="RuinCollision"
+			var cs:=CollisionShape3D.new()
+			cs.shape=n.mesh.create_trimesh_shape()
+			body.add_child(cs)
+			n.add_child(body)
+		for child in n.get_children():
+			if child is StaticBody3D and child.name=="RuinCollision": continue
+			stack.append(child)
 
 func _build_meteor_encounter() -> void:
 	if meteor_node!=null and is_instance_valid(meteor_node): return
