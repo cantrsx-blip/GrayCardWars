@@ -61,6 +61,7 @@ var character_control_spin := Vector2.ZERO
 var character_control_auto_spin := false
 var character_control_lobby_hidden:Array[CanvasItem]=[]
 var character_control_motion_index := -1
+var character_control_motion_time := 0.0
 var character_control_motion_names := [
 	"Normal bekleme","Yürüme","Koşma","Depar / hızlı koşma","Geri geri yürüme","Geri geri koşma","Sağa strafe","Sola strafe","Koşarken sağa/sola dönüş","Ani 180° dönüş","Dönüşlerde gövdenin yana yatması","Zıplama","Koşarak zıplama","Havada bekleme/düşüş pozu","Havada yön değiştirme","Normal iniş","Sert iniş","Yüksekten düşme tepkisi","Çömelme","Çömelerek yürüme","Çömelerek geri gitme","Çömelerek sağa/sola hareket","Çömelerek nişan alma","Çömelerek ateş etme","Ayağa kalkma geçişi","Kamera yönüne kafa çevirme","Hedefe kafa çevirme","Üst gövdeyi hedefe döndürme","Yukarı/aşağı nişan alma","Yürürken nişan alma","Koşarken silah taşıma","Geri giderken nişan alma","Strafe yaparken hedefte kalma","Zıplarken silah tutma","Zıplarken ateş etme","Tabanca/tüfek tipi silah tutuşu","Pompalı tutuşu","Çift namlulu tutuşu","Sniper tutuşu","İki elle ateşli silah tutma","Sol eli silahın ön kısmına kilitleme","Silahı omuza hizalama","Dürbüne kafa/göz hizalama","Normal ateş geri tepmesi","Pompalı güçlü geri tepmesi","Sniper güçlü geri tepmesi","Ateş sonrası toparlanma","Silah değiştirme hareketi","Bıçak bekleme duruşu","Bıçak saldırısı","Farklı bıçak saldırı açıları","Kılıç bekleme duruşu","Kılıç saldırısı","Farklı kılıç savurma açıları","Koşarak yakın dövüş saldırısı","Yakın dövüş combo sistemi","VUR → 1 → 2 → 3 saldırı zinciri","Saldırı sırasında hedefe dönme","Hafif hasar tepkisi","Ağır hasar tepkisi","Önden vurulma tepkisi","Arkadan vurulma tepkisi","Sağdan/soldan vurulma tepkisi","Sendeleme","Dengeyi toparlama","Ölüm animasyonu","Skill/Yetenek hareketi","Koşarken Skill kullanma geçişi","Yorgunluk hareketi","Boşta başını etrafa çevirme","Ağırlığı bir bacaktan diğerine verme","Nefes alma/gövde mikro hareketleri","Eğimli zemine göre ayak basışı","Merdiven/engel yüksekliğine göre otomatik adım","Küçük engellerin üzerinden otomatik atlama","Duvara/engele çarpınca hareket tepkisi","Hareket hızına göre adım ve animasyon hızını eşleme","Yürümeden koşmaya yumuşak geçiş","Koşmadan durmaya yumuşak geçiş","Animasyonlar arasında yumuşak blend/geçiş","Alt gövde hareket ederken üst gövdenin bağımsız nişan alması","Ayakların zeminde kaymasını azaltma","Silahın elde kaymasını azaltma","Eller için IK","Ayaklar için IK","Silah hedefleme IK","Vurulan bölgeye göre kemik tepkisi","Ragdoll ölüm sistemi","Ragdoll'dan kontrollü fizik tepkileri","NPC'lerin aynı hareket sistemini kullanabilmesi"
 ]
@@ -566,6 +567,7 @@ func _inspect_zoom(factor:float):
 
 func _process(delta:float):
 	if character_control_model!=null:
+		_character_control_process_motion(delta)
 		if character_control_auto_spin: character_control_model.rotate_y(delta)
 		if character_control_spin!=Vector2.ZERO:
 			character_control_model.rotate_y(-character_control_spin.x*delta*1.6)
@@ -995,20 +997,78 @@ func _character_control_adjust(axis:int,dir:int):
 	_character_control_attach_weapon()
 	_character_control_update_labels()
 
+func _character_control_set_anim_speed(speed:float):
+	if character_control_anim: character_control_anim.speed_scale=speed
+
 func _character_control_select_motion(index:int):
 	if index<0 or index>=character_control_motion_names.size(): return
 	character_control_motion_index=index
-	var box=character_control_panel.get_node_or_null("SelectedMotion") if character_control_panel else null
+	character_control_motion_time=0.0
 	var n=index+1
-	if n==2: _character_control_load_anim("Walking")
-	elif n in [3,4,6,7,8,9,13,20,21,22,30,31,32,33,55,68,77,78,79]: _character_control_load_anim("Running")
-	elif n in [50,51,53,54,56,57,58]: _character_control_load_anim("Attack")
-	elif n in [66,88,89]: _character_control_load_anim("Dead")
-	elif n in [67,68]: _character_control_load_anim("Skill_03")
-	else: _character_control_load_anim("Walking")
-	box=character_control_panel.get_node_or_null("SelectedMotion") if character_control_panel else null
+	if n==1:
+		_character_control_load_anim("Walking")
+		if character_control_anim: character_control_anim.pause()
+	elif n==2:
+		_character_control_load_anim("Walking")
+		_character_control_set_anim_speed(1.0)
+	elif n==3:
+		_character_control_load_anim("Running")
+		_character_control_set_anim_speed(1.0)
+	elif n==4:
+		_character_control_load_anim("Running")
+		_character_control_set_anim_speed(1.75)
+	elif n==5:
+		_character_control_load_anim("Walking")
+		_character_control_set_anim_speed(-1.0)
+	elif n==6:
+		_character_control_load_anim("Running")
+		_character_control_set_anim_speed(-1.25)
+	elif n in [7,8,9,10]:
+		_character_control_load_anim("Running")
+		_character_control_set_anim_speed(1.0)
+	elif n in [13,20,21,22,30,31,32,33,55,68,77,78,79]:
+		_character_control_load_anim("Running")
+	elif n in [50,51,53,54,56,57,58]:
+		_character_control_load_anim("Attack")
+	elif n in [66,88,89]:
+		_character_control_load_anim("Dead")
+	elif n in [67,68]:
+		_character_control_load_anim("Skill_03")
+	else:
+		_character_control_load_anim("Walking")
+	var box=character_control_panel.get_node_or_null("SelectedMotion") if character_control_panel else null
 	if box: box.text="%d - %s" % [index+1,character_control_motion_names[index]]
 
+func _character_control_process_motion(delta:float):
+	if character_control_motion_index<0 or character_control_model==null: return
+	character_control_motion_time+=delta
+	var n=character_control_motion_index+1
+	match n:
+		1:
+			pass
+		4:
+			# Sprint: faster running animation, with a small forward lean.
+			character_control_model.rotation_degrees.x=-7.0
+		5,6:
+			# Reverse locomotion is the source walk/run played backwards.
+			character_control_model.rotation_degrees.x=0.0
+		7:
+			# Right strafe: run cycle turned sideways.
+			character_control_model.rotation_degrees.y=-90.0
+		8:
+			# Left strafe: mirrored sideways direction.
+			character_control_model.rotation_degrees.y=90.0
+		9:
+			# Running turn: keep running while visibly carving left/right.
+			character_control_model.rotation_degrees.y=sin(character_control_motion_time*2.2)*38.0
+			character_control_model.rotation_degrees.z=-sin(character_control_motion_time*2.2)*6.0
+		10:
+			# One quick half-turn, then hold the 180-degree facing.
+			var t=clampf(character_control_motion_time/0.32,0.0,1.0)
+			var eased=t*t*(3.0-2.0*t)
+			character_control_model.rotation_degrees.y=180.0*eased
+		_:
+			pass
 
 func _character_control_update_labels():
 	if character_control_panel==null: return
