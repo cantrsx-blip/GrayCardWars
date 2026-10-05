@@ -1313,7 +1313,10 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 	bot.name="CombatBot_%02d" % index
 	bot.position=Vector3(p.x,p.y+PLAYER_HEIGHT+.38,p.z)
 	var cs=CollisionShape3D.new(); var cap=CapsuleShape3D.new(); cap.radius=.42; cap.height=1.7; cs.shape=cap; bot.add_child(cs)
-	var model=_load_asset("res://Y Bot.fbx")
+	# Nine of the 19 NPCs use the new Meshy human. The gameplay Y Bot remains untouched.
+	var meshy_npc:bool=index in [4,5,6,7,14,15,16,17,18]
+	var model=_load_asset("res://YBot_Walking_withSkin.glb" if meshy_npc else "res://Y Bot.fbx")
+	bot.set_meta("meshy_npc",meshy_npc)
 	if model:
 		bot.add_child(model)
 		var b:=_node_visual_bounds(model)
@@ -1345,6 +1348,9 @@ func _spawn_combat_bot(p:Vector3,index:int) -> void:
 		17: weapon_name="Bıçak"; rarity="gumus"; role="knife_sniper_hunter"
 		18: weapon_name="Karambit"; rarity="yesil"; role="karambit_duel_meteor"
 		19: weapon_name="Karambit"; rarity="lav"; role="karambit_duel_meteor"
+	# Meshy NPCs are melee-only: alternate literal Knife and Sword while preserving mission roles.
+	if meshy_npc:
+		weapon_name="Bıçak" if index%2==1 else "Kılıç"
 	var weapon_key:String="%s|%s" % [weapon_name,rarity]
 	var weapon_type:int=0 if weapon_name in ["Bıçak","Karambit"] else (1 if weapon_name in ["Kılıç","Büyük Kılıç","Katana"] else 2)
 	var bid:int=bot.get_instance_id()
@@ -1571,8 +1577,48 @@ func _respawn_combat_bot(bot:CharacterBody3D) -> void:
 	bot.queue_free()
 	if index>=0 and index<spawn_points.size(): _spawn_combat_bot(spawn_points[index],index)
 
+
+func _meshy_npc_anim_path(wanted:String) -> String:
+	if wanted in ["Run","Rifle Run","Walking","Rifle Walk","Knife Idle","Great Sword Idle","Rifle Aiming Idle"]:
+		return "res://YBot_Running_withSkin.glb" if wanted in ["Run","Rifle Run"] else "res://YBot_Walking_withSkin.glb"
+	if wanted in ["Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One","Firing Rifle"]:
+		return "res://YBot_Attack_withSkin.glb"
+	return "res://YBot_Walking_withSkin.glb"
+
+func _bot_play_meshy_animation(bot:CharacterBody3D,wanted:String) -> void:
+	var id:int=bot.get_instance_id()
+	var mapped_path:=_meshy_npc_anim_path(wanted)
+	if str(bot_anim_names.get(id,""))==mapped_path and bot_anim_scenes.has(id): return
+	var old_scene:Node3D=bot_anim_scenes.get(id,null)
+	if old_scene and is_instance_valid(old_scene): old_scene.queue_free()
+	bot_anim_scenes.erase(id); bot_anim_skeletons.erase(id); bot_anim_players.erase(id)
+	if not ResourceLoader.exists(mapped_path): return
+	var carrier:=_load_asset(mapped_path)
+	if carrier==null: return
+	carrier.visible=false
+	bot.add_child(carrier)
+	var ap:=_find_animation_player(carrier)
+	var sk:=_find_skeleton(carrier)
+	if ap==null or sk==null:
+		carrier.queue_free(); return
+	var chosen:StringName=&""
+	for lib_name in ap.get_animation_library_list():
+		var lib:=ap.get_animation_library(lib_name)
+		if lib:
+			for an in lib.get_animation_list():
+				if str(an).to_lower()!="reset": chosen=an; break
+		if chosen!=&"": break
+	if chosen==&"": carrier.queue_free(); return
+	var animation:=ap.get_animation(chosen)
+	if animation and mapped_path!="res://YBot_Attack_withSkin.glb": animation.loop_mode=Animation.LOOP_LINEAR
+	bot_anim_scenes[id]=carrier; bot_anim_skeletons[id]=sk; bot_anim_players[id]=ap; bot_anim_names[id]=mapped_path
+	ap.play(chosen,0.05)
+
 func _bot_play_animation(bot:CharacterBody3D,wanted:String) -> void:
 	var id:int=bot.get_instance_id()
+	if bool(bot.get_meta("meshy_npc",false)):
+		_bot_play_meshy_animation(bot,wanted)
+		return
 	if str(bot_anim_names.get(id,""))==wanted and bot_anim_scenes.has(id): return
 	var old_scene:Node3D=bot_anim_scenes.get(id,null)
 	if old_scene and is_instance_valid(old_scene): old_scene.queue_free()
