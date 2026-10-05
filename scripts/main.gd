@@ -1236,6 +1236,7 @@ func _build_world_base():
 	_build_center_settlement_mound()
 	_build_meteor_encounter()
 	_build_spawn_system()
+	_build_meteor_trench_ramps()
 	_build_map_edge_mountains()
 	_build_god_watchers()
 
@@ -1271,6 +1272,38 @@ func _build_spawn_system() -> void:
 	if player:
 		var pp:=spawn_points[0]; player.position=Vector3(pp.x,pp.y+PLAYER_HEIGHT+.38,pp.z)
 	for i in range(1,spawn_points.size()): _spawn_combat_bot(spawn_points[i],i)
+
+func _build_meteor_trench_ramps() -> void:
+	# Solid brown-earth ramps bridge every trench onto the black meteor/boss platform.
+	# They are real collision volumes, not thin plates, so loot/player/NPC cannot fall underneath.
+	var root=Node3D.new(); root.name="MeteorTrenchRamps"; add_child(root)
+	var brown:=Color(.34,.21,.10)
+	var platform_top:float=.36
+	var outer_radius:float=24.0
+	var inner_radius:float=17.2
+	var ramp_width:float=6.2
+	var ramp_length:float=outer_radius-inner_radius
+	for site in _spawn_site_vectors():
+		var outward:=site.normalized()
+		var center2:=outward*((outer_radius+inner_radius)*.5)
+		var outer2:=outward*outer_radius
+		var outer_ground:float=height_at(outer2.x,outer2.y)
+		var bottom_y:float=minf(outer_ground-2.4,-2.4)
+		var top_y:float=platform_top+.10
+		var fill_height:float=maxf(.5,top_y-bottom_y)
+		var body=StaticBody3D.new()
+		body.name="SolidMeteorRamp"
+		body.position=Vector3(center2.x,bottom_y+fill_height*.5,center2.y)
+		body.rotation.y=atan2(outward.x,outward.y)
+		var mi=MeshInstance3D.new(); var prism=PrismMesh.new()
+		prism.size=Vector3(ramp_width,fill_height,ramp_length)
+		prism.left_to_right=1.0
+		mi.mesh=prism
+		var mat=StandardMaterial3D.new(); mat.albedo_color=brown; mat.roughness=1.0; mi.material_override=mat
+		body.add_child(mi)
+		# Convex collision follows the filled triangular ramp volume.
+		var cs=CollisionShape3D.new(); cs.shape=prism.create_convex_shape(); body.add_child(cs)
+		root.add_child(body)
 
 func _spawn_combat_bot(p:Vector3,index:int) -> void:
 	var bot=CharacterBody3D.new()
