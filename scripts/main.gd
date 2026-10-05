@@ -364,6 +364,8 @@ var bot_wander_targets: Dictionary = {}
 var bot_survivor_ids: Dictionary = {}
 var boss_targets: Dictionary = {}
 var foundation_position_labels: Array[Label] = []
+var cheat_foundation_place := false
+var cheat_foundation_remove := false
 const BOT_SPEED := 3.4
 const BOT_ATTACK_RANGE := 2.2
 const BOT_ATTACK_COOLDOWN := 0.55
@@ -813,13 +815,28 @@ func _update_sword_attack_buttons(show_buttons:bool) -> void:
 
 func _player_attack() -> void:
 	if _panel_open() or player==null: return
-	if build_mode:
+	if build_mode or (cheat_mode and cheat_foundation_place):
 		var place_pos:Vector3=player.global_position+player_facing.normalized()*5.0
 		place_pos.y=height_at(place_pos.x,place_pos.z)
 		var layers=get_children().filter(func(n): return n is CanvasLayer)
 		if layers.size()>0:
 			_register_ground_foundation(place_pos,layers[-1])
 			_flash_message("TEMEL %d  X:%.1f Y:%.1f Z:%.1f" % [built_floors.size(),place_pos.x,place_pos.y,place_pos.z])
+		return
+	if cheat_mode and cheat_foundation_remove:
+		var best:Node3D=null
+		var best_d:float=7.0
+		var aim:Vector3=player.global_position+player_facing.normalized()*5.0
+		for foundation in built_floors:
+			if not is_instance_valid(foundation): continue
+			var d:float=Vector2(foundation.global_position.x-aim.x,foundation.global_position.z-aim.z).length()
+			if d<best_d: best_d=d; best=foundation
+		if best:
+			built_floors.erase(best); best.queue_free()
+			var layers=get_children().filter(func(n): return n is CanvasLayer)
+			if layers.size()>0: _refresh_foundation_position_labels(layers[-1])
+			_flash_message("TEMEL KALDIRILDI")
+		else: _flash_message("KALDIRILACAK TEMEL YAKINDA DEĞİL")
 		return
 	var item:=selected_tool.to_lower()
 	var firearm=("pompal" in item or "tüfek" in item or "tufek" in item or "nişancı" in item or "nisanci" in item)
@@ -2035,7 +2052,9 @@ func _build_hud():
 		["ALÇAL",_fly_down],
 		["SINIRSIZ SİLAH",_toggle_infinite_weapons],
 		["SINIRSIZ GJ",_toggle_infinite_gj],
-		["SONSUZ GÜÇ",_toggle_infinite_power]
+		["SONSUZ GÜÇ",_toggle_infinite_power],
+		["ZEMİNE TEMEL",_toggle_cheat_foundation_place],
+		["TEMEL KALDIR",_toggle_cheat_foundation_remove]
 	]
 	for ci in cheat_items.size():
 		var entry=cheat_items[ci]
@@ -3697,7 +3716,7 @@ func _toggle_cheat_mode():
 	if _panel_open(): return
 	cheat_mode=!cheat_mode
 	if not cheat_mode:
-		cheat_weapon_tuner=false; cheat_muzzle_tuner=false; cheat_sharpness_tuner=0; cheat_infinite_weapons=false; cheat_infinite_gj=false; cheat_infinite_power=false; muzzle_calibration_frozen=false; _clear_sharpness_preview(); player_action_locked=false
+		cheat_weapon_tuner=false; cheat_muzzle_tuner=false; cheat_sharpness_tuner=0; cheat_infinite_weapons=false; cheat_infinite_gj=false; cheat_infinite_power=false; cheat_foundation_place=false; cheat_foundation_remove=false; muzzle_calibration_frozen=false; _clear_sharpness_preview(); player_action_locked=false
 		if fly_mode: fly_mode=false
 		_clear_muzzle_preview()
 	if cheat_menu_panel: cheat_menu_panel.visible=cheat_mode
@@ -3885,6 +3904,18 @@ func _toggle_infinite_weapons() -> void:
 	_sync_cheat_weapons(); _save_player_inventory(); _refresh_hotbar()
 	if inventory_panel and inventory_panel.visible: _refresh_inventory()
 	_flash_message("SINIRSIZ SILAH ACIK" if cheat_infinite_weapons else "SINIRSIZ SILAH KAPALI")
+
+func _toggle_cheat_foundation_place() -> void:
+	if not cheat_mode: return
+	cheat_foundation_place=not cheat_foundation_place
+	if cheat_foundation_place: cheat_foundation_remove=false
+	_flash_message("ZEMİNE TEMEL AÇIK • VUR İLE YERLEŞTİR" if cheat_foundation_place else "ZEMİNE TEMEL KAPALI")
+
+func _toggle_cheat_foundation_remove() -> void:
+	if not cheat_mode: return
+	cheat_foundation_remove=not cheat_foundation_remove
+	if cheat_foundation_remove: cheat_foundation_place=false
+	_flash_message("TEMEL KALDIR AÇIK • VUR İLE KALDIR" if cheat_foundation_remove else "TEMEL KALDIR KAPALI")
 
 func _toggle_infinite_power() -> void:
 	if not cheat_mode: return
