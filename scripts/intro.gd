@@ -1044,9 +1044,6 @@ func _cc_weapon_pose(kind:int,recoil:float=0.0):
 	_cc_pose_arms(Vector3(shoulder-recoil,4,8),Vector3(shoulder-8-recoil*0.45,-12,-12))
 	if kind==3: _cc_pose_head(Vector3(-5,0,0))
 
-func _character_control_set_anim_speed(speed:float):
-	if character_control_anim: character_control_anim.speed_scale=speed
-
 func _character_control_select_motion(index:int):
 	if index<0 or index>=character_control_motion_names.size(): return
 	character_control_motion_index=index
@@ -1077,7 +1074,14 @@ func _character_control_process_motion(delta:float):
 	character_control_model.rotation_degrees=Vector3.ZERO
 	match n:
 		1:
-			pass
+			# Relaxed idle: arms down, tiny breathing motion and occasional head look.
+			var look_cycle=fmod(t,8.0)
+			var look_y=0.0
+			if look_cycle>4.8 and look_cycle<6.8:
+				look_y=sin((look_cycle-4.8)/2.0*PI)*24.0
+			_cc_pose_arms(Vector3(34,0,5),Vector3(34,0,-5))
+			_cc_pose_torso(Vector3(sin(t*1.35)*1.4,0,0))
+			_cc_pose_head(Vector3(sin(t*1.35)*0.5,look_y,0))
 		4:
 			character_control_model.rotation_degrees.x=-8.0
 		5,6:
