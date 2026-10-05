@@ -692,8 +692,18 @@ func _place_asset(path:String, parent:Node, pos:Vector3, scale_v:=Vector3.ONE, r
 
 func _ground_color(h:float, z:float=0.0, x:float=0.0)->Color:
 	var cut:=_trench_cut_amount(x,z)
-	if cut>0.08: return Color.WHITE.lerp(Color(.34,.21,.10),clampf(cut,0.0,1.0))
-	return Color.WHITE
+	if cut>0.08:
+		return Color.WHITE.lerp(Color(.34,.21,.10),clampf(cut,0.0,1.0))
+	# Keep z13.jpg as the terrain texture, but tint the whole map with broad,
+	# softly blended earth patches so the ground is not one flat color.
+	var broad:=sin(x*.031+sin(z*.017)*1.7)+cos(z*.027-x*.011)
+	var detail:=sin((x+z)*.071)*.45+cos((x-z)*.053)*.35
+	var v:=clampf((broad+detail+2.5)/5.0,0.0,1.0)
+	var earth_a:=Color(.72,.64,.49)
+	var earth_b:=Color(.53,.48,.38)
+	var tint:=earth_a.lerp(earth_b,v)
+	var strength:=.16+.10*absf(sin(x*.014)*cos(z*.018))
+	return Color.WHITE.lerp(tint,strength)
 
 func _ground_asset_to_terrain(n:Node3D, x:float, z:float)->void:
 	var ymin:=INF
