@@ -60,6 +60,10 @@ var character_control_zoom := 1.0
 var character_control_spin := Vector2.ZERO
 var character_control_auto_spin := false
 var character_control_lobby_hidden:Array[CanvasItem]=[]
+var character_control_motion_index := -1
+var character_control_motion_names := [
+	"Normal bekleme","Yürüme","Koşma","Depar / hızlı koşma","Geri geri yürüme","Geri geri koşma","Sağa strafe","Sola strafe","Koşarken sağa/sola dönüş","Ani 180° dönüş","Dönüşlerde gövdenin yana yatması","Zıplama","Koşarak zıplama","Havada bekleme/düşüş pozu","Havada yön değiştirme","Normal iniş","Sert iniş","Yüksekten düşme tepkisi","Çömelme","Çömelerek yürüme","Çömelerek geri gitme","Çömelerek sağa/sola hareket","Çömelerek nişan alma","Çömelerek ateş etme","Ayağa kalkma geçişi","Kamera yönüne kafa çevirme","Hedefe kafa çevirme","Üst gövdeyi hedefe döndürme","Yukarı/aşağı nişan alma","Yürürken nişan alma","Koşarken silah taşıma","Geri giderken nişan alma","Strafe yaparken hedefte kalma","Zıplarken silah tutma","Zıplarken ateş etme","Tabanca/tüfek tipi silah tutuşu","Pompalı tutuşu","Çift namlulu tutuşu","Sniper tutuşu","İki elle ateşli silah tutma","Sol eli silahın ön kısmına kilitleme","Silahı omuza hizalama","Dürbüne kafa/göz hizalama","Normal ateş geri tepmesi","Pompalı güçlü geri tepmesi","Sniper güçlü geri tepmesi","Ateş sonrası toparlanma","Silah değiştirme hareketi","Bıçak bekleme duruşu","Bıçak saldırısı","Farklı bıçak saldırı açıları","Kılıç bekleme duruşu","Kılıç saldırısı","Farklı kılıç savurma açıları","Koşarak yakın dövüş saldırısı","Yakın dövüş combo sistemi","VUR → 1 → 2 → 3 saldırı zinciri","Saldırı sırasında hedefe dönme","Hafif hasar tepkisi","Ağır hasar tepkisi","Önden vurulma tepkisi","Arkadan vurulma tepkisi","Sağdan/soldan vurulma tepkisi","Sendeleme","Dengeyi toparlama","Ölüm animasyonu","Skill/Yetenek hareketi","Koşarken Skill kullanma geçişi","Yorgunluk hareketi","Boşta başını etrafa çevirme","Ağırlığı bir bacaktan diğerine verme","Nefes alma/gövde mikro hareketleri","Eğimli zemine göre ayak basışı","Merdiven/engel yüksekliğine göre otomatik adım","Küçük engellerin üzerinden otomatik atlama","Duvara/engele çarpınca hareket tepkisi","Hareket hızına göre adım ve animasyon hızını eşleme","Yürümeden koşmaya yumuşak geçiş","Koşmadan durmaya yumuşak geçiş","Animasyonlar arasında yumuşak blend/geçiş","Alt gövde hareket ederken üst gövdenin bağımsız nişan alması","Ayakların zeminde kaymasını azaltma","Silahın elde kaymasını azaltma","Eller için IK","Ayaklar için IK","Silah hedefleme IK","Vurulan bölgeye göre kemik tepkisi","Ragdoll ölüm sistemi","Ragdoll'dan kontrollü fizik tepkileri","NPC'lerin aynı hareket sistemini kullanabilmesi"
+]
 
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
@@ -494,6 +498,12 @@ func _open_weapon_inspector(row:int,variant:String):
 	store_preview.add_child(weapon_inspect_panel)
 	var title=Label.new(); title.text="%s %s • 3D İNCELEME" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]; title.position=Vector2(18,8); title.size=Vector2(520,34); title.add_theme_font_size_override("font_size",20); weapon_inspect_panel.add_child(title)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(574,6); close.size=Vector2(48,38); close.pressed.connect(_close_weapon_inspector); weapon_inspect_panel.add_child(close)
+	var selected_motion=Label.new(); selected_motion.name="SelectedMotion"; selected_motion.set_anchors_preset(Control.PRESET_TOP_RIGHT); selected_motion.position=Vector2(-250,64); selected_motion.size=Vector2(230,54); selected_motion.text="HAREKET SEÇİLMEDİ"; selected_motion.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; selected_motion.add_theme_font_size_override("font_size",13); character_control_panel.add_child(selected_motion)
+
+	var motion_grid=GridContainer.new(); motion_grid.columns=10; motion_grid.set_anchors_preset(Control.PRESET_TOP_RIGHT); motion_grid.position=Vector2(-510,128); motion_grid.size=Vector2(490,360); character_control_panel.add_child(motion_grid)
+	for i in range(90):
+		var mb=Button.new(); mb.text=str(i+1); mb.custom_minimum_size=Vector2(43,32); mb.pressed.connect(_character_control_select_motion.bind(i)); motion_grid.add_child(mb)
+
 	var sub=SubViewport.new(); sub.size=Vector2i(600,390); sub.transparent_bg=true; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; weapon_inspect_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
 	var env=WorldEnvironment.new(); var e=Environment.new(); e.background_mode=Environment.BG_COLOR; e.background_color=Color(.055,.065,.08); e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; e.ambient_light_color=Color.WHITE; e.ambient_light_energy=1.2; env.environment=e; world.add_child(env)
@@ -978,6 +988,20 @@ func _character_control_adjust(axis:int,dir:int):
 		8: character_control_muzzle_pos.z+=.02*d
 	_character_control_attach_weapon()
 	_character_control_update_labels()
+
+func _character_control_select_motion(index:int):
+	if index<0 or index>=character_control_motion_names.size(): return
+	character_control_motion_index=index
+	var box=character_control_panel.get_node_or_null("SelectedMotion") if character_control_panel else null
+	if box: box.text="%d - %s" % [index+1,character_control_motion_names[index]]
+	var n=index+1
+	if n==2: _character_control_load_anim("Walking")
+	elif n in [3,4,6,7,8,9,13,20,21,22,30,31,32,33,55,68,77,78,79]: _character_control_load_anim("Running")
+	elif n in [50,51,53,54,56,57,58]: _character_control_load_anim("Attack")
+	elif n in [66,88,89]: _character_control_load_anim("Dead")
+	elif n in [67,68]: _character_control_load_anim("Skill_03")
+	else: _character_control_load_anim("Walking")
+
 
 func _character_control_update_labels():
 	if character_control_panel==null: return
