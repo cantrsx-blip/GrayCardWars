@@ -694,15 +694,26 @@ func _ground_color(h:float, z:float=0.0, x:float=0.0)->Color:
 	var cut:=_trench_cut_amount(x,z)
 	if cut>0.08:
 		return Color.WHITE.lerp(Color(.34,.21,.10),clampf(cut,0.0,1.0))
-	# Keep z13.jpg as the terrain texture, but tint the whole map with broad,
-	# softly blended earth patches so the ground is not one flat color.
-	var broad:=sin(x*.031+sin(z*.017)*1.7)+cos(z*.027-x*.011)
-	var detail:=sin((x+z)*.071)*.45+cos((x-z)*.053)*.35
-	var v:=clampf((broad+detail+2.5)/5.0,0.0,1.0)
-	var earth_a:=Color(.72,.64,.49)
-	var earth_b:=Color(.53,.48,.38)
-	var tint:=earth_a.lerp(earth_b,v)
-	var strength:=.16+.10*absf(sin(x*.014)*cos(z*.018))
+	# z13.jpg stays as the grass texture. Strong, broad natural grass tints create
+	# clearly visible regions without replacing the terrain texture.
+	var n1:float=(sin(x*.022)+cos(z*.019)+sin((x+z)*.011)*1.25)/3.25
+	var n2:float=(sin(x*.047-z*.029)+cos(z*.041+x*.018))/2.0
+	var n:float=clampf((n1*.72+n2*.28+1.0)*.5,0.0,1.0)
+	var tint:Color
+	if n<.16:
+		tint=Color(.20,.31,.12) # deep green
+	elif n<.31:
+		tint=Color(.34,.45,.17) # olive green
+	elif n<.47:
+		tint=Color(.52,.58,.23) # light grass
+	elif n<.63:
+		tint=Color(.67,.61,.25) # yellowing grass
+	elif n<.79:
+		tint=Color(.70,.49,.20) # dry golden grass
+	else:
+		tint=Color(.49,.35,.18) # brown/dry grass
+	var edge_mix:=smoothstep(.0,.12,absf(n-.5))
+	var strength:=.42+.18*edge_mix
 	return Color.WHITE.lerp(tint,strength)
 
 func _ground_asset_to_terrain(n:Node3D, x:float, z:float)->void:
@@ -794,9 +805,13 @@ func _build_meteor_encounter() -> void:
 	var scaled_bounds:=_node_visual_bounds(meteor_node)
 	meteor_hp_label=Label3D.new()
 	meteor_hp_label.name="MeteorHP"
-	meteor_hp_label.position=Vector3(meteor_node.position.x,scaled_bounds.position.y+scaled_bounds.size.y+1.25,meteor_node.position.z)
-	meteor_hp_label.font_size=42
-	meteor_hp_label.outline_size=7
+	# _node_visual_bounds is local to the meteor. Put the label in world space at
+	# roughly the height reached after four flight-rise presses, not nine.
+	var meteor_top_local:=scaled_bounds.position.y+scaled_bounds.size.y
+	var four_flight_height:=meteor_top_local*(4.0/9.0)
+	meteor_hp_label.global_position=meteor_node.global_position+Vector3(0,four_flight_height,0)
+	meteor_hp_label.font_size=56
+	meteor_hp_label.outline_size=9
 	meteor_hp_label.pixel_size=.008
 	meteor_hp_label.billboard=BaseMaterial3D.BILLBOARD_ENABLED
 	add_child(meteor_hp_label)
