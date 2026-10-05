@@ -35,6 +35,20 @@ var weapon_inspect_base_scale := Vector3.ONE
 var weapon_inspect_auto_spin := true
 var weapon_inspect_stop_button: Button
 
+# Lobby-only Meshy character calibration studio. It never replaces the gameplay Y Bot.
+var character_control_panel: Panel
+var character_control_model: Node3D
+var character_control_skeleton: Skeleton3D
+var character_control_anim: AnimationPlayer
+var character_control_weapon: Node3D
+var character_control_weapon_index := 0
+var character_control_variant := "gumus"
+var character_control_weapon_pos := Vector3.ZERO
+var character_control_weapon_rot := Vector3.ZERO
+var character_control_muzzle_pos := Vector3(0,0,0.55)
+var character_control_status: Label
+var character_control_anim_name := "Running"
+
 const STORE_WEAPON_VARIANTS := ["gumus","yesil","buz","gunes","lav"]
 const STORE_VARIANT_NAMES := ["Gümüş","Zehir","Buz","Güneş","Lav"]
 const STORE_WEAPON_NAMES := ["Bıçak","Karambit","Kılıç","Büyük Kılıç","Katana","Pompalı Tüfek","Çift Namlulu Pompalı","Keskin Nişancı Tüfeği"]
@@ -110,6 +124,15 @@ func _build_lobby():
 	inventory_button.add_theme_font_size_override("font_size",18)
 	inventory_button.pressed.connect(_toggle_lobby_inventory)
 	add_child(inventory_button)
+
+	var control_button=Button.new()
+	control_button.text="KARAKTER KONTROL"
+	control_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	control_button.position=Vector2(-195,194)
+	control_button.size=Vector2(175,48)
+	control_button.add_theme_font_size_override("font_size",16)
+	control_button.pressed.connect(_toggle_character_control)
+	add_child(control_button)
 	_update_lobby_currency()
 
 	var choose_character_button=Button.new()
@@ -708,6 +731,196 @@ func _confirm_preview_purchase():
 
 func _preview_message(t:String):
 	if preview_cost_label: preview_cost_label.text=t
+
+
+func _toggle_character_control():
+	if character_control_panel==null:
+		_build_character_control()
+	else:
+		character_control_panel.visible=not character_control_panel.visible
+
+func _build_character_control():
+	character_control_panel=Panel.new()
+	character_control_panel.set_anchors_preset(Control.PRESET_CENTER)
+	character_control_panel.position=Vector2(-390,-300)
+	character_control_panel.size=Vector2(780,600)
+	character_control_panel.z_index=250
+	add_child(character_control_panel)
+
+	var title=Label.new(); title.text="KARAKTER KONTROL • MESHY TEST"; title.position=Vector2(18,10); title.size=Vector2(600,34); title.add_theme_font_size_override("font_size",22); character_control_panel.add_child(title)
+	var close=Button.new(); close.text="✕"; close.position=Vector2(716,8); close.size=Vector2(48,38); close.pressed.connect(_toggle_character_control); character_control_panel.add_child(close)
+
+	var sub=SubViewport.new(); sub.size=Vector2i(470,400); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; character_control_panel.add_child(sub)
+	var world=Node3D.new(); sub.add_child(world)
+	var env=WorldEnvironment.new(); var e=Environment.new(); e.background_mode=Environment.BG_COLOR; e.background_color=Color(.035,.04,.05); e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; e.ambient_light_color=Color.WHITE; e.ambient_light_energy=1.35; env.environment=e; world.add_child(env)
+	var light=DirectionalLight3D.new(); light.rotation_degrees=Vector3(-35,-25,0); light.light_energy=2.4; world.add_child(light)
+	var cam=Camera3D.new(); cam.position=Vector3(0,1.05,3.5); cam.look_at_from_position(cam.position,Vector3(0,1.0,0)); world.add_child(cam)
+
+	var view=TextureRect.new(); view.position=Vector2(16,48); view.size=Vector2(470,400); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_IGNORE; character_control_panel.add_child(view)
+
+	var anims=[["KOŞ","Running"],["YÜRÜ","Walking"],["SALDIR","Attack"],["YETENEK","Skill_03"],["ÖL","Dead"]]
+	for i in anims.size():
+		var b=Button.new(); b.text=anims[i][0]; b.position=Vector2(16+i*92,456); b.size=Vector2(86,38); b.pressed.connect(_character_control_load_anim.bind(anims[i][1])); character_control_panel.add_child(b)
+
+	var weapon_label=Label.new(); weapon_label.text="SİLAH / NAMLU KALİBRASYONU"; weapon_label.position=Vector2(500,52); weapon_label.size=Vector2(260,28); weapon_label.add_theme_font_size_override("font_size",16); character_control_panel.add_child(weapon_label)
+	var prev=Button.new(); prev.text="◀"; prev.position=Vector2(500,84); prev.size=Vector2(44,38); prev.pressed.connect(_character_control_cycle_weapon.bind(-1)); character_control_panel.add_child(prev)
+	var next=Button.new(); next.text="▶"; next.position=Vector2(716,84); next.size=Vector2(44,38); next.pressed.connect(_character_control_cycle_weapon.bind(1)); character_control_panel.add_child(next)
+	var weapon_name=Label.new(); weapon_name.name="WeaponName"; weapon_name.position=Vector2(548,84); weapon_name.size=Vector2(164,38); weapon_name.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; weapon_name.vertical_alignment=VERTICAL_ALIGNMENT_CENTER; weapon_name.add_theme_font_size_override("font_size",13); character_control_panel.add_child(weapon_name)
+
+	var labels=["SİLAH X","SİLAH Y","SİLAH Z","DÖN X","DÖN Y","DÖN Z","NAMLU X","NAMLU Y","NAMLU Z"]
+	for i in labels.size():
+		var row=i
+		var lab=Label.new(); lab.text=labels[i]; lab.position=Vector2(500,132+row*34); lab.size=Vector2(80,30); lab.add_theme_font_size_override("font_size",12); character_control_panel.add_child(lab)
+		var minus=Button.new(); minus.text="−"; minus.position=Vector2(584,130+row*34); minus.size=Vector2(48,30); minus.pressed.connect(_character_control_adjust.bind(i,-1)); character_control_panel.add_child(minus)
+		var plus=Button.new(); plus.text="+"; plus.position=Vector2(638,130+row*34); plus.size=Vector2(48,30); plus.pressed.connect(_character_control_adjust.bind(i,1)); character_control_panel.add_child(plus)
+
+	character_control_status=Label.new(); character_control_status.position=Vector2(16,505); character_control_status.size=Vector2(744,82); character_control_status.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; character_control_status.add_theme_font_size_override("font_size",12); character_control_panel.add_child(character_control_status)
+	character_control_panel.set_meta("world",world)
+	_character_control_load_anim("Running")
+	_character_control_update_labels()
+
+func _character_control_anim_path(anim_name:String)->String:
+	var files={"Running":"res://YBot_Running_withSkin.glb","Walking":"res://YBot_Walking_withSkin.glb","Attack":"res://YBot_Attack_withSkin.glb","Skill_03":"res://YBot_Skill_03_withSkin.glb","Dead":"res://YBot_Dead_withSkin.glb"}
+	return str(files.get(anim_name,""))
+
+func _character_control_load_anim(anim_name:String):
+	if character_control_panel==null: return
+	var world=character_control_panel.get_meta("world") as Node3D
+	if world==null: return
+	if character_control_model and is_instance_valid(character_control_model): character_control_model.free()
+	character_control_model=null; character_control_skeleton=null; character_control_anim=null; character_control_weapon=null
+	var path=_character_control_anim_path(anim_name)
+	if not ResourceLoader.exists(path):
+		if character_control_status: character_control_status.text="DOSYA BULUNAMADI: "+path
+		return
+	var packed=load(path)
+	if not packed is PackedScene: return
+	character_control_model=packed.instantiate()
+	world.add_child(character_control_model)
+	character_control_anim_name=anim_name
+	character_control_skeleton=_character_control_find_skeleton(character_control_model)
+	character_control_anim=_character_control_find_anim(character_control_model)
+	_character_control_fit_model()
+	if character_control_anim:
+		var names:Array[StringName]=[]
+		for lib_name in character_control_anim.get_animation_library_list():
+			var lib=character_control_anim.get_animation_library(lib_name)
+			if lib:
+				for an in lib.get_animation_list(): names.append(an)
+		if not names.is_empty():
+			var a=character_control_anim.get_animation(names[0])
+			if a and anim_name!="Dead": a.loop_mode=Animation.LOOP_LINEAR
+			character_control_anim.play(names[0])
+	_character_control_attach_weapon()
+	_character_control_update_labels()
+
+func _character_control_find_skeleton(node:Node)->Skeleton3D:
+	if node is Skeleton3D: return node as Skeleton3D
+	for child in node.get_children():
+		var found=_character_control_find_skeleton(child)
+		if found: return found
+	return null
+
+func _character_control_find_anim(node:Node)->AnimationPlayer:
+	if node is AnimationPlayer: return node as AnimationPlayer
+	for child in node.get_children():
+		var found=_character_control_find_anim(child)
+		if found: return found
+	return null
+
+func _character_control_fit_model():
+	if character_control_model==null: return
+	var meshes:Array[MeshInstance3D]=[]
+	_collect_inspect_meshes(character_control_model,meshes)
+	if meshes.is_empty(): return
+	var merged:AABB; var first=true
+	for mi in meshes:
+		var gt=character_control_model.global_transform.affine_inverse()*mi.global_transform
+		var box=gt*mi.get_aabb()
+		if first: merged=box; first=false
+		else: merged=merged.merge(box)
+	var h=maxf(merged.size.y,0.001)
+	var sc=1.85/h
+	character_control_model.scale=Vector3.ONE*sc
+	character_control_model.position=Vector3(0,-merged.position.y*sc,0)
+
+func _character_control_right_hand()->BoneAttachment3D:
+	if character_control_skeleton==null: return null
+	var old=character_control_skeleton.get_node_or_null("LobbyWeaponHand")
+	if old is BoneAttachment3D: return old
+	var bone=""
+	for candidate in ["mixamorig_RightHand","RightHand","right_hand","hand_r","Hand.R"]:
+		if character_control_skeleton.find_bone(candidate)>=0: bone=candidate; break
+	if bone.is_empty(): return null
+	var a=BoneAttachment3D.new(); a.name="LobbyWeaponHand"; a.bone_name=bone; character_control_skeleton.add_child(a); return a
+
+func _character_control_attach_weapon():
+	if character_control_skeleton==null: return
+	var hand=_character_control_right_hand()
+	if hand==null:
+		if character_control_status: character_control_status.text="Sağ el kemiği bulunamadı."
+		return
+	for c in hand.get_children(): c.free()
+	var row=character_control_weapon_index+1
+	var path=_store_weapon_glb_path(row,character_control_variant)
+	if not ResourceLoader.exists(path): return
+	var packed=load(path)
+	if not packed is PackedScene: return
+	character_control_weapon=packed.instantiate()
+	hand.add_child(character_control_weapon)
+	var meshes:Array[MeshInstance3D]=[]; _collect_inspect_meshes(character_control_weapon,meshes)
+	var merged:AABB; var first=true
+	for mi in meshes:
+		var gt=character_control_weapon.global_transform.affine_inverse()*mi.global_transform
+		var box=gt*mi.get_aabb()
+		if first: merged=box; first=false
+		else: merged=merged.merge(box)
+	var longest=maxf(merged.size.x,maxf(merged.size.y,merged.size.z))
+	var target=[.62,.58,1.18,1.38,1.24,1.02,1.00,1.16][character_control_weapon_index]
+	var sc=target/longest if longest>0.001 else .5
+	character_control_weapon.scale=Vector3.ONE*sc
+	character_control_weapon.position=character_control_weapon_pos-merged.get_center()*sc
+	character_control_weapon.rotation_degrees=character_control_weapon_rot
+	_character_control_make_muzzle_marker()
+
+func _character_control_make_muzzle_marker():
+	if character_control_weapon==null: return
+	var marker=MeshInstance3D.new(); marker.name="MuzzleMarker"
+	var sphere=SphereMesh.new(); sphere.radius=.035; sphere.height=.07; marker.mesh=sphere
+	var mat=StandardMaterial3D.new(); mat.albedo_color=Color(1.0,.45,.05); mat.emission_enabled=true; mat.emission=Color(1.0,.18,.02); mat.emission_energy_multiplier=4.0; marker.material_override=mat
+	marker.position=character_control_muzzle_pos
+	character_control_weapon.add_child(marker)
+
+func _character_control_cycle_weapon(dir:int):
+	character_control_weapon_index=posmod(character_control_weapon_index+dir,STORE_WEAPON_NAMES.size())
+	character_control_weapon_pos=Vector3.ZERO
+	character_control_weapon_rot=Vector3.ZERO
+	character_control_muzzle_pos=Vector3(0,0,.55)
+	_character_control_attach_weapon()
+	_character_control_update_labels()
+
+func _character_control_adjust(axis:int,dir:int):
+	var d=float(dir)
+	match axis:
+		0: character_control_weapon_pos.x+=.02*d
+		1: character_control_weapon_pos.y+=.02*d
+		2: character_control_weapon_pos.z+=.02*d
+		3: character_control_weapon_rot.x+=5.0*d
+		4: character_control_weapon_rot.y+=5.0*d
+		5: character_control_weapon_rot.z+=5.0*d
+		6: character_control_muzzle_pos.x+=.02*d
+		7: character_control_muzzle_pos.y+=.02*d
+		8: character_control_muzzle_pos.z+=.02*d
+	_character_control_attach_weapon()
+	_character_control_update_labels()
+
+func _character_control_update_labels():
+	if character_control_panel==null: return
+	var name=character_control_panel.get_node_or_null("WeaponName")
+	if name: name.text=STORE_WEAPON_NAMES[character_control_weapon_index]
+	if character_control_status:
+		character_control_status.text="%s • %s\nSilah konum: %.2f, %.2f, %.2f   Dönüş: %.0f°, %.0f°, %.0f°   Namlu: %.2f, %.2f, %.2f" % [character_control_anim_name,STORE_WEAPON_NAMES[character_control_weapon_index],character_control_weapon_pos.x,character_control_weapon_pos.y,character_control_weapon_pos.z,character_control_weapon_rot.x,character_control_weapon_rot.y,character_control_weapon_rot.z,character_control_muzzle_pos.x,character_control_muzzle_pos.y,character_control_muzzle_pos.z]
+
 
 func _enter_game():
 	_save_lobby_state()
