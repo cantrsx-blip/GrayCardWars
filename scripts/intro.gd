@@ -63,18 +63,6 @@ var character_control_lobby_hidden:Array[CanvasItem]=[]
 var character_control_motion_index := -1
 var character_control_motion_time := 0.0
 var character_control_base_y := 0.0
-var character_control_motion_states:Array[int]=[]
-var skeleton_studio_panel: Panel
-var skeleton_studio_model: Node3D
-var skeleton_studio_skeleton: Skeleton3D
-var skeleton_studio_selected_bone := -1
-var skeleton_studio_bone_rot := Vector3.ZERO
-var skeleton_studio_step := 5.0
-var skeleton_studio_base_scale := Vector3.ONE
-var skeleton_studio_zoom := 1.0
-var skeleton_studio_spin := Vector2.ZERO
-var skeleton_studio_hidden:Array[CanvasItem]=[]
-var skeleton_studio_status: Label
 var character_control_motion_names := [
 	"Normal bekleme","Yürüme","Koşma","Depar / hızlı koşma","Geri geri yürüme","Geri geri koşma","Sağa strafe","Sola strafe","Koşarken sağa/sola dönüş","Ani 180° dönüş","Dönüşlerde gövdenin yana yatması","Zıplama","Koşarak zıplama","Havada bekleme/düşüş pozu","Havada yön değiştirme","Normal iniş","Sert iniş","Yüksekten düşme tepkisi","Çömelme","Çömelerek yürüme","Çömelerek geri gitme","Çömelerek sağa/sola hareket","Çömelerek nişan alma","Çömelerek ateş etme","Ayağa kalkma geçişi","Kamera yönüne kafa çevirme","Hedefe kafa çevirme","Üst gövdeyi hedefe döndürme","Yukarı/aşağı nişan alma","Yürürken nişan alma","Koşarken silah taşıma","Geri giderken nişan alma","Strafe yaparken hedefte kalma","Zıplarken silah tutma","Zıplarken ateş etme","Tabanca/tüfek tipi silah tutuşu","Pompalı tutuşu","Çift namlulu tutuşu","Sniper tutuşu","İki elle ateşli silah tutma","Sol eli silahın ön kısmına kilitleme","Silahı omuza hizalama","Dürbüne kafa/göz hizalama","Normal ateş geri tepmesi","Pompalı güçlü geri tepmesi","Sniper güçlü geri tepmesi","Ateş sonrası toparlanma","Silah değiştirme hareketi","Bıçak bekleme duruşu","Bıçak saldırısı","Farklı bıçak saldırı açıları","Kılıç bekleme duruşu","Kılıç saldırısı","Farklı kılıç savurma açıları","Koşarak yakın dövüş saldırısı","Yakın dövüş combo sistemi","VUR → 1 → 2 → 3 saldırı zinciri","Saldırı sırasında hedefe dönme","Hafif hasar tepkisi","Ağır hasar tepkisi","Önden vurulma tepkisi","Arkadan vurulma tepkisi","Sağdan/soldan vurulma tepkisi","Sendeleme","Dengeyi toparlama","Ölüm animasyonu","Skill/Yetenek hareketi","Koşarken Skill kullanma geçişi","Yorgunluk hareketi","Boşta başını etrafa çevirme","Ağırlığı bir bacaktan diğerine verme","Nefes alma/gövde mikro hareketleri","Eğimli zemine göre ayak basışı","Merdiven/engel yüksekliğine göre otomatik adım","Küçük engellerin üzerinden otomatik atlama","Duvara/engele çarpınca hareket tepkisi","Hareket hızına göre adım ve animasyon hızını eşleme","Yürümeden koşmaya yumuşak geçiş","Koşmadan durmaya yumuşak geçiş","Animasyonlar arasında yumuşak blend/geçiş","Alt gövde hareket ederken üst gövdenin bağımsız nişan alması","Ayakların zeminde kaymasını azaltma","Silahın elde kaymasını azaltma","Eller için IK","Ayaklar için IK","Silah hedefleme IK","Vurulan bölgeye göre kemik tepkisi","Ragdoll ölüm sistemi","Ragdoll'dan kontrollü fizik tepkileri","NPC'lerin aynı hareket sistemini kullanabilmesi"
 ]
@@ -163,15 +151,6 @@ func _build_lobby():
 	control_button.add_theme_font_size_override("font_size",16)
 	control_button.pressed.connect(_toggle_character_control)
 	add_child(control_button)
-
-	var skeleton_button=Button.new()
-	skeleton_button.text="KARAKTER İSKELETİ"
-	skeleton_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	skeleton_button.position=Vector2(-195,252)
-	skeleton_button.size=Vector2(175,48)
-	skeleton_button.add_theme_font_size_override("font_size",16)
-	skeleton_button.pressed.connect(_toggle_skeleton_studio)
-	add_child(skeleton_button)
 	_update_lobby_currency()
 
 	var choose_character_button=Button.new()
@@ -521,7 +500,7 @@ func _open_weapon_inspector(row:int,variant:String):
 	store_preview.add_child(weapon_inspect_panel)
 	var title=Label.new(); title.text="%s %s • 3D İNCELEME" % [_rarity_name(variant),STORE_WEAPON_NAMES[row-1]]; title.position=Vector2(18,8); title.size=Vector2(520,34); title.add_theme_font_size_override("font_size",20); weapon_inspect_panel.add_child(title)
 	var close=Button.new(); close.text="✕"; close.position=Vector2(574,6); close.size=Vector2(48,38); close.pressed.connect(_close_weapon_inspector); weapon_inspect_panel.add_child(close)
-	var sub=SubViewport.new(); sub.size=Vector2i(600,390); sub.transparent_bg=true; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; weapon_inspect_panel.add_child(sub)
+	var sub=SubViewport.new(); sub.size=Vector2i(600,390); sub.transparent_bg=true; sub.own_world_3d=true; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; weapon_inspect_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
 	var env=WorldEnvironment.new(); var e=Environment.new(); e.background_mode=Environment.BG_COLOR; e.background_color=Color(.055,.065,.08); e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; e.ambient_light_color=Color.WHITE; e.ambient_light_energy=1.2; env.environment=e; world.add_child(env)
 	var light=DirectionalLight3D.new(); light.rotation_degrees=Vector3(-35,-30,0); light.light_energy=2.2; world.add_child(light)
@@ -813,9 +792,7 @@ func _build_character_control():
 	var motion_scroll=ScrollContainer.new(); motion_scroll.position=Vector2(790,126); motion_scroll.size=Vector2(720,430); character_control_panel.add_child(motion_scroll)
 	var motion_grid=GridContainer.new(); motion_grid.name="MotionGrid"; motion_grid.columns=10; motion_grid.custom_minimum_size=Vector2(690,390); motion_scroll.add_child(motion_grid)
 	for i in range(90):
-		var mb=Button.new(); mb.name="Motion%02d" % (i+1); mb.text=str(i+1); mb.custom_minimum_size=Vector2(62,36); mb.pressed.connect(_character_control_motion_pressed.bind(i)); motion_grid.add_child(mb)
-	character_control_motion_states.resize(90)
-	character_control_motion_states.fill(0)
+		var mb=Button.new(); mb.text=str(i+1); mb.custom_minimum_size=Vector2(62,36); mb.pressed.connect(_character_control_select_motion.bind(i)); motion_grid.add_child(mb)
 
 	var sub=SubViewport.new(); sub.size=Vector2i(470,400); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; character_control_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
@@ -1067,27 +1044,6 @@ func _cc_weapon_pose(kind:int,recoil:float=0.0):
 	_cc_pose_arms(Vector3(shoulder-recoil,4,8),Vector3(shoulder-8-recoil*0.45,-12,-12))
 	if kind==3: _cc_pose_head(Vector3(-5,0,0))
 
-func _character_control_motion_pressed(index:int):
-	_character_control_select_motion(index)
-	if index<0 or index>=90: return
-	character_control_motion_states[index]=(character_control_motion_states[index]+1)%3
-	var grid=character_control_panel.get_node_or_null("MotionGrid") if character_control_panel else null
-	if grid==null: return
-	var b=grid.get_node_or_null("Motion%02d" % (index+1)) as Button
-	if b==null: return
-	var state=character_control_motion_states[index]
-	b.remove_theme_color_override("font_color")
-	b.remove_theme_color_override("font_pressed_color")
-	b.remove_theme_stylebox_override("normal")
-	if state==0: return
-	var box=StyleBoxFlat.new()
-	box.bg_color=Color(0.08,0.55,0.18) if state==1 else Color(0.72,0.08,0.08)
-	box.corner_radius_top_left=6; box.corner_radius_top_right=6; box.corner_radius_bottom_left=6; box.corner_radius_bottom_right=6
-	b.add_theme_stylebox_override("normal",box)
-	b.add_theme_color_override("font_color",Color.WHITE)
-	b.add_theme_color_override("font_pressed_color",Color.WHITE)
-
-
 func _character_control_select_motion(index:int):
 	if index<0 or index>=character_control_motion_names.size(): return
 	character_control_motion_index=index
@@ -1311,111 +1267,6 @@ func _character_control_update_labels():
 	if name: name.text=full_weapon_name
 	if character_control_status:
 		character_control_status.text="%s • %s\nSilah konum: %.2f, %.2f, %.2f   Dönüş: %.0f°, %.0f°, %.0f°   Namlu: %.2f, %.2f, %.2f" % [character_control_anim_name,full_weapon_name,character_control_weapon_pos.x,character_control_weapon_pos.y,character_control_weapon_pos.z,character_control_weapon_rot.x,character_control_weapon_rot.y,character_control_weapon_rot.z,character_control_muzzle_pos.x,character_control_muzzle_pos.y,character_control_muzzle_pos.z]
-
-
-func _toggle_skeleton_studio():
-	if skeleton_studio_panel==null: _build_skeleton_studio()
-	var opening=not skeleton_studio_panel.visible
-	skeleton_studio_panel.visible=opening
-	if opening:
-		skeleton_studio_hidden.clear()
-		for child in get_children():
-			if child is CanvasItem and child!=skeleton_studio_panel and child.visible:
-				skeleton_studio_hidden.append(child); child.visible=false
-		skeleton_studio_panel.visible=true
-	else:
-		for item in skeleton_studio_hidden:
-			if is_instance_valid(item): item.visible=true
-		skeleton_studio_hidden.clear()
-
-func _build_skeleton_studio():
-	skeleton_studio_panel=Panel.new(); skeleton_studio_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); skeleton_studio_panel.z_index=260; add_child(skeleton_studio_panel)
-	var title=Label.new(); title.text="KARAKTER İSKELETİ • POZ STÜDYOSU"; title.position=Vector2(18,10); title.size=Vector2(620,34); title.add_theme_font_size_override("font_size",22); skeleton_studio_panel.add_child(title)
-	var close=Button.new(); close.text="İSKELET STÜDYOSUNDAN ÇIK"; close.position=Vector2(1240,14); close.size=Vector2(270,44); close.pressed.connect(_toggle_skeleton_studio); skeleton_studio_panel.add_child(close)
-	var sub=SubViewport.new(); sub.size=Vector2i(560,500); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; skeleton_studio_panel.add_child(sub)
-	var world=Node3D.new(); sub.add_child(world)
-	var env=WorldEnvironment.new(); var e=Environment.new(); e.background_mode=Environment.BG_COLOR; e.background_color=Color(.025,.03,.035); e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR; e.ambient_light_color=Color.WHITE; e.ambient_light_energy=1.45; env.environment=e; world.add_child(env)
-	var light=DirectionalLight3D.new(); light.rotation_degrees=Vector3(-35,-25,0); light.light_energy=2.5; world.add_child(light)
-	var cam=Camera3D.new(); cam.position=Vector3(0,1.05,3.5); cam.look_at_from_position(cam.position,Vector3(0,1.0,0)); world.add_child(cam)
-	var view=TextureRect.new(); view.position=Vector2(16,52); view.size=Vector2(560,500); view.texture=sub.get_texture(); view.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; view.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED; view.mouse_filter=Control.MOUSE_FILTER_IGNORE; skeleton_studio_panel.add_child(view)
-	var packed=load("res://YBot_Walking_withSkin.glb")
-	if packed is PackedScene:
-		skeleton_studio_model=packed.instantiate(); world.add_child(skeleton_studio_model); skeleton_studio_skeleton=_character_control_find_skeleton(skeleton_studio_model)
-		var ap=_character_control_find_anim(skeleton_studio_model)
-		if ap:
-			for ln in ap.get_animation_library_list():
-				var lib=ap.get_animation_library(ln)
-				if lib and not lib.get_animation_list().is_empty(): ap.play(lib.get_animation_list()[0]); ap.pause(); break
-		var meshes:Array[MeshInstance3D]=[]; _collect_inspect_meshes(skeleton_studio_model,meshes)
-		var merged=AABB(); var first=true
-		for mi in meshes:
-			var gt=skeleton_studio_model.global_transform.affine_inverse()*mi.global_transform; var box=gt*mi.get_aabb()
-			if first: merged=box; first=false
-			else: merged=merged.merge(box)
-		if not first:
-			var sc=1.9/maxf(merged.size.y,.001); skeleton_studio_base_scale=Vector3.ONE*sc; skeleton_studio_model.scale=skeleton_studio_base_scale; skeleton_studio_model.position=Vector3(0,-merged.position.y*sc,0)
-	var bone_label=Label.new(); bone_label.text="KEMİKLER"; bone_label.position=Vector2(600,64); bone_label.size=Vector2(260,28); bone_label.add_theme_font_size_override("font_size",17); skeleton_studio_panel.add_child(bone_label)
-	var scroll=ScrollContainer.new(); scroll.position=Vector2(600,96); scroll.size=Vector2(390,450); skeleton_studio_panel.add_child(scroll)
-	var bones=VBoxContainer.new(); bones.name="BoneList"; bones.custom_minimum_size=Vector2(365,0); scroll.add_child(bones)
-	if skeleton_studio_skeleton:
-		for i in skeleton_studio_skeleton.get_bone_count():
-			var bb=Button.new(); bb.text="%02d  %s" % [i,skeleton_studio_skeleton.get_bone_name(i)]; bb.custom_minimum_size=Vector2(350,34); bb.pressed.connect(_skeleton_studio_select_bone.bind(i)); bones.add_child(bb)
-	var controls=VBoxContainer.new(); controls.position=Vector2(1010,96); controls.size=Vector2(490,450); controls.add_theme_constant_override("separation",8); skeleton_studio_panel.add_child(controls)
-	var step_title=Label.new(); step_title.text="HASSASİYET"; controls.add_child(step_title)
-	var step_row=HBoxContainer.new(); controls.add_child(step_row)
-	for val in [1.0,5.0,15.0]:
-		var sb=Button.new(); sb.text="%d°" % int(val); sb.custom_minimum_size=Vector2(80,40); sb.pressed.connect(_skeleton_studio_set_step.bind(val)); step_row.add_child(sb)
-	for axis in 3:
-		var row=HBoxContainer.new(); controls.add_child(row)
-		var lab=Label.new(); lab.text=["X","Y","Z"][axis]; lab.custom_minimum_size=Vector2(40,40); row.add_child(lab)
-		var minus=Button.new(); minus.text="−"; minus.custom_minimum_size=Vector2(90,40); minus.pressed.connect(_skeleton_studio_adjust.bind(axis,-1)); row.add_child(minus)
-		var plus=Button.new(); plus.text="+"; plus.custom_minimum_size=Vector2(90,40); plus.pressed.connect(_skeleton_studio_adjust.bind(axis,1)); row.add_child(plus)
-	var reset=Button.new(); reset.text="SEÇİLİ KEMİĞİ SIFIRLA"; reset.custom_minimum_size=Vector2(300,42); reset.pressed.connect(_skeleton_studio_reset_bone); controls.add_child(reset)
-	var reset_all=Button.new(); reset_all.text="BÜTÜN POZU SIFIRLA"; reset_all.custom_minimum_size=Vector2(300,42); reset_all.pressed.connect(_skeleton_studio_reset_all); controls.add_child(reset_all)
-	var save=Button.new(); save.text="POZU KAYDET / DEĞERLERİ GÖSTER"; save.custom_minimum_size=Vector2(300,42); save.pressed.connect(_skeleton_studio_show_pose); controls.add_child(save)
-	skeleton_studio_status=Label.new(); skeleton_studio_status.text="Soldan bir kemik seç. Gerçek GLB kemik adları listeleniyor."; skeleton_studio_status.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; skeleton_studio_status.custom_minimum_size=Vector2(470,110); controls.add_child(skeleton_studio_status)
-
-func _skeleton_studio_select_bone(index:int):
-	if skeleton_studio_skeleton==null or index<0 or index>=skeleton_studio_skeleton.get_bone_count(): return
-	skeleton_studio_selected_bone=index
-	skeleton_studio_bone_rot=Vector3.ZERO
-	_skeleton_studio_update_status()
-
-func _skeleton_studio_set_step(v:float):
-	skeleton_studio_step=v; _skeleton_studio_update_status()
-
-func _skeleton_studio_adjust(axis:int,dir:int):
-	if skeleton_studio_skeleton==null or skeleton_studio_selected_bone<0: return
-	var d=skeleton_studio_step*float(dir)
-	if axis==0: skeleton_studio_bone_rot.x+=d
-	elif axis==1: skeleton_studio_bone_rot.y+=d
-	else: skeleton_studio_bone_rot.z+=d
-	var q=Quaternion.from_euler(skeleton_studio_bone_rot*PI/180.0)
-	skeleton_studio_skeleton.set_bone_pose_rotation(skeleton_studio_selected_bone,q)
-	_skeleton_studio_update_status()
-
-func _skeleton_studio_reset_bone():
-	if skeleton_studio_skeleton==null or skeleton_studio_selected_bone<0: return
-	skeleton_studio_bone_rot=Vector3.ZERO; skeleton_studio_skeleton.set_bone_pose_rotation(skeleton_studio_selected_bone,Quaternion.IDENTITY); _skeleton_studio_update_status()
-
-func _skeleton_studio_reset_all():
-	if skeleton_studio_skeleton==null: return
-	for i in skeleton_studio_skeleton.get_bone_count(): skeleton_studio_skeleton.set_bone_pose_rotation(i,Quaternion.IDENTITY)
-	skeleton_studio_bone_rot=Vector3.ZERO; _skeleton_studio_update_status()
-
-func _skeleton_studio_show_pose():
-	if skeleton_studio_skeleton==null: return
-	var changed:Array[String]=[]
-	for i in skeleton_studio_skeleton.get_bone_count():
-		var e=skeleton_studio_skeleton.get_bone_pose_rotation(i).get_euler()*180.0/PI
-		if e.length()>0.05: changed.append("%s X%.1f Y%.1f Z%.1f" % [skeleton_studio_skeleton.get_bone_name(i),e.x,e.y,e.z])
-	if skeleton_studio_status: skeleton_studio_status.text="POZ DEĞERLERİ\n"+("\n".join(changed) if not changed.is_empty() else "Değiştirilmiş kemik yok.")
-
-func _skeleton_studio_update_status():
-	if skeleton_studio_status==null: return
-	if skeleton_studio_skeleton==null: skeleton_studio_status.text="İskelet bulunamadı."; return
-	if skeleton_studio_selected_bone<0: skeleton_studio_status.text="Bir kemik seç. Hassasiyet: %.0f°" % skeleton_studio_step; return
-	skeleton_studio_status.text="SEÇİLİ: %s\nX %.1f°   Y %.1f°   Z %.1f°\nHassasiyet: %.0f°" % [skeleton_studio_skeleton.get_bone_name(skeleton_studio_selected_bone),skeleton_studio_bone_rot.x,skeleton_studio_bone_rot.y,skeleton_studio_bone_rot.z,skeleton_studio_step]
 
 
 func _enter_game():
