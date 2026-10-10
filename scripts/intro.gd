@@ -1074,14 +1074,8 @@ func _character_control_process_motion(delta:float):
 	character_control_model.rotation_degrees=Vector3.ZERO
 	match n:
 		1:
-			# Relaxed idle: arms down, tiny breathing motion and occasional head look.
-			var look_cycle=fmod(t,8.0)
-			var look_y=0.0
-			if look_cycle>4.8 and look_cycle<6.8:
-				look_y=sin((look_cycle-4.8)/2.0*PI)*24.0
-			_cc_pose_arms(Vector3(34,0,5),Vector3(34,0,-5))
-			_cc_pose_torso(Vector3(sin(t*1.35)*1.4,0,0))
-			_cc_pose_head(Vector3(sin(t*1.35)*0.5,look_y,0))
+			# Original Y Bot idle: frozen reference pose, no procedural movement.
+			pass
 		4:
 			character_control_model.rotation_degrees.x=-8.0
 		5,6:
