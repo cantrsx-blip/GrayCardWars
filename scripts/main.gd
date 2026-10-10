@@ -1602,7 +1602,11 @@ func _bot_play_meshy_animation(bot:CharacterBody3D,wanted:String) -> void:
 		var existing:AnimationPlayer=bot_anim_players.get(id,null)
 		if existing and is_instance_valid(existing):
 			if wanted=="Standing Idle": existing.stop()
-			else: existing.speed_scale=-1.0 if wanted in ["Walking Backwards","Backwards Rifle Walk"] else 1.0
+			else:
+				if not existing.is_playing(): existing.play()
+				if wanted in ["Walking Backwards","Backwards Rifle Walk"] and existing.speed_scale>=0.0:
+					existing.seek(maxf(0.0,existing.current_animation_length-0.01),true)
+				existing.speed_scale=-1.0 if wanted in ["Walking Backwards","Backwards Rifle Walk"] else 1.0
 		return
 	var old_scene:Node3D=bot_anim_scenes.get(id,null)
 	if old_scene and is_instance_valid(old_scene): old_scene.queue_free()
@@ -2080,9 +2084,14 @@ func _play_meshy_player_anim(wanted:String)->void:
 			player_anim.stop()
 			player_anim.play()
 			player_anim.speed_scale=1.0
-		if wanted=="Standing Idle" and player_anim and is_instance_valid(player_anim): player_anim.stop()
 		if player_anim and is_instance_valid(player_anim):
-			player_anim.speed_scale=-1.0 if wanted in ["Walking Backwards","Backwards Rifle Walk"] else 1.0
+			if wanted=="Standing Idle":
+				player_anim.stop()
+			else:
+				if not player_anim.is_playing(): player_anim.play()
+				if wanted in ["Walking Backwards","Backwards Rifle Walk"] and player_anim.speed_scale>=0.0:
+					player_anim.seek(maxf(0.0,player_anim.current_animation_length-0.01),true)
+				player_anim.speed_scale=-1.0 if wanted in ["Walking Backwards","Backwards Rifle Walk"] else 1.0
 		player_anim_name=StringName(wanted)
 		return
 	var old=player.get_node_or_null("MeshyPlayerAnimationCarrier")
