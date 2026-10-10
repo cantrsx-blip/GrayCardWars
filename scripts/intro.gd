@@ -792,7 +792,14 @@ func _build_character_control():
 	var motion_scroll=ScrollContainer.new(); motion_scroll.position=Vector2(790,126); motion_scroll.size=Vector2(720,430); character_control_panel.add_child(motion_scroll)
 	var motion_grid=GridContainer.new(); motion_grid.name="MotionGrid"; motion_grid.columns=10; motion_grid.custom_minimum_size=Vector2(690,390); motion_scroll.add_child(motion_grid)
 	for i in range(90):
-		var mb=Button.new(); mb.text=str(i+1); mb.custom_minimum_size=Vector2(62,36); if i in [3,5]: mb.modulate=Color(1.0,0.22,0.22); mb.pressed.connect(_character_control_select_motion.bind(i)); motion_grid.add_child(mb)
+		var mb=Button.new()
+		mb.text=str(i+1)
+		mb.custom_minimum_size=Vector2(62,36)
+		if i==3 or i==5:
+			mb.add_theme_color_override("font_color",Color(1.0,0.15,0.15))
+			mb.add_theme_color_override("font_hover_color",Color(1.0,0.15,0.15))
+		mb.pressed.connect(_character_control_select_motion.bind(i))
+		motion_grid.add_child(mb)
 
 	var sub=SubViewport.new(); sub.size=Vector2i(470,400); sub.transparent_bg=false; sub.render_target_update_mode=SubViewport.UPDATE_ALWAYS; character_control_panel.add_child(sub)
 	var world=Node3D.new(); sub.add_child(world)
