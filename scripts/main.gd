@@ -2064,7 +2064,11 @@ func _meshy_player_anim_path(wanted:String)->String:
 func _play_meshy_player_anim(wanted:String)->void:
 	if player_visual==null: return
 	var path:=_meshy_player_anim_path(wanted)
-	if str(player_visual.get_meta("meshy_anim",""))==path: return
+	if str(player_visual.get_meta("meshy_anim",""))==path:
+		if player_anim and is_instance_valid(player_anim):
+			player_anim.speed_scale=-1.0 if wanted=="Walking Backwards" else 1.0
+		player_anim_name=StringName(wanted)
+		return
 	var old=player.get_node_or_null("MeshyPlayerAnimationCarrier")
 	if old: old.queue_free()
 	if not ResourceLoader.exists(path): return
@@ -2086,7 +2090,13 @@ func _play_meshy_player_anim(wanted:String)->void:
 	player_anim=ap
 	player_anim_skeleton=src
 	player_visual.set_meta("meshy_anim",path)
+	player_anim_name=StringName(wanted)
 	ap.play(chosen,0.05)
+	if wanted=="Walking Backwards":
+		ap.seek(maxf(0.0,ap.current_animation_length-0.01),true)
+		ap.speed_scale=-1.0
+	else:
+		ap.speed_scale=1.0
 
 func _play_ybot_anim(wanted:String)->void:
 	if player_visual==null: return
