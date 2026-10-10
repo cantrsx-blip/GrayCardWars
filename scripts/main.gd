@@ -869,7 +869,14 @@ func _sword_attack(anim_name:String) -> void:
 	_meteor_strike()
 	_finish_attack_animation(.75)
 
-func _sword_attack_1() -> void: _sword_attack("Great Sword Slash (1)")
+func _sword_attack_1() -> void:
+	if _panel_open() or player==null: return
+	var item:=selected_tool.to_lower()
+	if not ("bıçak" in item or "bicak" in item or "karambit" in item or "kılıç" in item or "kilic" in item or "katana" in item): return
+	_play_ybot_anim("Skill_03" if bool(player.get_meta("meshy_player",false)) else "Great Sword Slash (1)")
+	_spawn_melee_sharpness(_selected_weapon_key())
+	_meteor_strike()
+	_finish_attack_animation(.75)
 func _sword_attack_2() -> void: _sword_attack("Great Sword Slash")
 func _sword_attack_3() -> void: _sword_attack("Sword Fight One")
 
@@ -934,7 +941,7 @@ func _player_attack() -> void:
 		_play_ybot_anim("Stabbing"); _spawn_melee_sharpness(_selected_weapon_key())
 	elif sword:
 		_play_ybot_anim("Stable Sword Outward Slash"); _spawn_melee_sharpness(_selected_weapon_key())
-	else: _play_ybot_anim("Stabbing")
+	else: return
 	_meteor_strike()
 	_finish_attack_animation(.30)
 
@@ -1579,6 +1586,7 @@ func _respawn_combat_bot(bot:CharacterBody3D) -> void:
 
 
 func _meshy_npc_anim_path(wanted:String) -> String:
+	if wanted=="Skill_03": return "res://YBot_Skill_03_withSkin.glb"
 	if wanted in ["Run","Rifle Run","Walking","Rifle Walk","Knife Idle","Great Sword Idle","Rifle Aiming Idle"]:
 		return "res://YBot_Running_withSkin.glb" if wanted in ["Run","Rifle Run"] else "res://YBot_Walking_withSkin.glb"
 	if wanted in ["Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One","Firing Rifle"]:
@@ -2048,6 +2056,7 @@ func _ybot_anim_source(anim_name:String)->String:
 
 
 func _meshy_player_anim_path(wanted:String)->String:
+	if wanted=="Skill_03": return "res://YBot_Skill_03_withSkin.glb"
 	if wanted in ["Run","Rifle Run"]: return "res://YBot_Running_withSkin.glb"
 	if wanted in ["Firing Rifle","Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One"]: return "res://YBot_Attack_withSkin.glb"
 	return "res://YBot_Walking_withSkin.glb"
@@ -2146,7 +2155,7 @@ func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
 	var knife=("bıçak" in item or "bicak" in item or "karambit" in item)
 	var great_sword=("büyük kılıç" in item or "buyuk kilic" in item)
 	var sword=(great_sword or "kılıç" in item or "kilic" in item or "katana" in item)
-	_update_sword_attack_buttons(sword)
+	_update_sword_attack_buttons(sword or knife)
 	var wanted="Rifle Idle" if firearm else ("Knife Idle" if knife else ("Great Sword Idle" if sword else "Standing Idle"))
 	if fly_mode:
 		wanted="Falling Idle"
