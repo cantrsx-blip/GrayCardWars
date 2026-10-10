@@ -1587,7 +1587,7 @@ func _respawn_combat_bot(bot:CharacterBody3D) -> void:
 
 func _meshy_npc_anim_path(wanted:String) -> String:
 	if wanted=="Skill_03": return "res://YBot_Skill_03_withSkin.glb"
-	if wanted in ["Run","Rifle Run","Walking","Rifle Walk","Knife Idle","Great Sword Idle","Rifle Aiming Idle"]:
+	if wanted in ["Run","Rifle Run","Walking","Rifle Walk","Walking Backwards","Backwards Rifle Walk","Knife Idle","Great Sword Idle","Rifle Aiming Idle","Standing Idle"]:
 		return "res://YBot_Running_withSkin.glb" if wanted in ["Run","Rifle Run"] else "res://YBot_Walking_withSkin.glb"
 	if wanted in ["Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One","Firing Rifle"]:
 		return "res://YBot_Attack_withSkin.glb"
@@ -1596,7 +1596,12 @@ func _meshy_npc_anim_path(wanted:String) -> String:
 func _bot_play_meshy_animation(bot:CharacterBody3D,wanted:String) -> void:
 	var id:int=bot.get_instance_id()
 	var mapped_path:=_meshy_npc_anim_path(wanted)
-	if str(bot_anim_names.get(id,""))==mapped_path and bot_anim_scenes.has(id): return
+	if str(bot_anim_names.get(id,""))==mapped_path and bot_anim_scenes.has(id):
+		var existing:AnimationPlayer=bot_anim_players.get(id,null)
+		if existing and is_instance_valid(existing):
+			if wanted=="Standing Idle": existing.stop()
+			else: existing.speed_scale=-1.0 if wanted in ["Walking Backwards","Backwards Rifle Walk"] else 1.0
+		return
 	var old_scene:Node3D=bot_anim_scenes.get(id,null)
 	if old_scene and is_instance_valid(old_scene): old_scene.queue_free()
 	bot_anim_scenes.erase(id); bot_anim_skeletons.erase(id); bot_anim_players.erase(id)
@@ -1621,6 +1626,10 @@ func _bot_play_meshy_animation(bot:CharacterBody3D,wanted:String) -> void:
 	if animation and mapped_path!="res://YBot_Attack_withSkin.glb": animation.loop_mode=Animation.LOOP_LINEAR
 	bot_anim_scenes[id]=carrier; bot_anim_skeletons[id]=sk; bot_anim_players[id]=ap; bot_anim_names[id]=mapped_path
 	ap.play(chosen,0.05)
+	if wanted=="Standing Idle": ap.stop()
+	elif wanted in ["Walking Backwards","Backwards Rifle Walk"]:
+		ap.seek(maxf(0.0,ap.current_animation_length-0.01),true)
+		ap.speed_scale=-1.0
 
 func _bot_play_animation(bot:CharacterBody3D,wanted:String) -> void:
 	var id:int=bot.get_instance_id()
@@ -2057,7 +2066,7 @@ func _ybot_anim_source(anim_name:String)->String:
 
 func _meshy_player_anim_path(wanted:String)->String:
 	if wanted=="Skill_03": return "res://YBot_Skill_03_withSkin.glb"
-	if wanted in ["Run","Rifle Run"]: return "res://YBot_Running_withSkin.glb"
+	if wanted in ["Run","Rifle Run","Rifle Sprint"]: return "res://YBot_Running_withSkin.glb"
 	if wanted in ["Firing Rifle","Stabbing","Great Sword Slash","Great Sword Slash (1)","Stable Sword Outward Slash","Sword Fight One"]: return "res://YBot_Attack_withSkin.glb"
 	return "res://YBot_Walking_withSkin.glb"
 
@@ -2065,8 +2074,9 @@ func _play_meshy_player_anim(wanted:String)->void:
 	if player_visual==null: return
 	var path:=_meshy_player_anim_path(wanted)
 	if str(player_visual.get_meta("meshy_anim",""))==path:
+		if wanted=="Standing Idle" and player_anim and is_instance_valid(player_anim): player_anim.stop()
 		if player_anim and is_instance_valid(player_anim):
-			player_anim.speed_scale=-1.0 if wanted=="Walking Backwards" else 1.0
+			player_anim.speed_scale=-1.0 if wanted in ["Walking Backwards","Backwards Rifle Walk"] else 1.0
 		player_anim_name=StringName(wanted)
 		return
 	var old=player.get_node_or_null("MeshyPlayerAnimationCarrier")
@@ -2092,7 +2102,9 @@ func _play_meshy_player_anim(wanted:String)->void:
 	player_visual.set_meta("meshy_anim",path)
 	player_anim_name=StringName(wanted)
 	ap.play(chosen,0.05)
-	if wanted=="Walking Backwards":
+	if wanted=="Standing Idle":
+		ap.stop()
+	elif wanted in ["Walking Backwards","Backwards Rifle Walk"]:
 		ap.seek(maxf(0.0,ap.current_animation_length-0.01),true)
 		ap.speed_scale=-1.0
 	else:
@@ -2166,7 +2178,7 @@ func _update_ybot_animation(v:Vector2,dir:Vector3)->void:
 	var great_sword=("büyük kılıç" in item or "buyuk kilic" in item)
 	var sword=(great_sword or "kılıç" in item or "kilic" in item or "katana" in item)
 	_update_sword_attack_buttons(sword or knife)
-	var wanted="Rifle Idle" if firearm else ("Knife Idle" if knife else ("Great Sword Idle" if sword else "Standing Idle"))
+	var wanted="Standing Idle" if bool(player.get_meta("meshy_player",false)) else ("Rifle Idle" if firearm else ("Knife Idle" if knife else ("Great Sword Idle" if sword else "Standing Idle")))
 	if fly_mode:
 		wanted="Falling Idle"
 	elif not player.is_on_floor() and player.velocity.y>0.25:
