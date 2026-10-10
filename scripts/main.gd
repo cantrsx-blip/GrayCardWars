@@ -863,7 +863,9 @@ func _is_sword_equipped() -> bool:
 	return ("kılıç" in item or "kilic" in item or "katana" in item)
 
 func _sword_attack(anim_name:String) -> void:
-	if _panel_open() or player==null or not _is_sword_equipped(): return
+	if _panel_open() or player==null: return
+	var item:=selected_tool.to_lower()
+	if not (_is_sword_equipped() or "bıçak" in item or "bicak" in item or "karambit" in item): return
 	_play_ybot_anim(anim_name)
 	_spawn_melee_sharpness(_selected_weapon_key())
 	_meteor_strike()
@@ -2074,6 +2076,10 @@ func _play_meshy_player_anim(wanted:String)->void:
 	if player_visual==null: return
 	var path:=_meshy_player_anim_path(wanted)
 	if str(player_visual.get_meta("meshy_anim",""))==path:
+		if wanted in ["Stabbing","Stable Sword Outward Slash","Great Sword Slash","Great Sword Slash (1)","Sword Fight One","Firing Rifle","Skill_03"] and player_anim and is_instance_valid(player_anim):
+			player_anim.stop()
+			player_anim.play()
+			player_anim.speed_scale=1.0
 		if wanted=="Standing Idle" and player_anim and is_instance_valid(player_anim): player_anim.stop()
 		if player_anim and is_instance_valid(player_anim):
 			player_anim.speed_scale=-1.0 if wanted in ["Walking Backwards","Backwards Rifle Walk"] else 1.0
@@ -2096,7 +2102,7 @@ func _play_meshy_player_anim(wanted:String)->void:
 		if chosen!=&"": break
 	if chosen==&"": carrier.queue_free(); return
 	var animation=ap.get_animation(chosen)
-	if animation and path!="res://YBot_Attack_withSkin.glb": animation.loop_mode=Animation.LOOP_LINEAR
+	if animation and path not in ["res://YBot_Attack_withSkin.glb","res://YBot_Skill_03_withSkin.glb"]: animation.loop_mode=Animation.LOOP_LINEAR
 	player_anim=ap
 	player_anim_skeleton=src
 	player_visual.set_meta("meshy_anim",path)
